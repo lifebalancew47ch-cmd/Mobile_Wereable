@@ -9,7 +9,7 @@ class WatchService {
 
   static const types = [
     HealthDataType.HEART_RATE,
-    HealthDataType.HEART_RATE_VARIABILITY_RMSSD,
+    HealthDataType.HEART_RATE_VARIABILITY_SDNN,
     HealthDataType.BLOOD_OXYGEN,
     HealthDataType.STEPS,
   ];
@@ -21,10 +21,12 @@ class WatchService {
       HealthDataAccess.READ,
       HealthDataAccess.READ,
     ];
-    bool hasPermissions = await _health.hasPermissions(types, permissions: permissions) ?? false;
+    bool hasPermissions =
+        await _health.hasPermissions(types, permissions: permissions) ?? false;
     if (!hasPermissions) {
       try {
-        hasPermissions = await _health.requestPermissions(types, permissions: permissions);
+        hasPermissions = await _health.requestAuthorization(types,
+            permissions: permissions);
       } catch (e) {
         print('Error requesting health permissions: $e');
       }
@@ -53,7 +55,7 @@ class WatchService {
       for (var data in healthData) {
         if (data.type == HealthDataType.HEART_RATE) {
           hr = double.tryParse(data.value.toString()) ?? 0;
-        } else if (data.type == HealthDataType.HEART_RATE_VARIABILITY_RMSSD) {
+        } else if (data.type == HealthDataType.HEART_RATE_VARIABILITY_SDNN) {
           hrv = double.tryParse(data.value.toString()) ?? 0;
         } else if (data.type == HealthDataType.BLOOD_OXYGEN) {
           spo2 = double.tryParse(data.value.toString()) ?? 0;
