@@ -1,7 +1,8 @@
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_background_service_android/flutter_background_service_android.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../core/fog_engine.dart';
-import 'sensor_service.dart';
+import 'wearable_communication_service.dart';
 import 'notification_service.dart';
 import 'watch_service.dart';
 import 'dart:ui';
@@ -10,10 +11,26 @@ class BackgroundService {
   static Future<void> initialize() async {
     final service = FlutterBackgroundService();
 
+    // Create the notification channel BEFORE starting the service,
+    // so the foreground notification can be posted immediately.
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'inactivity_alert_channel',
+      'Inactivity Alerts',
+      description: 'Alerts you when you have been inactive for too long',
+      importance: Importance.high,
+    );
+
+    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+        FlutterLocalNotificationsPlugin();
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+
     await service.configure(
       androidConfiguration: AndroidConfiguration(
         onStart: onStart,
-        autoStart: true,
+        autoStart: false,
         isForegroundMode: true,
         notificationChannelId: 'inactivity_alert_channel',
         initialNotificationTitle: 'LifeBalance',
@@ -53,8 +70,8 @@ class BackgroundService {
     final notificationService = NotificationService();
     await notificationService.init();
 
-    final sensorService = SensorService();
-    final fogEngine = FogEngine(sensorService, notificationService);
+    final wearableService = WearableCommunicationService();
+    final fogEngine = FogEngine(wearableService, notificationService);
 
     fogEngine.start();
 

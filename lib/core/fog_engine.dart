@@ -1,16 +1,16 @@
 import 'dart:async';
 import 'dart:math';
 import '../models/fog_state.dart';
-import '../services/sensor_service.dart';
+import '../services/wearable_communication_service.dart';
 import '../services/notification_service.dart';
-import '../services/database_service.dart';
+import '../data/datasources/secure_database_service.dart';
 
 /// FogEngine es el motor principal de detección de sedentarismo.
 /// Evalúa la varianza del acelerómetro en ventanas de 30 segundos.
 /// Cada ventana representa 0.5 minutos; al llegar a 90 ventanas
 /// inactivas consecutivas (= 45 minutos) dispara la alerta.
 class FogEngine {
-  final SensorService _sensorService;
+  final WearableCommunicationService _wearableService;
   final NotificationService _notificationService;
 
   StreamSubscription? _accelSub;
@@ -30,10 +30,10 @@ class FogEngine {
   final _stateController = StreamController<FogState>.broadcast();
   Stream<FogState> get stateStream => _stateController.stream;
 
-  FogEngine(this._sensorService, this._notificationService);
+  FogEngine(this._wearableService, this._notificationService);
 
   void start() {
-    _accelSub = _sensorService.accelerometerStream.listen((data) {
+    _accelSub = _wearableService.accelerometerStream.listen((data) {
       final double mag =
           sqrt(data.x * data.x + data.y * data.y + data.z * data.z);
       _magnitudes.add(mag);
@@ -66,7 +66,7 @@ class FogEngine {
     } else {
       // Hay movimiento: cerrar sesión inactiva si existía y resetear
       if (_inactiveWindows > 0) {
-        DatabaseService.instance.insertActivitySession(
+        SecureDatabaseService.instance.insertActivitySession(
           _sessionStartTime,
           DateTime.now().toIso8601String(),
           'idle',
@@ -85,7 +85,7 @@ class FogEngine {
       // 45 minutos de inactividad: disparar alerta
       status = ActivityStatus.alertTriggered;
       _triggerAlert();
-      DatabaseService.instance.insertActivitySession(
+      SecureDatabaseService.instance.insertActivitySession(
         _sessionStartTime,
         DateTime.now().toIso8601String(),
         'alert',
@@ -106,7 +106,7 @@ class FogEngine {
 
   void _triggerAlert() {
     _notificationService.showInactivityAlert(45);
-    DatabaseService.instance
+    SecureDatabaseService.instance
         .logAlert(DateTime.now().toIso8601String(), 45, false);
   }
 }

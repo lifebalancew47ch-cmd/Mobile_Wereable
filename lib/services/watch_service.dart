@@ -1,6 +1,6 @@
 import 'package:health/health.dart';
 import '../models/vital_sign.dart';
-import 'database_service.dart';
+import '../data/datasources/secure_database_service.dart';
 import 'dart:async';
 
 class WatchService {
@@ -84,7 +84,7 @@ class WatchService {
       if (hasPerm) {
         final vitals = await fetchLatestVitals();
         if (vitals != null) {
-          await DatabaseService.instance.insertVitalSign(vitals);
+          await SecureDatabaseService.instance.insertVitalSign(vitals);
         }
       }
     });
