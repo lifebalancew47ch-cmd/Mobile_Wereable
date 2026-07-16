@@ -1,0 +1,53 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+class ProfileScreen extends StatelessWidget {
+  const ProfileScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Perfil'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => context.push('/profile/settings'),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 32),
+            const CircleAvatar(
+              radius: 50,
+              child: Icon(Icons.person, size: 50),
+            ),
+            const SizedBox(height: 16),
+            const Text('Nombre de Usuario', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text('usuario@email.com'),
+            const SizedBox(height: 32),
+            ListTile(
+              leading: const Icon(Icons.history),
+              title: const Text('Historial de actividad'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {},
+            ),
+            ListTile(
+              leading: const Icon(Icons.badge_outlined),
+              title: const Text('Logros y medallas'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {},
+            ),
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.red),
+              title: const Text('Cerrar sesión', style: TextStyle(color: Colors.red)),
+              onTap: () => context.go('/login'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
