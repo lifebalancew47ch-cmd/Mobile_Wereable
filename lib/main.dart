@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:lifebalance/core/routes/app_router.dart';
+import 'package:lifebalance/core/theme/app_theme.dart';
 import 'services/background_service.dart';
 import 'services/database_service.dart';
 import 'services/watch_service.dart';
@@ -46,11 +47,11 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'LifeBalance Watch',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system, // Por defecto usa el del sistema
       routerConfig: appRouter,
+      debugShowCheckedModeBanner: false,
     );
   }
 }
