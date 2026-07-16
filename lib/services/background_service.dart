@@ -1,7 +1,7 @@
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_background_service_android/flutter_background_service_android.dart';
 import '../core/fog_engine.dart';
-import 'sensor_service.dart';
+import 'wearable_communication_service.dart';
 import 'notification_service.dart';
 import 'watch_service.dart';
 import 'dart:ui';
@@ -53,8 +53,8 @@ class BackgroundService {
     final notificationService = NotificationService();
     await notificationService.init();
 
-    final sensorService = SensorService();
-    final fogEngine = FogEngine(sensorService, notificationService);
+    final wearableService = WearableCommunicationService();
+    final fogEngine = FogEngine(wearableService, notificationService);
 
     fogEngine.start();
 
