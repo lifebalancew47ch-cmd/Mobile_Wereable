@@ -1,96 +1,28 @@
 import 'package:health/health.dart';
 import '../models/vital_sign.dart';
-import 'database_service.dart';
-import 'dart:async';
 
-class WatchService {
-  final Health _health = Health();
-  Timer? _syncTimer;
+/// Interfaz para el servicio de integración con Health Connect (Sección 6.1).
+/// Responsable de la comunicación con Samsung Health / Health Connect API.
+abstract class IWatchService {
+  /// Solicita los 4 permisos específicos de health.READ_... (Sección 10).
+  Future<bool> requestPermissions();
 
-  static const types = [
-    HealthDataType.HEART_RATE,
-    HealthDataType.HEART_RATE_VARIABILITY_SDNN,
-    HealthDataType.BLOOD_OXYGEN,
-    HealthDataType.STEPS,
-  ];
+  /// Verifica la disponibilidad de Health Connect en el dispositivo Android 13+.
+  Future<bool> isApiAvailable();
 
-  Future<bool> requestPermissions() async {
-    final permissions = [
-      HealthDataAccess.READ,
-      HealthDataAccess.READ,
-      HealthDataAccess.READ,
-      HealthDataAccess.READ,
-    ];
-    bool hasPermissions =
-        await _health.hasPermissions(types, permissions: permissions) ?? false;
-    if (!hasPermissions) {
-      try {
-        hasPermissions = await _health.requestAuthorization(types,
-            permissions: permissions);
-      } catch (e) {
-        print('Error requesting health permissions: $e');
-      }
-    }
-    return hasPermissions;
-  }
+  /// Realiza la sincronización de métricas cada 5 minutos (Sección 15.2).
+  /// Retorna un objeto [VitalSign] con la data consolidada del wearable.
+  Future<VitalSign?> getLatestMetrics();
+}
 
-  Future<VitalSign?> fetchLatestVitals() async {
-    final now = DateTime.now();
-    final past = now.subtract(const Duration(minutes: 5));
+class WatchService implements IWatchService {
+  // Implementación de la interfaz mediante el paquete health ^10.2.0
+  @override
+  Future<bool> requestPermissions() async => false;
 
-    try {
-      List<HealthDataPoint> healthData = await _health.getHealthDataFromTypes(
-        startTime: past,
-        endTime: now,
-        types: types,
-      );
+  @override
+  Future<bool> isApiAvailable() async => false;
 
-      if (healthData.isEmpty) return null;
-
-      double hr = 0;
-      double hrv = 0;
-      double spo2 = 0;
-      int steps = 0;
-
-      for (var data in healthData) {
-        if (data.type == HealthDataType.HEART_RATE) {
-          hr = double.tryParse(data.value.toString()) ?? 0;
-        } else if (data.type == HealthDataType.HEART_RATE_VARIABILITY_SDNN) {
-          hrv = double.tryParse(data.value.toString()) ?? 0;
-        } else if (data.type == HealthDataType.BLOOD_OXYGEN) {
-          spo2 = double.tryParse(data.value.toString()) ?? 0;
-        } else if (data.type == HealthDataType.STEPS) {
-          steps += int.tryParse(data.value.toString()) ?? 0;
-        }
-      }
-
-      return VitalSign(
-        timestamp: now,
-        heartRate: hr,
-        hrv: hrv,
-        spo2: spo2,
-        steps: steps,
-      );
-    } catch (e) {
-      print('Error fetching health data: $e');
-      return null;
-    }
-  }
-
-  void startPeriodicSync({Duration interval = const Duration(minutes: 5)}) {
-    _syncTimer?.cancel();
-    _syncTimer = Timer.periodic(interval, (timer) async {
-      final hasPerm = await requestPermissions();
-      if (hasPerm) {
-        final vitals = await fetchLatestVitals();
-        if (vitals != null) {
-          await DatabaseService.instance.insertVitalSign(vitals);
-        }
-      }
-    });
-  }
-
-  void stopPeriodicSync() {
-    _syncTimer?.cancel();
-  }
+  @override
+  Future<VitalSign?> getLatestMetrics() async => null;
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:lifebalance/core/routes/app_router.dart';
 import 'package:lifebalance/core/theme/app_theme.dart';
@@ -12,7 +13,11 @@ void main() async {
   // Inicializar Base de Datos local
   await DatabaseService.instance.database;
 
-  runApp(const MyApp());
+  runApp(
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatefulWidget {
