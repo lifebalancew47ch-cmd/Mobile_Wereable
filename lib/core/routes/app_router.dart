@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 // Screens
-import 'package:lifebalance/features/authentication/presentation/login_screen.dart';
+import 'package:lifebalance/features/auth/presentation/screens/login_screen.dart' as clean_auth;
 import 'package:lifebalance/features/authentication/presentation/register_screen.dart';
 import 'package:lifebalance/features/authentication/presentation/forgot_password_screen.dart';
 import 'package:lifebalance/features/authentication/presentation/splash_screen.dart';
@@ -37,7 +37,7 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/login',
-      builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+      builder: (BuildContext context, GoRouterState state) => const clean_auth.LoginScreen(),
     ),
     GoRoute(
       path: '/register',
