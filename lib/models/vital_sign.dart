@@ -20,13 +20,27 @@ class VitalSign {
   });
 
   // Estructura para persistencia en SQLite (Sección 7)
-  Map<String, dynamic> toMap() => {};
-  factory VitalSign.fromMap(Map<String, dynamic> map) => VitalSign(
-    timestamp: DateTime.now(),
-    heartRate: 0,
-    hrv: 0,
-    spo2: 0,
-    steps: 0,
-    isSedentaryRisk: false,
-  );
+  Map<String, dynamic> toMap() {
+    return {
+      if (id != null) 'id': id,
+      'timestamp': timestamp.toIso8601String(),
+      'heart_rate': heartRate,
+      'hrv': hrv,
+      'spo2': spo2,
+      'steps': steps,
+      // 'is_sedentary_risk': isSedentaryRisk ? 1 : 0, // Omitido si la tabla no lo tiene aún
+    };
+  }
+
+  factory VitalSign.fromMap(Map<String, dynamic> map) {
+    return VitalSign(
+      id: map['id'],
+      timestamp: DateTime.parse(map['timestamp']),
+      heartRate: map['heart_rate']?.toDouble() ?? 0.0,
+      hrv: map['hrv']?.toDouble() ?? 0.0,
+      spo2: map['spo2']?.toDouble() ?? 0.0,
+      steps: map['steps']?.toInt() ?? 0,
+      isSedentaryRisk: false, // Default or map['is_sedentary_risk'] == 1
+    );
+  }
 }
