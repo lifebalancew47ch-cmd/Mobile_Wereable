@@ -36,10 +36,9 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
   }
 
   Future<void> _requestPermissionsAndScan() async {
-    // Solicitar permisos de Bluetooth
     final bluetoothScan = await Permission.bluetoothScan.request();
     final bluetoothConnect = await Permission.bluetoothConnect.request();
-    final location = await Permission.locationWhenInUse.request();
+    await Permission.locationWhenInUse.request();
 
     if (bluetoothScan.isDenied || bluetoothConnect.isDenied) {
       setState(() => _error = 'Se necesitan permisos de Bluetooth para escanear.');

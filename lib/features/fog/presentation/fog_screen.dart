@@ -26,7 +26,7 @@ class _FogScreenState extends State<FogScreen> {
           children: [
             // Engine Status Card
             Card(
-              color: _isEngineActive ? colorScheme.primaryContainer : colorScheme.surfaceVariant,
+              color: _isEngineActive ? colorScheme.primaryContainer : colorScheme.surfaceContainerHighest,
               elevation: 0,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               child: Padding(

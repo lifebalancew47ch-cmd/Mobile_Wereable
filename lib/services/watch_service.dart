@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:health/health.dart';
 import '../models/vital_sign.dart';
 import '../data/datasources/secure_database_service.dart';
 

@@ -9,11 +9,11 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  String _pasos = '--';
-  String _corazon = '--';
-  String _sueno = '--';
-  String _calorias = '--';
-  String _resumen = 'Cargando datos...';
+  final String _pasos = '--';
+  final String _corazon = '--';
+  final String _sueno = '--';
+  final String _calorias = '--';
+  final String _resumen = 'Cargando datos...';
 
   @override
   Widget build(BuildContext context) {

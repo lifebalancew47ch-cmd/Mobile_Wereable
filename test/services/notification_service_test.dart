@@ -8,12 +8,6 @@ class MockFlutterLocalNotificationsPlugin extends Mock
 
 void main() {
   group('NotificationService Tests', () {
-    late NotificationService notificationService;
-
-    setUp(() {
-      TestWidgetsFlutterBinding.ensureInitialized();
-      notificationService = NotificationService();
-    });
 
     test('Should be a singleton', () {
       final instance1 = NotificationService();
