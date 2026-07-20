@@ -1,8 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  String _pasos = '--';
+  String _corazon = '--';
+  String _sueno = '--';
+  String _calorias = '--';
+  String _resumen = 'Cargando datos...';
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +52,7 @@ class DashboardScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          const Text('Excelente progreso hoy'),
+                          Text(_resumen),
                         ],
                       ),
                     ),
@@ -59,11 +70,11 @@ class DashboardScreen extends StatelessWidget {
               crossAxisCount: 2,
               mainAxisSpacing: 16,
               crossAxisSpacing: 16,
-              children: const [
-                _MetricCard(title: 'Pasos', value: '8,432', icon: Icons.directions_walk, color: Colors.blue),
-                _MetricCard(title: 'Corazón', value: '72 bpm', icon: Icons.favorite, color: Colors.red),
-                _MetricCard(title: 'Sueño', value: '7h 20m', icon: Icons.bedtime, color: Colors.deepPurple),
-                _MetricCard(title: 'Calorías', value: '450 kcal', icon: Icons.local_fire_department, color: Colors.orange),
+              children: [
+                _MetricCard(title: 'Pasos', value: _pasos, icon: Icons.directions_walk, color: Colors.blue),
+                _MetricCard(title: 'Corazón', value: _corazon, icon: Icons.favorite, color: Colors.red),
+                _MetricCard(title: 'Sueño', value: _sueno, icon: Icons.bedtime, color: Colors.deepPurple),
+                _MetricCard(title: 'Calorías', value: _calorias, icon: Icons.local_fire_department, color: Colors.orange),
               ],
             ),
           ],

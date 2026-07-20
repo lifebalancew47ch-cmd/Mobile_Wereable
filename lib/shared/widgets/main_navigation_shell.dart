@@ -26,27 +26,27 @@ class MainNavigationShell extends StatelessWidget {
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
-            activeIcon: Icon(Icons.dashboard),
+            selectedIcon: Icon(Icons.dashboard),
             label: 'Dashboard',
           ),
           NavigationDestination(
             icon: Icon(Icons.watch_outlined),
-            activeIcon: Icon(Icons.watch),
+            selectedIcon: Icon(Icons.watch),
             label: 'Wearable',
           ),
           NavigationDestination(
             icon: Icon(Icons.cloud_queue),
-            activeIcon: Icon(Icons.cloud),
+            selectedIcon: Icon(Icons.cloud),
             label: 'Fog',
           ),
           NavigationDestination(
             icon: Icon(Icons.emoji_events_outlined),
-            activeIcon: Icon(Icons.emoji_events),
+            selectedIcon: Icon(Icons.emoji_events),
             label: 'Logros',
           ),
           NavigationDestination(
             icon: Icon(Icons.account_circle_outlined),
-            activeIcon: Icon(Icons.account_circle),
+            selectedIcon: Icon(Icons.account_circle),
             label: 'Perfil',
           ),
         ],
