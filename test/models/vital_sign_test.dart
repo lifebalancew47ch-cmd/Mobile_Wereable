@@ -11,6 +11,7 @@ void main() {
         hrv: 45.5,
         spo2: 98.0,
         steps: 1200,
+        isSedentaryRisk: false,
       );
 
       expect(vitalSign.timestamp, now);
@@ -28,6 +29,7 @@ void main() {
         hrv: 40.0,
         spo2: 99.0,
         steps: 5000,
+        isSedentaryRisk: false,
       );
 
       final map = vitalSign.toMap();

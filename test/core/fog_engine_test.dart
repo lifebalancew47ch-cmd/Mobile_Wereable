@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lifebalance/core/fog_engine.dart';
-import 'package:lifebalance/models/fog_state.dart';
 import 'package:lifebalance/services/notification_service.dart';
 import 'package:lifebalance/services/wearable_communication_service.dart';
 import 'package:mocktail/mocktail.dart';

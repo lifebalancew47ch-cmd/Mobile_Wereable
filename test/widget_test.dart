@@ -5,26 +5,24 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:lifebalance/main.dart';
 
+
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
+  testWidgets('App launches successfully smoke test', (WidgetTester tester) async {
+    // Solo construimos la aplicación principal para verificar que no crashea al arrancar la UI.
+    // (Nota: si main.dart requiere inicializar Firebase u otros plugins nativos, 
+    // podrías necesitar configurar un mock para el entorno de test).
     await tester.pumpWidget(const MyApp());
+    
+    // Verificamos que el router construyó el MaterialApp sin crashear.
+    // La app muestra "LifeBalance" en alguna parte de la interfaz inicial (Splash Screen o Home).
+    expect(find.text('LifeBalance'), findsWidgets);
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Esperamos a que terminen los temporizadores (como el de 2 segundos de la SplashScreen)
+    // para evitar el error "A Timer is still pending".
+    await tester.pumpAndSettle(const Duration(seconds: 3));
   });
 }
