@@ -1,23 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/fog_engine.dart';
 import '../../models/fog_state.dart';
 import '../../services/watch_service.dart';
+import '../../services/wearable_communication_service.dart';
+import '../../services/notification_service.dart';
 import '../../models/vital_sign.dart';
+
+// Providers para inyección de dependencias (Sección 13: Integración Clean Arch)
+final wearableCommunicationServiceProvider = Provider((ref) => WearableCommunicationService());
+final notificationServiceProvider = Provider((ref) => NotificationService());
+
+final fogEngineProvider = Provider((ref) {
+  final wearable = ref.watch(wearableCommunicationServiceProvider);
+  final notification = ref.watch(notificationServiceProvider);
+  final engine = FogEngine(wearable, notification);
+  // El ciclo de vida del motor se ata al provider
+  engine.start();
+  ref.onDispose(() => engine.stop());
+  return engine;
+});
+
+final watchServiceProvider = Provider<IWatchService>((ref) => WatchService());
 
 /// Pantalla optimizada para Wear OS basada en la Sección 13 del documento técnico.
 /// Muestra el estado del FogEngine y métricas de salud en tiempo real.
-class WatchDashboardScreen extends StatelessWidget {
-  final FogEngine fogEngine;
-  final WatchService watchService;
-
-  const WatchDashboardScreen({
-    super.key,
-    required this.fogEngine,
-    required this.watchService,
-  });
+class WatchDashboardScreen extends ConsumerWidget {
+  const WatchDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fogEngine = ref.watch(fogEngineProvider);
+    final watchService = ref.watch(watchServiceProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
