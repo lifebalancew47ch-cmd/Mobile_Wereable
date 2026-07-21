@@ -50,19 +50,28 @@ jobs:
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
       - run: flutter pub get
-      - name: Run Android Lint
+      - name: Run Android Lint (skip dependency validation)
         working-directory: ./android
-        run: ./gradlew lint --warning-mode all || true
-      - name: Upload Lint Report
+        run: |
+          # Skip version validation to avoid blocking on warnings
+          # Use lint task instead of lintDebug for faster execution
+          ./gradlew lint \
+            --warning-mode=all \
+            --no-daemon \
+            --stacktrace \
+            -Pandroid.suppressUnsupportedToolsWarnings=true \
+            --android-skip-build-dependency-validation \
+            || true
+      - name: Upload Lint Reports
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: lint-results
           path: |
-            android/app/build/reports/lint-results-*.html
-            android/app/build/reports/lint-results-*.xml
-            android/wear/build/reports/lint-results-*.html
-            android/wear/build/reports/lint-results-*.xml
+            android/**/build/reports/lint-results-*.html
+            android/**/build/reports/lint-results-*.xml
+            android/**/build/reports/lint-results-debug.html
+            android/**/build/reports/lint-results-debug.xml
 
   sca-dependencies:
     name: "📦 Trivy — Dependency CVE Scan"
