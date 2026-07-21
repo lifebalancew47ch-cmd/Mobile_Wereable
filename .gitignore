@@ -1,20 +1,14 @@
-```
-# CI/CD and workflow artifacts
-.github/workflows/
+# CI/CD
+.github/
 
 # Logs and temp files
 *.log
 *.tmp
-*.swp
 
 # Environment
 .env
 .env.local
 *.env.*
-
-# Editors
-.vscode/
-.idea/
 
 # Dependencies
 node_modules/
@@ -28,16 +22,31 @@ build/
 target/
 .gradle/
 
-# OS generated files
+# Editors
+.vscode/
+.idea/
+
+# System
 .DS_Store
 Thumbs.db
 
-# Coverage reports
+# Compiled
+*.pyc
+*.class
+*.o
+*.exe
+*.dll
+*.so
+*.a
+*.obj
+*.out
+
+# Coverage
 coverage/
 htmlcov/
 .coverage
 
-# Compressed files
+# Compressed
 *.zip
 *.gz
 *.tar
@@ -56,4 +65,7 @@ htmlcov/
 *.Z
 *.lz
 *.lzo
-```
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
