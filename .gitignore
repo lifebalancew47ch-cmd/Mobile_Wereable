@@ -1,71 +1,52 @@
-# CI/CD
-.github/
+```
+# Dependencies
+.gradle/
+node_modules/
 
-# Logs and temp files
-*.log
-*.tmp
+# Build artifacts
+build/
+dist/
+target/
 
 # Environment
 .env
 .env.local
-*.env.*
-
-# Dependencies
-node_modules/
-.venv/
-venv/
-__pycache__/
-.mypy_cache/
-.pytest_cache/
-dist/
-build/
-target/
-.gradle/
+.env.*
 
 # Editors
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# System
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# Java/Gradle
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+*.so
+*.dll
+*.dylib
+
+# OS
 .DS_Store
 Thumbs.db
 
-# Compiled
-*.pyc
-*.class
-*.o
-*.exe
-*.dll
-*.so
-*.a
-*.obj
-*.out
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# Compressed
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
+# Temp files
+*.tmp
+*.temp
+```

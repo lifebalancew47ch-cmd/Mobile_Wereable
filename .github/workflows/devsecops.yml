@@ -60,7 +60,6 @@ jobs:
             --no-daemon \
             --stacktrace \
             -Pandroid.suppressUnsupportedToolsWarnings=true \
-            --android-skip-build-dependency-validation \
             || true
       - name: Upload Lint Reports
         uses: actions/upload-artifact@v4
