@@ -131,7 +131,7 @@ class WatchDashboardScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          color: color.withOpacity(isBlinking ? 0.8 : 0.3),
+          color: color.withValues(alpha: isBlinking ? 0.8 : 0.3),
           width: 8,
         ),
       ),
