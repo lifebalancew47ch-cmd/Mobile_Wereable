@@ -50,7 +50,7 @@ jobs:
       - name: Generate local.properties
         run: flutter pub get
       - name: Run Android Lint
-        run: cd android && ./gradlew lintDebug
+        run: cd android && ./gradlew lintDebug --no-configuration-cache
 
   android-lint:
     name: "🤖 SAST — Android/Kotlin Linting"
@@ -144,11 +144,16 @@ jobs:
     needs: tests
     steps:
       - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
-      - run: cd android && ./gradlew :wear:assembleDebug
+      - name: Generate local.properties
+        run: flutter pub get
+      - run: cd android && ./gradlew :wear:assembleDebug --no-configuration-cache
       - uses: actions/upload-artifact@v4
         with:
           name: wear-debug-apk
