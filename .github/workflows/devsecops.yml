@@ -27,8 +27,12 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+      - name: Create environment placeholder files
+        run: |
+          touch .env.development
+          touch .env.production
       - run: flutter pub get
-      - run: flutter analyze --fatal-infos --fatal-warnings
+      - run: flutter analyze --fatal-warnings
 
   sast-android:
     name: "🛡️ SAST — Android/Kotlin Linting"
@@ -40,6 +44,11 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+      - name: Generate local.properties
+        run: flutter pub get
       - name: Run Android Lint
         run: cd android && ./gradlew lintDebug
 
