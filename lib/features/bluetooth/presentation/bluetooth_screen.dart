@@ -1,7 +1,8 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../../services/bluetooth_service.dart' as service;
 
 class BluetoothScreen extends StatefulWidget {
   const BluetoothScreen({super.key});
@@ -11,28 +12,25 @@ class BluetoothScreen extends StatefulWidget {
 }
 
 class _BluetoothScreenState extends State<BluetoothScreen> {
-  List<ScanResult> _scanResults = [];
-  bool _isScanning = false;
-  StreamSubscription<List<ScanResult>>? _scanSubscription;
-  StreamSubscription<bool>? _isScanningSubscription;
+  final service.BluetoothService _bluetoothService = service.BluetoothService();
+  BluetoothDevice? _connectedDevice;
+  String? _savedDeviceId;
+  bool _isInitReconnecting = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _isScanningSubscription = FlutterBluePlus.isScanning.listen((scanning) {
-      if (mounted) {
-        setState(() => _isScanning = scanning);
-      }
-    });
+    _checkSavedDevice();
   }
 
-  @override
-  void dispose() {
-    _scanSubscription?.cancel();
-    _isScanningSubscription?.cancel();
-    FlutterBluePlus.stopScan();
-    super.dispose();
+  Future<void> _checkSavedDevice() async {
+    setState(() => _isInitReconnecting = true);
+    _savedDeviceId = await _bluetoothService.getLinkedDeviceId();
+    if (_savedDeviceId != null) {
+      _connectedDevice = await _bluetoothService.reconnectSavedDevice();
+    }
+    setState(() => _isInitReconnecting = false);
   }
 
   Future<void> _requestPermissionsAndScan() async {
@@ -52,103 +50,23 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
       return;
     }
 
-    setState(() {
-      _error = null;
-      _scanResults = [];
-    });
-
-    _startScan();
-  }
-
-  void _startScan() {
-    _scanSubscription?.cancel();
-    _scanSubscription = FlutterBluePlus.onScanResults.listen((results) {
-      if (mounted) {
-        setState(() {
-          // Filtrar dispositivos sin nombre
-          _scanResults = results
-              .where((r) => r.device.platformName.isNotEmpty)
-              .toList()
-            ..sort((a, b) => b.rssi.compareTo(a.rssi));
-        });
-      }
-    });
-
-    FlutterBluePlus.startScan(timeout: const Duration(seconds: 10));
-  }
-
-  Future<void> _connectToDevice(BluetoothDevice device) async {
-    try {
-      FlutterBluePlus.stopScan();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Conectando a ${device.platformName}...')),
-        );
-      }
-
-      await device.connect(timeout: const Duration(seconds: 10));
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Conectado a ${device.platformName}'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.of(context).pop();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al conectar: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  int _getSignalStrength(int rssi) {
-    if (rssi >= -50) return 3;
-    if (rssi >= -70) return 2;
-    return 1;
+    setState(() => _error = null);
+    await _bluetoothService.startScan();
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Buscar dispositivo'),
+        title: const Text('Configuración de Dispositivo'),
       ),
       body: Column(
         children: [
-          // Botón de escaneo
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _isScanning ? null : _requestPermissionsAndScan,
-                icon: _isScanning
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.bluetooth_searching),
-                label: Text(_isScanning ? 'Escaneando...' : 'Iniciar escaneo'),
-              ),
-            ),
-          ),
+          _buildStatusCard(colorScheme),
 
-          // Error
           if (_error != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -172,82 +90,127 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
               ),
             ),
 
-          // Indicador de escaneo
-          if (_isScanning)
-            const LinearProgressIndicator(),
-
-          // Lista de dispositivos
-          Expanded(
-            child: _scanResults.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          _isScanning ? Icons.bluetooth_searching : Icons.bluetooth,
-                          size: 64,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          _isScanning
-                              ? 'Buscando dispositivos cercanos...'
-                              : 'Presiona "Iniciar escaneo" para buscar',
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    itemCount: _scanResults.length,
-                    itemBuilder: (context, index) {
-                      final result = _scanResults[index];
-                      final device = result.device;
-                      final signalStrength = _getSignalStrength(result.rssi);
-
-                      return Card(
-                        child: ListTile(
-                          leading: Icon(
-                            Icons.watch,
-                            color: colorScheme.primary,
-                            size: 32,
-                          ),
-                          title: Text(
-                            device.platformName,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Text(device.remoteId.toString()),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Indicador de señal
-                              Icon(
-                                signalStrength >= 3
-                                    ? Icons.signal_cellular_alt
-                                    : signalStrength >= 2
-                                        ? Icons.signal_cellular_alt_2_bar
-                                        : Icons.signal_cellular_alt_1_bar,
-                                color: signalStrength >= 3
-                                    ? Colors.green
-                                    : signalStrength >= 2
-                                        ? Colors.orange
-                                        : Colors.red,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              FilledButton(
-                                onPressed: () => _connectToDevice(device),
-                                child: const Text('Vincular'),
-                              ),
-                            ],
-                          ),
-                        ),
+          const Divider(),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Dispositivos cercanos', style: theme.textTheme.titleMedium),
+                StreamBuilder<bool>(
+                  stream: _bluetoothService.isScanning,
+                  initialData: false,
+                  builder: (context, snapshot) {
+                    if (snapshot.data == true) {
+                      return const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       );
-                    },
-                  ),
+                    }
+                    return TextButton.icon(
+                      onPressed: _requestPermissionsAndScan,
+                      icon: const Icon(Icons.search),
+                      label: const Text('Buscar'),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<List<ScanResult>>(
+              stream: _bluetoothService.scanResults,
+              initialData: const [],
+              builder: (context, snapshot) {
+                final results = snapshot.data!
+                    .where((r) => r.device.platformName.isNotEmpty)
+                    .toList();
+
+                if (results.isEmpty) {
+                  return const Center(
+                    child: Text('No hay dispositivos encontrados', style: TextStyle(color: Colors.grey)),
+                  );
+                }
+
+                return ListView.builder(
+                  itemCount: results.length,
+                  itemBuilder: (context, index) {
+                    final result = results[index];
+                    final device = result.device;
+
+                    return ListTile(
+                      leading: const Icon(Icons.watch),
+                      title: Text(device.platformName),
+                      subtitle: Text(device.remoteId.str),
+                      trailing: FilledButton(
+                        onPressed: () async {
+                          try {
+                            await _bluetoothService.linkDevice(device);
+                            _checkSavedDevice();
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error al vincular: $e')),
+                            );
+                          }
+                        },
+                        child: const Text('Vincular'),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatusCard(ColorScheme colorScheme) {
+    String statusText = 'No Vinculado';
+    IconData statusIcon = Icons.bluetooth_disabled;
+    Color statusColor = colorScheme.error;
+
+    if (_isInitReconnecting) {
+      statusText = 'Buscando dispositivo vinculado...';
+      statusIcon = Icons.sync;
+      statusColor = colorScheme.primary;
+    } else if (_connectedDevice != null) {
+      statusText = 'Conectado: ${_connectedDevice!.platformName}';
+      statusIcon = Icons.bluetooth_connected;
+      statusColor = Colors.green;
+    } else if (_savedDeviceId != null) {
+      statusText = 'Vinculado: $_savedDeviceId';
+      statusIcon = Icons.bluetooth_searching;
+      statusColor = Colors.orange;
+    }
+
+    return Card(
+      margin: const EdgeInsets.all(16),
+      color: statusColor.withOpacity(0.1),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: statusColor.withOpacity(0.5)),
+      ),
+      child: ListTile(
+        leading: Icon(statusIcon, color: statusColor, size: 32),
+        title: Text(statusText, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold)),
+        trailing: _savedDeviceId != null
+          ? IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: () async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.remove('linked_device_id');
+                if (_connectedDevice != null) {
+                  await _connectedDevice!.disconnect();
+                  _connectedDevice = null;
+                }
+                _checkSavedDevice();
+              },
+            )
+          : null,
       ),
     );
   }
