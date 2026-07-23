@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/auth_provider.dart';
+import '../providers/login_provider.dart';
+import '../providers/login_state.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -23,17 +24,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
+    final loginState = ref.watch(loginProvider);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     // Listen for state changes (Error/Success)
-    ref.listen(authProvider, (previous, next) {
-      if (next.status == AuthStatus.error) {
+    ref.listen(loginProvider, (previous, next) {
+      if (next.status == LoginStatus.error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(next.errorMessage ?? 'Error desconocido'), backgroundColor: colorScheme.error),
         );
-      } else if (next.status == AuthStatus.authenticated) {
+      } else if (next.status == LoginStatus.success) {
         context.go('/dashboard');
       }
     });
@@ -85,13 +86,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
                 FilledButton(
-                  onPressed: authState.status == AuthStatus.loading
+                  onPressed: loginState.status == LoginStatus.loading
                       ? null
-                      : () => ref.read(authProvider.notifier).login(
+                      : () => ref.read(loginProvider.notifier).login(
                             _emailController.text,
                             _passwordController.text,
                           ),
-                  child: authState.status == AuthStatus.loading
+                  child: loginState.status == LoginStatus.loading
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : const Text('Iniciar Sesión'),
                 ),
@@ -117,3 +118,4 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 }
+

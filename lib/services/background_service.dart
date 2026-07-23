@@ -72,7 +72,7 @@ class BackgroundService {
     await notificationService.init();
 
     final wearableService = WearableCommunicationService();
-    final fogEngine = FogEngine(wearableService, notificationService);
+    final fogEngine = FogEngine(notificationService);
 
     fogEngine.start();
 
