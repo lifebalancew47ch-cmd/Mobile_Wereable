@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/login_provider.dart';
-import '../providers/login_state.dart';
+import '../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -24,22 +23,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Escuchar cambios en el estado para navegación o errores
-    ref.listen(loginProvider, (previous, next) {
-      if (next.status == LoginStatus.success) {
-        context.go('/dashboard');
-      } else if (next.status == LoginStatus.error) {
+    final authState = ref.watch(authProvider);
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    // Listen for state changes (Error/Success)
+    ref.listen(authProvider, (previous, next) {
+      if (next.status == AuthStatus.error) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(next.errorMessage ?? 'Error desconocido'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
+          SnackBar(content: Text(next.errorMessage ?? 'Error desconocido'), backgroundColor: colorScheme.error),
         );
+      } else if (next.status == AuthStatus.authenticated) {
+        context.go('/dashboard');
       }
     });
-
-    final loginState = ref.watch(loginProvider);
-    final theme = Theme.of(context);
 
     return Scaffold(
       body: SafeArea(
@@ -50,67 +47,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(
-                  Icons.health_and_safety,
-                  size: 80,
-                  color: theme.colorScheme.primary,
-                ),
+                Icon(Icons.health_and_safety, size: 80, color: colorScheme.primary),
                 const SizedBox(height: 24),
                 Text(
-                  'LifeBalance',
-                  style: theme.textTheme.headlineLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.primary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Inicia sesión para continuar',
-                  style: theme.textTheme.bodyMedium,
+                  'Bienvenido a LifeBalance',
+                  style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 48),
-
                 TextField(
                   controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
-                    labelText: 'Correo electrónico',
+                    labelText: 'Correo Electrónico',
                     prefixIcon: Icon(Icons.email_outlined),
                   ),
+                  keyboardType: TextInputType.emailAddress,
                 ),
                 const SizedBox(height: 16),
-
                 TextField(
                   controller: _passwordController,
-                  obscureText: true,
                   decoration: const InputDecoration(
                     labelText: 'Contraseña',
                     prefixIcon: Icon(Icons.lock_outline),
                   ),
+                  obscureText: true,
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => context.push('/auth/forgot-password'),
+                    child: const Text('¿Olvidaste tu contraseña?'),
+                  ),
                 ),
                 const SizedBox(height: 24),
-
                 FilledButton(
-                  onPressed: loginState.status == LoginStatus.loading
+                  onPressed: authState.status == AuthStatus.loading
                       ? null
-                      : () {
-                          ref.read(loginProvider.notifier).login(
-                                _emailController.text,
-                                _passwordController.text,
-                              );
-                        },
-                  child: loginState.status == LoginStatus.loading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
+                      : () => ref.read(authProvider.notifier).login(
+                            _emailController.text,
+                            _passwordController.text,
                           ),
-                        )
-                      : const Text('Entrar'),
+                  child: authState.status == AuthStatus.loading
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Iniciar Sesión'),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton(
+                  onPressed: () => context.push('/auth/register'),
+                  child: const Text('Crear Cuenta'),
                 ),
               ],
             ),
