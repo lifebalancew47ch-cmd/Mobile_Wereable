@@ -34,21 +34,23 @@ class SecureDatabaseService {
     await db.execute('''
 CREATE TABLE activity_sessions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  start_time TEXT NOT NULL,
+  start_time TEXT NOT NULL UNIQUE,
   end_time TEXT NOT NULL,
   type TEXT NOT NULL,
-  duration_minutes INTEGER NOT NULL
+  duration_minutes INTEGER NOT NULL,
+  synced_to_cloud INTEGER DEFAULT 0
 )
 ''');
 
     await db.execute('''
 CREATE TABLE vital_signs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  timestamp TEXT NOT NULL,
+  timestamp TEXT NOT NULL UNIQUE,
   heart_rate REAL NOT NULL,
   hrv REAL NOT NULL,
   spo2 REAL NOT NULL,
-  steps INTEGER NOT NULL
+  steps INTEGER NOT NULL,
+  synced_to_cloud INTEGER DEFAULT 0
 )
 ''');
 
