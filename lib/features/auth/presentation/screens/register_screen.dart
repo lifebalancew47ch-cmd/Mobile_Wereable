@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/auth_provider.dart';
+import '../providers/register_provider.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -25,16 +25,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
+    final registerState = ref.watch(registerProvider);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    ref.listen(authProvider, (previous, next) {
-      if (next.status == AuthStatus.error) {
+    ref.listen(registerProvider, (previous, next) {
+      if (next.status == RegisterStatus.error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(next.errorMessage ?? 'Error desconocido'), backgroundColor: colorScheme.error),
         );
-      } else if (next.status == AuthStatus.authenticated) {
+      } else if (next.status == RegisterStatus.success) {
         context.go('/dashboard');
       }
     });
@@ -78,16 +78,25 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ),
             const SizedBox(height: 32),
             FilledButton(
-              onPressed: authState.status == AuthStatus.loading
+              onPressed: registerState.status == RegisterStatus.loading
                   ? null
-                  : () => ref.read(authProvider.notifier).register(
-                        _emailController.text,
-                        _passwordController.text,
-                        _nameController.text,
-                      ),
-              child: authState.status == AuthStatus.loading
+                  : () {
+                      final nameParts = _nameController.text.trim().split(' ');
+                      final firstName = nameParts.isNotEmpty ? nameParts.first : '';
+                      final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+                      
+                      ref.read(registerProvider.notifier).register(
+                        email: _emailController.text,
+                        username: _nameController.text,
+                        password: _passwordController.text,
+                        confirmPassword: _passwordController.text,
+                        firstName: firstName,
+                        lastName: lastName,
+                      );
+                    },
+              child: registerState.status == RegisterStatus.loading
                   ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Registrarse'),
+                  : const Text('Registrarse'),
             ),
           ],
         ),

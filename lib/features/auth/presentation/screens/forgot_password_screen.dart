@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/auth_provider.dart';
+import '../providers/forgot_password_provider.dart';
 
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -21,7 +21,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
+    final forgotPasswordState = ref.watch(forgotPasswordProvider);
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -46,18 +46,22 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             ),
             const SizedBox(height: 32),
             FilledButton(
-              onPressed: authState.status == AuthStatus.loading
+              onPressed: forgotPasswordState.status == ForgotPasswordStatus.loading
                   ? null
                   : () async {
-                      await ref.read(authProvider.notifier).forgotPassword(_emailController.text);
-                      if (mounted) {
+                      final success = await ref.read(forgotPasswordProvider.notifier).sendInstructions(_emailController.text);
+                      if (mounted && success) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Si el correo existe, recibirás instrucciones.'), backgroundColor: Colors.green),
                         );
                         context.pop();
+                      } else if (mounted && forgotPasswordState.errorMessage != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(forgotPasswordState.errorMessage!), backgroundColor: colorScheme.error),
+                        );
                       }
                     },
-              child: authState.status == AuthStatus.loading
+              child: forgotPasswordState.status == ForgotPasswordStatus.loading
                   ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : const Text('Enviar Enlace'),
             ),

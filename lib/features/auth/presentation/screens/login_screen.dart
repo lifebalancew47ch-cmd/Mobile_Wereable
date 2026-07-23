@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../providers/login_provider.dart';
 import '../providers/login_state.dart';
 
@@ -14,6 +15,50 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _storage = const FlutterSecureStorage();
+  
+  bool _isPasswordVisible = false;
+  bool _rememberMe = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    try {
+      final savedEmail = await _storage.read(key: 'saved_email');
+      final savedPassword = await _storage.read(key: 'saved_password');
+      final rememberMe = await _storage.read(key: 'remember_me');
+
+      if (rememberMe == 'true' && savedEmail != null && savedPassword != null) {
+        setState(() {
+          _emailController.text = savedEmail;
+          _passwordController.text = savedPassword;
+          _rememberMe = true;
+        });
+      }
+    } catch (e) {
+      // Ignorar errores al leer del almacenamiento seguro
+    }
+  }
+
+  Future<void> _saveCredentials() async {
+    try {
+      if (_rememberMe) {
+        await _storage.write(key: 'saved_email', value: _emailController.text);
+        await _storage.write(key: 'saved_password', value: _passwordController.text);
+        await _storage.write(key: 'remember_me', value: 'true');
+      } else {
+        await _storage.delete(key: 'saved_email');
+        await _storage.delete(key: 'saved_password');
+        await _storage.write(key: 'remember_me', value: 'false');
+      }
+    } catch (e) {
+      // Ignorar errores al guardar en el almacenamiento seguro
+    }
+  }
 
   @override
   void dispose() {
@@ -35,6 +80,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           SnackBar(content: Text(next.errorMessage ?? 'Error desconocido'), backgroundColor: colorScheme.error),
         );
       } else if (next.status == LoginStatus.success) {
+        _saveCredentials();
         context.go('/dashboard');
       }
     });
@@ -71,18 +117,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: _passwordController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Contraseña',
-                    prefixIcon: Icon(Icons.lock_outline),
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isPasswordVisible = !_isPasswordVisible;
+                        });
+                      },
+                    ),
                   ),
-                  obscureText: true,
+                  obscureText: !_isPasswordVisible,
                 ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () => context.push('/auth/forgot-password'),
-                    child: const Text('¿Olvidaste tu contraseña?'),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _rememberMe,
+                          onChanged: (value) {
+                            setState(() {
+                              _rememberMe = value ?? false;
+                            });
+                          },
+                        ),
+                        const Text('Recordarme'),
+                      ],
+                    ),
+                    TextButton(
+                      onPressed: () => context.push('/auth/forgot-password'),
+                      child: const Text('¿Olvidaste tu contraseña?'),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 24),
                 FilledButton(
@@ -100,15 +171,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 OutlinedButton(
                   onPressed: () => context.push('/auth/register'),
                   child: const Text('Crear Cuenta'),
-                ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () => context.push('/forgot-password'),
-                  child: const Text('¿Olvidaste tu contraseña?'),
-                ),
-                TextButton(
-                  onPressed: () => context.push('/register'),
-                  child: const Text('Crear una nueva cuenta'),
                 ),
               ],
             ),
