@@ -1,49 +1,54 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:sensors_plus/sensors_plus.dart';
 import '../models/fog_state.dart';
-import '../services/wearable_communication_service.dart';
 import '../services/notification_service.dart';
 import '../data/datasources/secure_database_service.dart';
 
-/// FogEngine es el motor principal de detección de sedentarismo.
-/// Evalúa la varianza del acelerómetro en ventanas de 30 segundos.
-/// Cada ventana representa 0.5 minutos; al llegar a 90 ventanas
-/// inactivas consecutivas (= 45 minutos) dispara la alerta.
+/// FogEngine is the main algorithms engine for sedentary detection.
+/// It evaluates accelerometer variance in 30-second windows.
+/// (Sección 5 of the PDF Technical Specification).
 class FogEngine {
-  final WearableCommunicationService _wearableService;
   final NotificationService _notificationService;
 
   StreamSubscription? _accelSub;
   Timer? _analysisTimer;
 
-  // Acumula las magnitudes del vector aceleración en la ventana actual
+  // Accummulates acceleration vector magnitudes in the current window
   final List<double> _magnitudes = [];
 
-  // Contador de ventanas inactivas consecutivas de 30s cada una
-  // 90 ventanas × 30s = 2700s = 45 minutos
+  // Counter for consecutive inactive windows (30s each)
+  // 90 windows × 30s = 2700s = 45 minutes
   int _inactiveWindows = 0;
   static const int _alertThresholdWindows = 90;
+  static const double _varianceThreshold = 0.05;
 
   DateTime _lastMovement = DateTime.now();
   String _sessionStartTime = DateTime.now().toIso8601String();
 
   final _stateController = StreamController<FogState>.broadcast();
+
+  /// Stream that provides real-time updates of the Fog status to the UI.
   Stream<FogState> get stateStream => _stateController.stream;
 
-  FogEngine(this._wearableService, this._notificationService);
+  FogEngine(this._notificationService);
 
+  /// Starts the engine listening to phone sensors (sensors_plus).
   void start() {
-    _accelSub = _wearableService.accelerometerStream.listen((data) {
-      final double mag =
-          sqrt(data.x * data.x + data.y * data.y + data.z * data.z);
+    // 1. Receive stream from sensors_plus (accelerometer)
+    _accelSub = accelerometerEventStream().listen((AccelerometerEvent event) {
+      // 2. Calculate vector magnitude: |a| = sqrt(x² + y² + z²)
+      final double mag = sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
       _magnitudes.add(mag);
     });
 
+    // 3. Analysis window: Group data in 30-second buffers
     _analysisTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       _analyzeWindow();
     });
   }
 
+  /// Stops the engine and releases resources.
   void stop() {
     _accelSub?.cancel();
     _analysisTimer?.cancel();
@@ -53,50 +58,46 @@ class FogEngine {
   void _analyzeWindow() {
     if (_magnitudes.isEmpty) return;
 
-    final double mean =
-        _magnitudes.reduce((a, b) => a + b) / _magnitudes.length;
-    final double variance =
-        _magnitudes.map((m) => pow(m - mean, 2).toDouble()).reduce((a, b) => a + b) /
-            _magnitudes.length;
+    // 4. Calculate statistical variance (σ²) of the magnitude in this window
+    final double mean = _magnitudes.reduce((a, b) => a + b) / _magnitudes.length;
+    final double variance = _magnitudes.map((m) => pow(m - mean, 2).toDouble()).reduce((a, b) => a + b) / _magnitudes.length;
     _magnitudes.clear();
 
-    if (variance < 0.05) {
-      // Ventana inactiva: acumular
+    ActivityStatus status;
+
+    // 5. Detection logic: Compare variance against threshold
+    if (variance < _varianceThreshold) {
+      // State: idle (inactive)
       _inactiveWindows++;
+      status = ActivityStatus.idle;
     } else {
-      // Hay movimiento: cerrar sesión inactiva si existía y resetear
+      // State: active (in movement)
       if (_inactiveWindows > 0) {
+        // Log the ended idle session to DB
         SecureDatabaseService.instance.insertActivitySession(
           _sessionStartTime,
           DateTime.now().toIso8601String(),
           'idle',
-          _inactiveWindows ~/ 2, // Convertir ventanas a minutos aprox.
+          _inactiveWindows ~/ 2,
         );
         _sessionStartTime = DateTime.now().toIso8601String();
       }
       _inactiveWindows = 0;
       _lastMovement = DateTime.now();
+      status = ActivityStatus.active;
     }
 
-    ActivityStatus status;
-    if (_inactiveWindows == 0) {
-      status = ActivityStatus.active;
-    } else if (_inactiveWindows >= _alertThresholdWindows) {
-      // 45 minutos de inactividad: disparar alerta
+    // 6. Alert processing: Trigger after 90 consecutive inactive windows (45 minutes)
+    if (_inactiveWindows >= _alertThresholdWindows) {
       status = ActivityStatus.alertTriggered;
       _triggerAlert();
-      SecureDatabaseService.instance.insertActivitySession(
-        _sessionStartTime,
-        DateTime.now().toIso8601String(),
-        'alert',
-        45,
-      );
-      _sessionStartTime = DateTime.now().toIso8601String();
-      _inactiveWindows = 0; // Reiniciar después de la alerta
-    } else {
-      status = ActivityStatus.idle;
+
+      // Reset counter after alert or keep tracking?
+      // PDF says "al llegar a 90 ventanas... cambiar el estado a alertTriggered"
+      _inactiveWindows = 0;
     }
 
+    // Notify listeners (UI) in real-time
     _stateController.add(FogState(
       status: status,
       inactiveMinutes: _inactiveWindows ~/ 2,
@@ -105,8 +106,23 @@ class FogEngine {
   }
 
   void _triggerAlert() {
+    // Notify user
     _notificationService.showInactivityAlert(45);
-    SecureDatabaseService.instance
-        .logAlert(DateTime.now().toIso8601String(), 45, false);
+
+    // 7. Register in alerts_log table (Sección 16)
+    SecureDatabaseService.instance.logAlert(
+      DateTime.now().toIso8601String(),
+      45,
+      false
+    );
+
+    // Also insert an activity session record for the alert period
+    SecureDatabaseService.instance.insertActivitySession(
+      _sessionStartTime,
+      DateTime.now().toIso8601String(),
+      'alert',
+      45,
+    );
+    _sessionStartTime = DateTime.now().toIso8601String();
   }
 }

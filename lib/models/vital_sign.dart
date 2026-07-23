@@ -28,7 +28,7 @@ class VitalSign {
       'hrv': hrv,
       'spo2': spo2,
       'steps': steps,
-      // 'is_sedentary_risk': isSedentaryRisk ? 1 : 0, // Omitido si la tabla no lo tiene aún
+      'synced_to_cloud': 0, // Default for new records
     };
   }
 
