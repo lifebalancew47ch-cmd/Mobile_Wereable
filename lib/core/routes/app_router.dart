@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 // Screens
-import 'package:lifebalance/features/auth/presentation/screens/login_screen.dart' as clean_auth;
-import 'package:lifebalance/features/authentication/presentation/register_screen.dart';
-import 'package:lifebalance/features/authentication/presentation/forgot_password_screen.dart';
+import 'package:lifebalance/features/auth/presentation/screens/login_screen.dart';
+import 'package:lifebalance/features/auth/presentation/screens/register_screen.dart';
+import 'package:lifebalance/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:lifebalance/features/authentication/presentation/splash_screen.dart';
 import 'package:lifebalance/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:lifebalance/features/wearable/presentation/wearable_screen.dart';
@@ -37,14 +37,14 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/login',
-      builder: (BuildContext context, GoRouterState state) => const clean_auth.LoginScreen(),
+      builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
     ),
     GoRoute(
-      path: '/register',
+      path: '/auth/register',
       builder: (BuildContext context, GoRouterState state) => const RegisterScreen(),
     ),
     GoRoute(
-      path: '/forgot-password',
+      path: '/auth/forgot-password',
       builder: (BuildContext context, GoRouterState state) => const ForgotPasswordScreen(),
     ),
 
