@@ -25,6 +25,14 @@ class MainActivity : Activity() {
     private fun requestRequiredPermissions() {
         val permissions = mutableListOf(Manifest.permission.BODY_SENSORS)
         
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            permissions.add(Manifest.permission.ACTIVITY_RECOGNITION)
+        }
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.BODY_SENSORS_BACKGROUND)
+        }
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
             permissions.add(Manifest.permission.BLUETOOTH_SCAN)

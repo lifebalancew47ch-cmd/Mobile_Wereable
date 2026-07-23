@@ -8,36 +8,70 @@ import android.content.Context
 import android.content.Intent
 import android.hardware.Sensor
 import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
+import android.hardware.SensorEventListener2
 import android.hardware.SensorManager
 import android.os.IBinder
+import android.util.Log
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import org.json.JSONArray
 import org.json.JSONObject
 
-class SensorService : Service(), SensorEventListener {
+class SensorService : Service(), SensorEventListener2 {
 
     private lateinit var sensorManager: SensorManager
     private var accelerometer: Sensor? = null
-    private val scope = CoroutineScope(Dispatchers.IO)
-    private var lastSendTime = 0L
+    private var offBodySensor: Sensor? = null
+
+    private val job = SupervisorJob()
+    private val scope = CoroutineScope(Dispatchers.IO + job)
+
+    private val readingsBuffer = ArrayDeque<JSONObject>(50)
+    private var lastBatchSendTime = 0L
+    private val BATCH_INTERVAL_MS = 5_000L
+
+    private var cachedNodeId: String? = null
+    private var lastNodeRefreshTime = 0L
+    private val NODE_CACHE_TTL_MS = 30_000L
+
+    private var retryIntervalMs = 5_000L
+    private val MAX_RETRY_INTERVAL_MS = 60_000L
+
+    private var isOnBody = true // Default to true initially
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         val notification = Notification.Builder(this, "wear_sensor_channel")
             .setContentTitle("LifeBalance")
-            .setContentText("Enviando datos al celular")
+            .setContentText("Monitoreando actividad...")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .build()
         startForeground(1, notification)
 
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        
+        // Register off-body sensor
+        offBodySensor = sensorManager.getDefaultSensor(Sensor.TYPE_LOW_LATENCY_OFFBODY_DETECT)
+        offBodySensor?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+
+        // Register accelerometer with 5-second maxReportLatencyUs for hardware batching
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL)
+        accelerometer?.let {
+            sensorManager.registerListener(
+                this,
+                it,
+                SensorManager.SENSOR_DELAY_GAME,
+                5_000_000 // 5 seconds batching in microseconds
+            )
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -47,51 +81,117 @@ class SensorService : Service(), SensorEventListener {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        Log.d("SensorService", "Flushing sensors before destroy")
+        sensorManager.flush(this)
         sensorManager.unregisterListener(this)
+        job.cancel()
         super.onDestroy()
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
-        if (event?.sensor?.type == Sensor.TYPE_ACCELEROMETER) {
-            val currentTime = System.currentTimeMillis()
-            // Send data max 2 times per second to save battery & bandwidth (500ms limit)
-            if (currentTime - lastSendTime > 500) {
-                lastSendTime = currentTime
-                
-                val x = event.values[0]
-                val y = event.values[1]
-                val z = event.values[2]
-                
-                val payload = JSONObject()
-                payload.put("x", x)
-                payload.put("y", y)
-                payload.put("z", z)
-                payload.put("timestamp", currentTime)
+        event ?: return
 
-                sendDataToMobile(payload.toString())
+        when (event.sensor.type) {
+            Sensor.TYPE_LOW_LATENCY_OFFBODY_DETECT -> {
+                isOnBody = event.values[0] == 1.0f
+                if (!isOnBody) {
+                    Log.d("SensorService", "Watch is off-body. Pausing collection.")
+                    // Flush immediately when taken off body
+                    flushBuffer()
+                } else {
+                    Log.d("SensorService", "Watch is on-body. Resuming collection.")
+                }
+            }
+            Sensor.TYPE_ACCELEROMETER -> {
+                if (!isOnBody) return // Don't collect if not on wrist
+
+                val timestamp = System.currentTimeMillis() // Or use event.timestamp for better accuracy relative to boot
+                val reading = JSONObject().apply {
+                    put("x", event.values[0])
+                    put("y", event.values[1])
+                    put("z", event.values[2])
+                    put("timestamp", timestamp)
+                }
+
+                readingsBuffer.add(reading)
+
+                val now = System.currentTimeMillis()
+                if (now - lastBatchSendTime >= BATCH_INTERVAL_MS) {
+                    lastBatchSendTime = now
+                    flushBuffer()
+                }
             }
         }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
-    private fun sendDataToMobile(data: String) {
+    override fun onFlushCompleted(sensor: Sensor?) {
+        Log.d("SensorService", "onFlushCompleted called for sensor: ${sensor?.name}")
+        flushBuffer()
+    }
+
+    private fun flushBuffer() {
+        if (readingsBuffer.isEmpty()) return
+
+        val batch = JSONArray()
+        while (readingsBuffer.isNotEmpty()) {
+            batch.put(readingsBuffer.removeFirst())
+        }
+
         scope.launch {
+            sendBatch(batch.toString())
+        }
+    }
+
+    private suspend fun getCachedNode(): String? {
+        val now = System.currentTimeMillis()
+        if (cachedNodeId == null || now - lastNodeRefreshTime > NODE_CACHE_TTL_MS) {
             try {
-                val nodes = Wearable.getNodeClient(this@SensorService).connectedNodes.await()
-                // Validar que el nodo conectado es el dispositivo pareado legítimo y cercano
-                val trustedNode = nodes.firstOrNull { it.isNearby }
-                trustedNode?.let { node ->
-                    Wearable.getMessageClient(this@SensorService).sendMessage(
-                        node.id,
-                        "/lifebalance/sensors",
-                        data.toByteArray()
-                    ).await()
-                }
+                cachedNodeId = Wearable.getNodeClient(this@SensorService)
+                    .connectedNodes.await()
+                    .firstOrNull { it.isNearby }?.id
+                lastNodeRefreshTime = now
+                Log.d("SensorService", "Node cache refreshed: $cachedNodeId")
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("SensorService", "Failed to refresh nodes", e)
             }
         }
+        return cachedNodeId
+    }
+
+    private suspend fun sendBatch(data: String) {
+        val nodeId = getCachedNode()
+        
+        if (nodeId == null) {
+            Log.w("SensorService", "No nearby node found. Will retry later.")
+            onSendFailed()
+            return
+        }
+
+        try {
+            Wearable.getMessageClient(this@SensorService).sendMessage(
+                nodeId,
+                "/lifebalance/sensors",
+                data.toByteArray()
+            ).await()
+            onSendSucceeded()
+            Log.d("SensorService", "Batch sent successfully to $nodeId")
+        } catch (e: Exception) {
+            Log.e("SensorService", "Error sending batch", e)
+            onSendFailed()
+        }
+    }
+
+    private fun onSendFailed() {
+        cachedNodeId = null // Invalidate cache to force a refresh next time
+        retryIntervalMs = minOf(retryIntervalMs * 2, MAX_RETRY_INTERVAL_MS)
+        // In a more complex implementation, we might requeue the data here, 
+        // but for now we drop it to avoid memory bounds issues.
+    }
+
+    private fun onSendSucceeded() {
+        retryIntervalMs = 5_000L // Reset backoff
     }
 
     private fun createNotificationChannel() {

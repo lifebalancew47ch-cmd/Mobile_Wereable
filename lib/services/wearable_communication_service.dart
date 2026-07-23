@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import 'package:rxdart/rxdart.dart';
 
 class AccelerometerData {
   final double x;
@@ -25,10 +26,15 @@ class WearableCommunicationService {
 
   /// Stream of accelerometer data coming from the Wear OS watch
   Stream<AccelerometerData> get accelerometerStream {
-    return _wearableEventChannel.receiveBroadcastStream().map((event) {
+    return _wearableEventChannel.receiveBroadcastStream().expand((event) {
       final String dataString = event as String;
-      final Map<String, dynamic> jsonMap = jsonDecode(dataString);
-      return AccelerometerData.fromJson(jsonMap);
+      final List<dynamic> batch = jsonDecode(dataString);
+      return batch.map((item) => AccelerometerData.fromJson(item as Map<String, dynamic>));
     });
+  }
+
+  /// Throttled stream for UI updates (e.g. 1 update every 5 seconds max)
+  Stream<AccelerometerData> get accelerometerStreamThrottled {
+    return accelerometerStream.throttleTime(const Duration(seconds: 5));
   }
 }

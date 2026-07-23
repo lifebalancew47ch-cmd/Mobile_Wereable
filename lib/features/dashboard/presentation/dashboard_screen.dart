@@ -1,24 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../wearable/presentation/wearable_provider.dart';
 
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   final String _pasos = '--';
   final String _corazon = '--';
   final String _sueno = '--';
   final String _calorias = '--';
-  final String _resumen = 'Cargando datos...';
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    
+    final wearableState = ref.watch(wearableProvider);
+    final String statusReloj = wearableState.isConnected ? 'Reloj conectado' : 'Reloj desconectado';
+    final String lastAccel = wearableState.lastData != null ? 
+        'x: ${wearableState.lastData!.x.toStringAsFixed(2)}\ny: ${wearableState.lastData!.y.toStringAsFixed(2)}\nz: ${wearableState.lastData!.z.toStringAsFixed(2)}' 
+        : 'Cargando datos...';
 
     return Scaffold(
       appBar: AppBar(
@@ -36,7 +43,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Card(
-              color: colorScheme.primaryContainer,
+              color: wearableState.isConnected ? colorScheme.primaryContainer : colorScheme.surfaceVariant,
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
@@ -46,17 +53,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Resumen Diario',
+                            statusReloj,
                             style: theme.textTheme.titleLarge?.copyWith(
                               color: colorScheme.onPrimaryContainer,
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Text(_resumen),
+                          Text(
+                            'Movimiento actual:\n$lastAccel',
+                            style: theme.textTheme.bodyMedium,
+                          ),
                         ],
                       ),
                     ),
-                    Icon(Icons.auto_graph, size: 48, color: colorScheme.primary),
+                    Icon(
+                      wearableState.isConnected ? Icons.watch : Icons.watch_off, 
+                      size: 48, 
+                      color: wearableState.isConnected ? colorScheme.primary : Colors.grey
+                    ),
                   ],
                 ),
               ),

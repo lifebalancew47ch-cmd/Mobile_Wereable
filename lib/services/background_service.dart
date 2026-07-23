@@ -5,6 +5,7 @@ import 'wearable_communication_service.dart';
 import 'notification_service.dart';
 import 'watch_service.dart';
 import 'dart:ui';
+import 'dart:async';
 
 class BackgroundService {
   static Future<void> initialize() async {
@@ -76,5 +77,19 @@ class BackgroundService {
 
     final watchService = WatchService();
     watchService.startPeriodicSync();
+    
+    // Si la pantalla está apagada y no hay datos en 30 minutos, reducir el polling
+    var lastDataTime = DateTime.now();
+    wearableService.accelerometerStream.listen((_) {
+      lastDataTime = DateTime.now();
+    });
+
+    Timer.periodic(const Duration(minutes: 30), (timer) {
+      if (DateTime.now().difference(lastDataTime).inMinutes >= 30) {
+        watchService.startPeriodicSync(interval: const Duration(minutes: 30));
+      } else {
+        watchService.startPeriodicSync(interval: const Duration(minutes: 5));
+      }
+    });
   }
 }
