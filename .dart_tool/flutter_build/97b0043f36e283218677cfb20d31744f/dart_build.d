@@ -1,1 +1,0 @@
- C:\\Users\\Rodrigo\\AndroidStudioProjects\\LifeBalance\\.dart_tool\\flutter_build\\97b0043f36e283218677cfb20d31744f\\dart_build_result.json: 
