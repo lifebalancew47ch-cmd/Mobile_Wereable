@@ -1,0 +1,1 @@
+ C:\\Users\\Rodrigo\\AndroidStudioProjects\\LifeBalance\\.dart_tool\\flutter_build\\87d47058c6d6864999413f89d9c078b3\\native_assets.json: 

@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lifebalance/core/security/token_service.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
@@ -17,7 +19,18 @@ class _SplashScreenState extends State<SplashScreen> {
 
   void _navigateToLogin() async {
     await Future.delayed(const Duration(seconds: 2));
-    if (mounted) {
+    if (!mounted) return;
+    
+    try {
+      // Check if token exists
+      final hasToken = await ref.read(tokenServiceProvider).hasValidToken();
+      if (hasToken) {
+        context.go('/dashboard');
+      } else {
+        context.go('/login');
+      }
+    } catch (e) {
+      debugPrint('Error reading token: $e');
       context.go('/login');
     }
   }
@@ -31,10 +44,10 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.health_and_safety_outlined,
-              size: 100,
-              color: colorScheme.primary,
+            Image.asset(
+              'assets/images/logo.png',
+              width: 150,
+              height: 150,
             ),
             const SizedBox(height: 24),
             Text(

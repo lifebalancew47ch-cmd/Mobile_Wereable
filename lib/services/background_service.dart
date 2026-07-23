@@ -7,6 +7,7 @@ import 'watch_service.dart';
 import 'dart:ui';
 import 'dart:async';
 
+@pragma('vm:entry-point')
 class BackgroundService {
   static Future<void> initialize() async {
     final service = FlutterBackgroundService();

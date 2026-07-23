@@ -47,7 +47,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(Icons.health_and_safety, size: 80, color: colorScheme.primary),
+                Image.asset(
+                  'assets/images/logo.png',
+                  width: 120,
+                  height: 120,
+                ),
                 const SizedBox(height: 24),
                 Text(
                   'Bienvenido a LifeBalance',
@@ -95,6 +99,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 OutlinedButton(
                   onPressed: () => context.push('/auth/register'),
                   child: const Text('Crear Cuenta'),
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () => context.push('/forgot-password'),
+                  child: const Text('¿Olvidaste tu contraseña?'),
+                ),
+                TextButton(
+                  onPressed: () => context.push('/register'),
+                  child: const Text('Crear una nueva cuenta'),
                 ),
               ],
             ),
