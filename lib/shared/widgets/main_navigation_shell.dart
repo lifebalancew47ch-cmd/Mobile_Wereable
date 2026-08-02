@@ -39,9 +39,9 @@ class MainNavigationShell extends StatelessWidget {
             label: 'Resumen',
           ),
           NavigationDestination(
-            icon: Icon(Icons.group_outlined),
-            selectedIcon: Icon(Icons.group, color: Color(0xFF3E6F58)),
-            label: 'Usuarios',
+            icon: Icon(Icons.bar_chart_outlined),
+            selectedIcon: Icon(Icons.bar_chart, color: Color(0xFF3E6F58)),
+            label: 'Análisis',
           ),
           // Placeholder for FAB spacing
           NavigationDestination(
@@ -50,14 +50,14 @@ class MainNavigationShell extends StatelessWidget {
             enabled: false,
           ),
           NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart, color: Color(0xFF3E6F58)),
-            label: 'Análisis',
+            icon: Icon(Icons.help_outline),
+            selectedIcon: Icon(Icons.help, color: Color(0xFF3E6F58)),
+            label: 'Soporte',
           ),
           NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings, color: Color(0xFF3E6F58)),
-            label: 'Ajustes',
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person, color: Color(0xFF3E6F58)),
+            label: 'Perfil',
           ),
         ],
       ),
