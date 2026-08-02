@@ -6,7 +6,7 @@ import 'package:lifebalance/features/auth/presentation/screens/login_screen.dart
 import 'package:lifebalance/features/auth/presentation/screens/register_screen.dart';
 import 'package:lifebalance/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:lifebalance/features/authentication/presentation/splash_screen.dart';
-import 'package:lifebalance/features/dashboard/presentation/dashboard_screen.dart';
+import 'package:lifebalance/features/dashboard/presentation/screens/executive_dashboard_screen.dart';
 import 'package:lifebalance/features/analytics/presentation/screens/heatmap_screen.dart';
 import 'package:lifebalance/features/analytics/presentation/screens/performance_analysis_screen.dart';
 import 'package:lifebalance/features/wearable/presentation/wearable_screen.dart';
@@ -63,7 +63,7 @@ final GoRouter appRouter = GoRouter(
           routes: <RouteBase>[
             GoRoute(
               path: '/dashboard',
-              builder: (BuildContext context, GoRouterState state) => const DashboardScreen(),
+              builder: (BuildContext context, GoRouterState state) => const ExecutiveDashboardScreen(),
               routes: <RouteBase>[
                 GoRoute(
                   path: 'notifications',
