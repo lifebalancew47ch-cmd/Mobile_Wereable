@@ -166,7 +166,7 @@ placeholder stub (pending team API). DB tables already have synced_to_cloud colu
 ## 7. Environment Variables (`flutter_dotenv`)
 - Loaded in `main.dart` via `--dart-define=ENV_FILE` (default `.env.development`).
 - `API_URL`, `DASHBOARD_API_URL`, `NOTIFICATIONS_API_URL`, `PINNED_CERT_SHA256`.
-- Files `.env.development` and `.env.production` are committed to the repo and registered as assets in `pubspec.yaml`.
+- Files `.env.development` and `.env.production` are **NOT committed** (gitignored via `.env.*`). They are registered as assets in `pubspec.yaml`:88-91, so any Flutter build/Gradle task that bundles assets REQUIRES the files to exist. Each DevOps CI job creates empty placeholders (`touch .env.development .env.production`); the app falls back to defaults via `?? onClick` and `_envBaseUrl`/`dotenv.isInitialized` guards when loaded from an empty env.
 
 ## 8. Known Caveats & Legacy Code
 1. **Duplicate auth features**: `features/auth/` (current, Clean Architecture) vs `features/authentication/` (legacy screens: splash/login/register). `app_router.dart` currently imports the legacy `SplashScreen` and the new auth screens.

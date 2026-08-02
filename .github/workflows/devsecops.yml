@@ -47,7 +47,11 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-      - name: Generate local.properties
+      - name: Create environment placeholder files
+        run: |
+          touch .env.development
+          touch .env.production
+      - name: Install dependencies
         run: flutter pub get
       - name: Run Android Lint
         run: cd android && ./gradlew lintDebug --no-configuration-cache
@@ -67,6 +71,10 @@ jobs:
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
       - run: flutter pub get
+      - name: Create environment placeholder files
+        run: |
+          touch .env.development
+          touch .env.production
       - name: Run Android Lint (skip dependency validation)
         working-directory: ./android
         run: |
@@ -116,6 +124,10 @@ jobs:
         with:
           channel: 'stable'
       - run: flutter pub get
+      - name: Create environment placeholder files
+        run: |
+          touch .env.development
+          touch .env.production
       - run: flutter test
 
   build-mobile:
@@ -132,6 +144,10 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
       - run: flutter pub get
+      - name: Create environment placeholder files
+        run: |
+          touch .env.development
+          touch .env.production
       - run: flutter build apk --debug
       - uses: actions/upload-artifact@v4
         with:
@@ -151,7 +167,11 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
-      - name: Generate local.properties
+      - name: Create environment placeholder files
+        run: |
+          touch .env.development
+          touch .env.production
+      - name: Install dependencies
         run: flutter pub get
       - run: cd android && ./gradlew :wear:assembleDebug --no-configuration-cache
       - uses: actions/upload-artifact@v4
