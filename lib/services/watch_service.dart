@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter_background_service/flutter_background_service.dart';
 import '../models/vital_sign.dart';
 import '../data/datasources/secure_database_service.dart';
 import 'wearable_communication_service.dart';

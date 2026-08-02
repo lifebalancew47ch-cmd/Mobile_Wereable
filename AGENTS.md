@@ -7,7 +7,7 @@ This document provides a comprehensive overview of the LifeBalance mobile applic
 - **Name**: LifeBalance
 - **Platform**: Cross-platform mobile (primarily Android) built with Flutter.
 - **Core Purpose**: A health and activity tracking application that monitors user movement (specifically inactivity) using device sensors and/or wearable integration, sending alerts when the user has been sedentary for too long (e.g., 45 minutes).
-- **Backend API**: The app communicates with a live REST API hosted at `https://auth-profile.onrender.com/api/v1` for authentication and profile management.
+- **Backend API**: The app communicates with a live REST API hosted at `https://lifebalance-auth-service.onrender.com/api/v1` for authentication and profile management, and other microservices (`lifebalance-dashboard-service.onrender.com`, etc.).
 
 ## 2. Tech Stack & Dependencies
 - **UI Framework**: Flutter (Dart)
@@ -42,7 +42,7 @@ lib/
 ## 4. Key Components
 
 ### 4.1 Authentication Flow (`features/auth`)
-- **API Base URL**: `https://auth-profile.onrender.com/api/v1`
+- **API Base URL**: `https://lifebalance-auth-service.onrender.com/api/v1`
 - **Strict Rule**: No mocked data. All authentication and profile data must be fetched from the live API.
 - **Providers**: `loginProvider`, `registerProvider`, `forgotPasswordProvider` manage state and coordinate with Use Cases.
 - **Remember Me**: Credentials (email/password) are saved via `flutter_secure_storage` on successful login if checked.

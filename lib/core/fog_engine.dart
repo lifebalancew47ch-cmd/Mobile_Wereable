@@ -1,14 +1,15 @@
 import 'dart:async';
 import 'dart:math';
-import 'package:sensors_plus/sensors_plus.dart';
 import '../models/fog_state.dart';
 import '../services/notification_service.dart';
+import '../services/wearable_communication_service.dart';
 import '../data/datasources/secure_database_service.dart';
 
 /// FogEngine is the main algorithms engine for sedentary detection.
 /// It evaluates accelerometer variance in 30-second windows.
 /// (Sección 5 of the PDF Technical Specification).
 class FogEngine {
+  final WearableCommunicationService _wearableService;
   final NotificationService _notificationService;
 
   StreamSubscription? _accelSub;
@@ -31,14 +32,14 @@ class FogEngine {
   /// Stream that provides real-time updates of the Fog status to the UI.
   Stream<FogState> get stateStream => _stateController.stream;
 
-  FogEngine(this._notificationService);
+  FogEngine(this._wearableService, this._notificationService);
 
-  /// Starts the engine listening to phone sensors (sensors_plus).
+  /// Starts the engine listening to accelerometer data from the wearable.
   void start() {
-    // 1. Receive stream from sensors_plus (accelerometer)
-    _accelSub = accelerometerEventStream().listen((AccelerometerEvent event) {
+    // 1. Receive stream from the wearable accelerometer
+    _accelSub = _wearableService.accelerometerStream.listen((AccelerometerData data) {
       // 2. Calculate vector magnitude: |a| = sqrt(x² + y² + z²)
-      final double mag = sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
+      final double mag = sqrt(data.x * data.x + data.y * data.y + data.z * data.z);
       _magnitudes.add(mag);
     });
 

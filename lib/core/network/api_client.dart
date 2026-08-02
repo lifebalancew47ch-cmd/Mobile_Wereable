@@ -3,9 +3,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../security/token_service.dart';
 
-final apiClientProvider = Provider<Dio>((ref) {
+Dio _buildDio(Ref ref, String baseUrl) {
   final tokenService = ref.watch(tokenServiceProvider);
-  final baseUrl = dotenv.env['API_URL'] ?? 'https://auth-profile.onrender.com/api/v1';
 
   final dio = Dio(BaseOptions(
     baseUrl: baseUrl,
@@ -41,4 +40,21 @@ final apiClientProvider = Provider<Dio>((ref) {
   );
 
   return dio;
+}
+
+final apiClientProvider = Provider<Dio>((ref) {
+  final baseUrl = dotenv.env['API_URL'] ?? 'https://lifebalance-auth-service.onrender.com/api/v1';
+  return _buildDio(ref, baseUrl);
+});
+
+final dashboardApiClientProvider = Provider<Dio>((ref) {
+  final baseUrl = dotenv.env['DASHBOARD_API_URL'] ??
+      'https://lifebalance-dashboard-service.onrender.com/api/v1';
+  return _buildDio(ref, baseUrl);
+});
+
+final notificationsApiClientProvider = Provider<Dio>((ref) {
+  final baseUrl = dotenv.env['NOTIFICATIONS_API_URL'] ??
+      'https://lifebalance-notifications-api.onrender.com/api/v1';
+  return _buildDio(ref, baseUrl);
 });

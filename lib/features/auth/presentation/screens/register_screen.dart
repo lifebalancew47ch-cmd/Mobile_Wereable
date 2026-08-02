@@ -35,7 +35,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           SnackBar(content: Text(next.errorMessage ?? 'Error desconocido'), backgroundColor: colorScheme.error),
         );
       } else if (next.status == RegisterStatus.success) {
-        context.go('/dashboard');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cuenta creada. Inicia sesión para continuar.')),
+        );
+        context.go('/login');
       }
     });
 

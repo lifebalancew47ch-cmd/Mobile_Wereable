@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'watch_service.dart';
 import '../data/datasources/secure_database_service.dart';
-import '../models/vital_sign.dart';
 
 /// SyncService (SyncManager) responsible for orchestrating data flow between
 /// the Wearable (Health Connect) and the local Secure SQLite database.

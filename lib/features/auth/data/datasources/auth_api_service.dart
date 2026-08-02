@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:lifebalance/core/security/token_service.dart';
 import '../../domain/entities/user_model.dart';
@@ -44,6 +43,28 @@ class AuthApiService {
     }
   }
 
+  String _extractErrorMessage(Object? data, String fallback) {
+    if (data is Map<String, dynamic>) {
+      final message = data['message'];
+      if (message != null && message.toString().isNotEmpty) {
+        return message.toString();
+      }
+      final errors = data['errors'];
+      if (errors is List && errors.isNotEmpty) {
+        final first = errors.first;
+        if (first is Map<String, dynamic>) {
+          final errorMessage = first['message'] ?? first['Message'];
+          if (errorMessage != null && errorMessage.toString().isNotEmpty) {
+            return errorMessage.toString();
+          }
+        } else if (first != null) {
+          return first.toString();
+        }
+      }
+    }
+    return fallback;
+  }
+
   Future<UserModel> register({
     required String email,
     required String username,
@@ -73,8 +94,7 @@ class AuthApiService {
       }
     } on DioException catch (e) {
       if (e.response != null) {
-        final message = e.response?.data['message'] ?? 'Error al registrarse';
-        throw Exception(message);
+        throw Exception(_extractErrorMessage(e.response?.data, 'Error al registrarse'));
       }
       throw Exception('Error de conexión');
     }
