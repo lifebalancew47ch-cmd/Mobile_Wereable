@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class VideoExplanationScreen extends StatelessWidget {
   const VideoExplanationScreen({super.key});
@@ -103,7 +104,7 @@ class VideoExplanationScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             ElevatedButton(
-              onPressed: () {},
+              onPressed: () => context.push('/fog'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4A80FF),
                 minimumSize: const Size(double.infinity, 56),
@@ -112,7 +113,7 @@ class VideoExplanationScreen extends StatelessWidget {
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Solicitar Demo Técnica', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  Text('Ver Demo en Vivo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   SizedBox(width: 12),
                   Icon(Icons.arrow_forward, color: Colors.white, size: 18),
                 ],
@@ -166,7 +167,7 @@ class VideoExplanationScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPropItem(IconData icon, String title, String desc, {bool isFull = false, bool isActive = false}) {
+  Widget _buildPropItem(IconData icon, String title, String desc, {bool isFull = false}) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(

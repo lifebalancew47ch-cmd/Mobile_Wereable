@@ -16,6 +16,7 @@ import 'package:lifebalance/features/support/presentation/screens/video_explanat
 import 'package:lifebalance/features/profile/presentation/profile_screen.dart';
 import 'package:lifebalance/features/profile/presentation/screens/biometric_profile_screen.dart';
 import 'package:lifebalance/features/profile/presentation/activity_history_screen.dart';
+import 'package:lifebalance/features/fog/presentation/fog_screen.dart';
 import 'package:lifebalance/features/wearable/presentation/screens/device_scanning_screen.dart';
 import 'package:lifebalance/features/wearable/presentation/screens/device_management_screen.dart';
 import 'package:lifebalance/features/notifications/presentation/notifications_screen.dart';
@@ -59,6 +60,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/watch/progress',
       builder: (BuildContext context, GoRouterState state) => const WatchProgressScreen(),
+    ),
+    GoRoute(
+      path: '/fog',
+      builder: (BuildContext context, GoRouterState state) => const FogScreen(),
     ),
 
     // Stateful Shell Route for Bottom Navigation Tabs

@@ -1,7 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class FAQScreen extends StatelessWidget {
   const FAQScreen({super.key});
+
+  void _copyContact(BuildContext context) {
+    Clipboard.setData(const ClipboardData(text: 'soporte@lifebalance.app'));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Correo de soporte copiado: soporte@lifebalance.app'),
+        backgroundColor: Color(0xFF00C2FF),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _copyDocs(BuildContext context) {
+    Clipboard.setData(const ClipboardData(text: 'https://lifebalance-adv3.onrender.com/api/v1'));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('URL de la API copiada'),
+        backgroundColor: Color(0xFF00C2FF),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +126,7 @@ class FAQScreen extends StatelessWidget {
                   Row(
                     children: [
                       ElevatedButton(
-                        onPressed: () {},
+                        onPressed: () => _copyContact(context),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF00C2FF),
                           foregroundColor: Colors.black,
@@ -114,7 +137,7 @@ class FAQScreen extends StatelessWidget {
                       ),
                       const SizedBox(width: 12),
                       OutlinedButton(
-                        onPressed: () {},
+                        onPressed: () => _copyDocs(context),
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: Colors.white24),
                           foregroundColor: Colors.white,
