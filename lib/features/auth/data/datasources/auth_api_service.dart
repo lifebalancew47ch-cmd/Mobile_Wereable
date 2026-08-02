@@ -138,4 +138,26 @@ class AuthApiService {
       throw Exception('Error al obtener perfil: $e');
     }
   }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmNewPassword,
+  }) async {
+    try {
+      final response = await _dio.put('/Profile/change-password', data: {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+        'confirmNewPassword': confirmNewPassword,
+      });
+      if (response.data['success'] != true) {
+        throw Exception(response.data['message'] ?? 'No se pudo cambiar la contraseña');
+      }
+    } on DioException catch (e) {
+      if (e.response != null) {
+        throw Exception(_extractErrorMessage(e.response?.data, 'Error al cambiar la contraseña'));
+      }
+      throw Exception('Error de conexión');
+    }
+  }
 }

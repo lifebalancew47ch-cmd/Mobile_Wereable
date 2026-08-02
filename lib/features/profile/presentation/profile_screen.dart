@@ -39,7 +39,7 @@ class ProfileScreen extends ConsumerWidget {
                 leading: const Icon(Icons.history),
                 title: const Text('Historial de actividad'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () {},
+                onTap: () => context.push('/profile/history'),
               ),
               ListTile(
                 leading: const Icon(Icons.accessibility_new_outlined),
@@ -51,7 +51,7 @@ class ProfileScreen extends ConsumerWidget {
                 leading: const Icon(Icons.badge_outlined),
                 title: const Text('Logros y medallas'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () {},
+                onTap: () => context.go('/gamification'),
               ),
               ListTile(
                 leading: const Icon(Icons.logout, color: Colors.red),

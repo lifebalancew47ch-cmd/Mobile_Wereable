@@ -132,4 +132,39 @@ CREATE TABLE alerts_log (
     final rows = await db.query('activity_sessions', orderBy: 'id DESC', limit: 1);
     return rows.isEmpty ? null : rows.first;
   }
+
+  /// Todas las sesiones de actividad registradas en el día indicado (fecha local).
+  Future<List<Map<String, Object?>>> getActivitySessionsForDay(DateTime day) async {
+    final db = await instance.database;
+    final start = DateTime(day.year, day.month, day.day).toIso8601String();
+    final end = DateTime(day.year, day.month, day.day, 23, 59, 59, 999).toIso8601String();
+    final rows = await db.query(
+      'activity_sessions',
+      where: 'start_time >= ? AND start_time <= ?',
+      whereArgs: [start, end],
+      orderBy: 'start_time ASC',
+    );
+    return rows;
+  }
+
+  /// Todas las sesiones de actividad registradas (para historial y estadísticas).
+  Future<List<Map<String, Object?>>> getAllActivitySessions({int limit = 100}) async {
+    final db = await instance.database;
+    final rows = await db.query('activity_sessions', orderBy: 'start_time DESC', limit: limit);
+    return rows;
+  }
+
+  /// Sesiones de los últimos [days] días (para el gráfico semanal), agrupadas por día.
+  Future<List<Map<String, Object?>>> getActivitySessionsLastDays(int days) async {
+    final db = await instance.database;
+    final now = DateTime.now();
+    final from = DateTime(now.year, now.month, now.day - (days - 1)).toIso8601String();
+    final rows = await db.query(
+      'activity_sessions',
+      where: 'start_time >= ?',
+      whereArgs: [from],
+      orderBy: 'start_time ASC',
+    );
+    return rows;
+  }
 }

@@ -1,43 +1,200 @@
 import 'package:flutter/material.dart';
+import '../../../../data/datasources/secure_database_service.dart';
+import '../../../../services/notification_service.dart';
 
-class HeatmapScreen extends StatelessWidget {
+class HeatmapScreen extends StatefulWidget {
   const HeatmapScreen({super.key});
+
+  @override
+  State<HeatmapScreen> createState() => _HeatmapScreenState();
+}
+
+class _HeatmapScreenState extends State<HeatmapScreen> {
+  final SecureDatabaseService _db = SecureDatabaseService.instance;
+  final NotificationService _notifications = NotificationService();
+
+  List<Map<String, Object?>> _todaySessions = [];
+  List<Map<String, Object?>> _weekSessions = [];
+  bool _loading = true;
+  DateTime _selectedDate = DateTime.now();
+  bool _isDayView = true;
+
+  // Estado para el diálogo de recordatorio
+  TimeOfDay? _reminderTime;
+  bool _reminderScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _loading = true);
+    final today = await _db.getActivitySessionsForDay(_selectedDate);
+    final week = await _db.getActivitySessionsLastDays(7);
+    if (!mounted) return;
+    setState(() {
+      _todaySessions = today;
+      _weekSessions = week;
+      _loading = false;
+    });
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2025),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
+      _loadData();
+    }
+  }
+
+  Future<void> _scheduleReminder() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _reminderTime ?? const TimeOfDay(hour: 13, minute: 55),
+      helpText: 'Hora del recordatorio de pausa activa',
+    );
+    if (picked == null) return;
+
+    await _notifications.requestPermissions();
+    await _notifications.scheduleReminder(
+      hour: picked.hour,
+      minute: picked.minute,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _reminderTime = picked;
+      _reminderScheduled = true;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Recordatorio programado para las ${picked.format(context)}',
+        ),
+      ),
+    );
+  }
+
+  // ---- Cálculos reales sobre las sesiones de la BD ----
+
+  /// Minutos activos (sesiones tipo 'active') del día seleccionado.
+  int _activeMinutesToday() {
+    return _todaySessions
+        .where((s) => s['type'] == 'active')
+        .fold<int>(0, (sum, s) => sum + ((s['duration_minutes'] as int?) ?? 0));
+  }
+
+  /// Minutos sedentarios (sesiones tipo 'idle'/'alert') del día seleccionado.
+  int _sedentaryMinutesToday() {
+    return _todaySessions
+        .where((s) => s['type'] == 'idle' || s['type'] == 'alert')
+        .fold<int>(0, (sum, s) => sum + ((s['duration_minutes'] as int?) ?? 0));
+  }
+
+  /// Intensidad (0-4) por hora del día, basada en las sesiones registradas.
+  List<int> _hourlyActivity() {
+    final hours = List<int>.filled(24, 0);
+    for (final session in _todaySessions) {
+      final start = DateTime.tryParse((session['start_time'] as String?) ?? '');
+      final duration = (session['duration_minutes'] as int?) ?? 0;
+      if (start == null || duration <= 0) continue;
+      final type = (session['type'] as String?) ?? 'idle';
+      final weight = type == 'active' ? 4 : (type == 'alert' ? 3 : 1);
+      final hour = start.hour;
+      hours[hour] = (hours[hour] + weight).clamp(0, 4);
+    }
+    return hours;
+  }
+
+  /// Minutos activos por día (últimos 7 días) para el gráfico semanal.
+  List<int> _weekActiveMinutes() {
+    final now = DateTime.now();
+    final byDay = List<int>.filled(7, 0);
+    for (final session in _weekSessions) {
+      final start = DateTime.tryParse((session['start_time'] as String?) ?? '');
+      final duration = (session['duration_minutes'] as int?) ?? 0;
+      if (start == null || (session['type'] as String?) != 'active') continue;
+      final dayIndex = now.difference(DateTime(start.year, start.month, start.day)).inDays;
+      if (dayIndex >= 0 && dayIndex < 7) {
+        byDay[6 - dayIndex] += duration;
+      }
+    }
+    return byDay;
+  }
+
+  /// Horas con mayor sedentarismo (para el insight).
+  String _peakSedentaryWindow() {
+    if (_todaySessions.isEmpty) return '8 AM - 12 PM';
+    final hours = _hourlyActivity();
+    var peakHour = 0;
+    var minIntensity = hours[0];
+    for (var h = 1; h < 24; h++) {
+      if (hours[h] < minIntensity) {
+        minIntensity = hours[h];
+        peakHour = h;
+      }
+    }
+    final start = _formatHour(peakHour);
+    final end = _formatHour((peakHour + 2) % 24);
+    return '$start - $end';
+  }
+
+  String _formatHour(int hour) {
+    final h = hour % 24;
+    if (h == 0) return '12 AM';
+    if (h == 12) return '12 PM';
+    return h < 12 ? '$h AM' : '${h - 12} PM';
+  }
+
+  Color _intensityColor(int intensity) {
+    switch (intensity) {
+      case 0:
+        return const Color(0xFFF2F6F4); // Noche / sin datos
+      case 1:
+        return const Color(0xFFD1DCD6); // Sedentario
+      case 2:
+        return const Color(0xFFD68C5E); // De pie / baja actividad
+      case 3:
+        return const Color(0xFF5A8B73); // Actividad moderada
+      default:
+        return const Color(0xFF3E6F58); // Actividad alta
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFE9F1EC), // Fondo Menta Claro
+      backgroundColor: const Color(0xFFE9F1EC),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 1. Header (Sección Superior)
               _buildHeader(),
               const SizedBox(height: 24),
-
-              // 2. Selector de Fecha y Filtros
               _buildDateSelector(),
               const SizedBox(height: 12),
               _buildToggleSwitch(),
               const SizedBox(height: 24),
-
-              // 3. Card: Mapa de Calor Conductual
               _buildHeatmapCard(theme),
               const SizedBox(height: 20),
-
-              // 4. Cards de Métricas (Movimiento y Sedentario)
               Row(
                 children: [
                   Expanded(
                     child: _buildMetricCard(
                       title: 'MOVIMIENTO',
-                      value: '1h 15m',
-                      subtitle: '+12% desde ayer',
+                      value: _formatDuration(_activeMinutesToday()),
+                      subtitle: '${_todaySessions.length} sesiones registradas',
                       icon: Icons.directions_run,
                       borderColor: const Color(0xFF3E6F58),
                     ),
@@ -46,8 +203,8 @@ class HeatmapScreen extends StatelessWidget {
                   Expanded(
                     child: _buildMetricCard(
                       title: 'SEDENTARIO',
-                      value: '6h 42m',
-                      subtitle: '-5% desde ayer',
+                      value: _formatDuration(_sedentaryMinutesToday()),
+                      subtitle: _todaySessions.isEmpty ? 'Sin registros' : 'Incluye alertas',
                       icon: Icons.airline_seat_recline_normal,
                       borderColor: const Color(0xFFD68C5E),
                     ),
@@ -55,12 +212,8 @@ class HeatmapScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 20),
-
-              // 5. Card: Compromiso Metabólico (Gráfica de Barras)
               _buildMetabolicEngagementCard(theme),
               const SizedBox(height: 20),
-
-              // 6. Sección: Perspectiva de Patrones (Insights)
               _buildInsightsSection(theme),
               const SizedBox(height: 40),
             ],
@@ -68,6 +221,13 @@ class HeatmapScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _formatDuration(int minutes) {
+    if (minutes <= 0) return '0m';
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    return h > 0 ? '${h}h ${m}m' : '${m}m';
   }
 
   Widget _buildHeader() {
@@ -92,29 +252,37 @@ class HeatmapScreen extends StatelessWidget {
           ],
         ),
         IconButton(
-          onPressed: () {},
-          icon: const Icon(Icons.notifications_none, color: Color(0xFF3E6F58)),
+          onPressed: () => _pickDate(),
+          icon: const Icon(Icons.calendar_month, color: Color(0xFF3E6F58)),
         ),
       ],
     );
   }
 
   Widget _buildDateSelector() {
+    const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+    final dayLabel = '${weekDays[_selectedDate.weekday - 1]} ${_selectedDate.day} '
+        '${const ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][_selectedDate.month - 1]}';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.calendar_today_outlined, size: 16, color: Colors.grey),
-          const SizedBox(width: 8),
-          const Text('24 oct, 2023', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-          const SizedBox(width: 8),
-          const Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.grey),
-        ],
+      child: InkWell(
+        onTap: _pickDate,
+        borderRadius: BorderRadius.circular(12),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.calendar_today_outlined, size: 16, color: Colors.grey),
+            const SizedBox(width: 8),
+            Text(dayLabel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            const SizedBox(width: 8),
+            const Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.grey),
+          ],
+        ),
       ),
     );
   }
@@ -123,25 +291,51 @@ class HeatmapScreen extends StatelessWidget {
     return Container(
       width: 180,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.5),
+        color: Colors.white.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: [
           Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF3E6F58),
-                borderRadius: BorderRadius.circular(8),
+            child: InkWell(
+              onTap: () => setState(() => _isDayView = true),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: _isDayView ? const Color(0xFF3E6F58) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Día',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: _isDayView ? Colors.white : Colors.grey,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
               ),
-              child: const Text('Día', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
             ),
           ),
-          const Expanded(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('Semana', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
+          Expanded(
+            child: InkWell(
+              onTap: () => setState(() => _isDayView = false),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: !_isDayView ? const Color(0xFF3E6F58) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Semana',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: !_isDayView ? Colors.white : Colors.grey,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -150,6 +344,8 @@ class HeatmapScreen extends StatelessWidget {
   }
 
   Widget _buildHeatmapCard(ThemeData theme) {
+    final hours = _hourlyActivity();
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -160,32 +356,25 @@ class HeatmapScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('Mapa de Calor\nConductual', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF3E6F58), height: 1.1)),
-                Icon(Icons.info_outline, color: Colors.blue.withOpacity(0.5), size: 20),
+                Icon(Icons.info_outline, color: Colors.blue.withValues(alpha: 0.5), size: 20),
               ],
             ),
             const SizedBox(height: 24),
-            // Time Labels
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _TimeLabel(label: '12 AM'),
-                _TimeLabel(label: '6 AM'),
-                _TimeLabel(label: '12 PM'),
-                _TimeLabel(label: '6 PM'),
-                _TimeLabel(label: '11 PM'),
-              ],
-            ),
-            const SizedBox(height: 8),
-            // Heatmap Grid
-            _buildHeatmapGrid(),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else
+              _buildHeatmapGrid(hours),
             const SizedBox(height: 24),
-            // Legend
             const Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _LegendItem(color: Color(0xFF3E6F58), label: 'Caminando'),
+                _LegendItem(color: Color(0xFF3E6F58), label: 'Activo'),
+                _LegendItem(color: Color(0xFF5A8B73), label: 'Moderado'),
                 _LegendItem(color: Color(0xFFD68C5E), label: 'De Pie'),
-                _LegendItem(color: Color(0xFFE0EAE4), label: 'Sentado'),
+                _LegendItem(color: Color(0xFFD1DCD6), label: 'Sentado'),
               ],
             ),
           ],
@@ -194,29 +383,62 @@ class HeatmapScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeatmapGrid() {
-    // Generando cajas de colores simuladas
-    final List<Color> colors = [
-      ...List.generate(6, (_) => const Color(0xFFF2F6F4)), // Noche
-      const Color(0xFFD1DCD6), const Color(0xFFD1DCD6), // Madrugada
-      const Color(0xFF3E6F58), const Color(0xFF5A8B73), const Color(0xFF3E6F58), // Actividad mañana
-      const Color(0xFFD68C5E), const Color(0xFFE4A47E), const Color(0xFFD68C5E), // Tarde activa
-      const Color(0xFFD1DCD6), const Color(0xFFD1DCD6),
-      const Color(0xFF3E6F58), const Color(0xFF3E6F58),
-      ...List.generate(4, (_) => const Color(0xFFF2F6F4)), // Noche final
-    ];
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: colors.map((color) => Container(
-        width: 12,
-        height: 12,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(2),
+  Widget _buildHeatmapGrid(List<int> hours) {
+    return Column(
+      children: [
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _TimeLabel(label: '12 AM'),
+            _TimeLabel(label: '6 AM'),
+            _TimeLabel(label: '12 PM'),
+            _TimeLabel(label: '6 PM'),
+            _TimeLabel(label: '11 PM'),
+          ],
         ),
-      )).toList(),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: hours.indexed.map((entry) {
+            final hour = entry.$1;
+            final intensity = entry.$2;
+            final session = _todaySessions.firstWhere(
+              (s) {
+                final start = DateTime.tryParse((s['start_time'] as String?) ?? '');
+                return start?.hour == hour;
+              },
+              orElse: () => <String, Object?>{},
+            );
+            final type = (session['type'] as String?) ?? '';
+
+            return Tooltip(
+              message: '${_formatHour(hour)}: ${_typeLabel(type)}',
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: _intensityColor(intensity),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
+  }
+
+  String _typeLabel(String type) {
+    switch (type) {
+      case 'active':
+        return 'Activo';
+      case 'alert':
+        return 'Alerta';
+      case 'idle':
+        return 'Inactivo';
+      default:
+        return 'Sin registro';
+    }
   }
 
   Widget _buildMetricCard({
@@ -240,7 +462,7 @@ class HeatmapScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(title, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: borderColor, letterSpacing: 1.1)),
-              Icon(icon, size: 16, color: borderColor.withOpacity(0.5)),
+              Icon(icon, size: 16, color: borderColor.withValues(alpha: 0.5)),
             ],
           ),
           const SizedBox(height: 8),
@@ -253,6 +475,12 @@ class HeatmapScreen extends StatelessWidget {
   }
 
   Widget _buildMetabolicEngagementCard(ThemeData theme) {
+    final week = _weekActiveMinutes();
+    final totalWeek = week.fold<int>(0, (a, b) => a + b);
+    final maxWeek = week.fold<int>(0, (a, b) => a > b ? a : b);
+    final peak = maxWeek > 0 ? (maxWeek / (totalWeek > 0 ? totalWeek : 1) * 100).round() : 0;
+    final hasWeekData = totalWeek > 0;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -272,28 +500,33 @@ class HeatmapScreen extends StatelessWidget {
                 ),
                 RichText(
                   textAlign: TextAlign.right,
-                  text: const TextSpan(
+                  text: TextSpan(
                     children: [
-                      TextSpan(text: '78% ', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF3E6F58))),
-                      TextSpan(text: 'Pico\nSedentario', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFD68C5E))),
+                      TextSpan(
+                        text: hasWeekData ? '$peak% ' : '0% ',
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF3E6F58)),
+                      ),
+                      const TextSpan(
+                        text: 'Día Pico\nActividad',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFD68C5E)),
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 32),
-            // Simulación de Gráfica de Barras
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                _buildBar(height: 40, label: 'L'),
-                _buildBar(height: 60, label: 'M'),
-                _buildBar(height: 80, label: 'M', isPeak: true),
-                _buildBar(height: 50, label: 'J'),
-                _buildBar(height: 70, label: 'V'),
-                _buildBar(height: 90, label: 'S'),
-                _buildBar(height: 65, label: 'D'),
+                for (var i = 0; i < 7; i++)
+                  _buildBar(
+                    height: hasWeekData && maxWeek > 0 ? (week[i] / maxWeek * 90).clamp(4.0, 90.0) : 4,
+                    label: const ['L', 'M', 'M', 'J', 'V', 'S', 'D'][i],
+                    isPeak: week[i] == maxWeek && maxWeek > 0,
+                    minutes: week[i],
+                  ),
               ],
             ),
           ],
@@ -302,33 +535,39 @@ class HeatmapScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBar({required double height, required String label, bool isPeak = false}) {
-    return Column(
-      children: [
-        Container(
-          width: 30,
-          height: height,
-          decoration: BoxDecoration(
-            color: isPeak ? const Color(0xFFD68C5E) : const Color(0xFF5A8B73),
-            borderRadius: BorderRadius.circular(4),
+  Widget _buildBar({required double height, required String label, bool isPeak = false, required int minutes}) {
+    return Tooltip(
+      message: '$label: $minutes min activos',
+      child: Column(
+        children: [
+          Container(
+            width: 30,
+            height: height,
+            decoration: BoxDecoration(
+              color: isPeak ? const Color(0xFFD68C5E) : const Color(0xFF5A8B73),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Column(
+              children: [
+                Container(height: 10, decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.05), borderRadius: const BorderRadius.only(topLeft: Radius.circular(4), topRight: Radius.circular(4)))),
+              ],
+            ),
           ),
-          child: Column(
-            children: [
-              Container(height: 10, decoration: BoxDecoration(color: Colors.black.withOpacity(0.05), borderRadius: const BorderRadius.only(topLeft: Radius.circular(4), topRight: Radius.circular(4)))),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
-      ],
+          const SizedBox(height: 8),
+          Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+        ],
+      ),
     );
   }
 
   Widget _buildInsightsSection(ThemeData theme) {
+    final peakWindow = _peakSedentaryWindow();
+    final totalToday = _todaySessions.isNotEmpty ? _todaySessions.length : 0;
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F7F4), // Fondo menta suave de la imagen
+        color: const Color(0xFFF0F7F4),
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
@@ -346,23 +585,39 @@ class HeatmapScreen extends StatelessWidget {
           const SizedBox(height: 12),
           RichText(
             textAlign: TextAlign.center,
-            text: const TextSpan(
-              style: TextStyle(color: Colors.black54, height: 1.5, fontSize: 13),
+            text: TextSpan(
+              style: const TextStyle(color: Colors.black54, height: 1.5, fontSize: 13),
               children: [
-                TextSpan(text: 'Tu compromiso metabólico cae significativamente entre las '),
-                TextSpan(text: '2 PM y las 4 PM', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFD68C5E))),
-                TextSpan(text: '. Recomendamos un estiramiento dinámico de 5 minutos a las 1:55 PM para prevenir el pico sedentario observado en tu mapa de calor.'),
+                TextSpan(
+                  text: totalToday > 0
+                      ? 'Basado en tus $totalToday sesiones registradas hoy, tu menor actividad se concentra entre las '
+                      : 'Aún no hay sesiones registradas hoy. La menor actividad suele concentrarse entre las ',
+                ),
+                TextSpan(
+                  text: peakWindow,
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFD68C5E)),
+                ),
+                TextSpan(
+                  text: totalToday > 0
+                      ? '. Recomendamos una pausa activa de 5 minutos en ese horario para prevenir el pico sedentario de tu mapa de calor.'
+                      : '. Conecta tu wearable y muévete para generar tu mapa de calor real.',
+                ),
               ],
             ),
           ),
           const SizedBox(height: 24),
           FilledButton(
-            onPressed: () {},
+            onPressed: _scheduleReminder,
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF3E6F58),
               minimumSize: const Size(double.infinity, 48),
             ),
-            child: const Text('Configurar Recordatorio', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            child: Text(
+              _reminderScheduled
+                  ? 'Recordatorio: ${_reminderTime!.format(context)} (Cambiar)'
+                  : 'Configurar Recordatorio',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
