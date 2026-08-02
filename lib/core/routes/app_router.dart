@@ -10,7 +10,6 @@ import 'package:lifebalance/features/dashboard/presentation/screens/executive_da
 import 'package:lifebalance/features/admin/presentation/screens/admin_summary_screen.dart';
 import 'package:lifebalance/features/analytics/presentation/screens/heatmap_screen.dart';
 import 'package:lifebalance/features/analytics/presentation/screens/performance_analysis_screen.dart';
-import 'package:lifebalance/features/fog/presentation/fog_screen.dart';
 import 'package:lifebalance/features/gamification/presentation/gamification_screen.dart';
 import 'package:lifebalance/features/profile/presentation/profile_screen.dart';
 import 'package:lifebalance/features/profile/presentation/screens/biometric_profile_screen.dart';
@@ -25,7 +24,6 @@ import 'package:lifebalance/shared/widgets/main_navigation_shell.dart';
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 final GlobalKey<NavigatorState> _dashboardNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'dashboard');
 final GlobalKey<NavigatorState> _wearableNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'wearable');
-final GlobalKey<NavigatorState> _fogNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'fog');
 final GlobalKey<NavigatorState> _gamificationNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'gamification');
 final GlobalKey<NavigatorState> _profileNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'profile');
 
