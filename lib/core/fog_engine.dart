@@ -19,10 +19,11 @@ class FogEngine {
   final List<double> _magnitudes = [];
 
   // Counter for consecutive inactive windows (30s each)
-  // 90 windows × 30s = 2700s = 45 minutes
+  // 90 windows × 30s = 2700s = 45 minutes (configurable)
   int _inactiveWindows = 0;
-  static const int _alertThresholdWindows = 90;
+  int _alertThresholdWindows = 90;
   static const double _varianceThreshold = 0.05;
+  static const int _minutesPerWindow = 2; // 2 windows por minuto (30s c/u)
 
   DateTime _lastMovement = DateTime.now();
   String _sessionStartTime = DateTime.now().toIso8601String();
@@ -149,10 +150,11 @@ class FogEngine {
       status = ActivityStatus.active;
     }
 
-    // 6. Alert processing: Trigger after 90 consecutive inactive windows (45 minutes)
+    // 6. Alert processing: Trigger after N consecutive inactive windows
+    final int thresholdMinutes = _alertThresholdWindows ~/ _minutesPerWindow;
     if (_inactiveWindows >= _alertThresholdWindows) {
       status = ActivityStatus.alertTriggered;
-      _triggerAlert();
+      _triggerAlert(thresholdMinutes);
 
       // Reset counter after alert or keep tracking?
       // PDF says "al llegar a 90 ventanas... cambiar el estado a alertTriggered"
@@ -169,16 +171,16 @@ class FogEngine {
     ));
   }
 
-  void _triggerAlert() {
+  void _triggerAlert(int minutes) {
     _alertsTriggered++;
 
     // Notify user
-    _notificationService.showInactivityAlert(45);
+    _notificationService.showInactivityAlert(minutes);
 
     // 7. Register in alerts_log table (Sección 16)
     SecureDatabaseService.instance.logAlert(
       DateTime.now().toIso8601String(),
-      45,
+      minutes,
       false
     );
 
@@ -187,8 +189,14 @@ class FogEngine {
       _sessionStartTime,
       DateTime.now().toIso8601String(),
       'alert',
-      45,
+      minutes,
     );
     _sessionStartTime = DateTime.now().toIso8601String();
+  }
+
+  /// Configura el umbral de alerta en minutos (recomputa las ventanas de 30s).
+  void setAlertThreshold(int minutes) {
+    _alertThresholdWindows = (minutes * _minutesPerWindow).clamp(1, 10000);
+    _inactiveWindows = 0;
   }
 }

@@ -29,13 +29,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _loadSavedCredentials() async {
     try {
       final savedEmail = await _storage.read(key: 'saved_email');
-      final savedPassword = await _storage.read(key: 'saved_password');
       final rememberMe = await _storage.read(key: 'remember_me');
 
-      if (rememberMe == 'true' && savedEmail != null && savedPassword != null) {
+      if (rememberMe == 'true' && savedEmail != null) {
         setState(() {
           _emailController.text = savedEmail;
-          _passwordController.text = savedPassword;
           _rememberMe = true;
         });
       }
@@ -47,13 +45,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _saveCredentials() async {
     try {
       if (_rememberMe) {
+        // Nunca persistir la contraseña: solo el email para autocompletar.
         await _storage.write(key: 'saved_email', value: _emailController.text);
-        await _storage.write(key: 'saved_password', value: _passwordController.text);
         await _storage.write(key: 'remember_me', value: 'true');
       } else {
         await _storage.delete(key: 'saved_email');
-        await _storage.delete(key: 'saved_password');
-        await _storage.write(key: 'remember_me', value: 'false');
+        await _storage.delete(key: 'remember_me');
       }
     } catch (e) {
       // Ignorar errores al guardar en el almacenamiento seguro

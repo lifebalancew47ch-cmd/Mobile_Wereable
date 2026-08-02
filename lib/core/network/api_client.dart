@@ -85,12 +85,10 @@ Dio _buildDio(Ref ref, String baseUrl) {
         return handler.next(options);
       },
       onError: (DioException e, handler) async {
-        // Here we could handle token refresh automatically
-        // or trigger a global logout event if 401 Unauthorized is returned.
+        // Token inválido o expirado: se limpia la sesión y el router
+        // (refreshListenable) redirige automáticamente a /login.
         if (e.response?.statusCode == 401) {
-          // Token is invalid or expired
           await tokenService.clearTokens();
-          // Note: navigation should ideally be handled via a router or auth state provider listening to this event.
         }
         return handler.next(e);
       },

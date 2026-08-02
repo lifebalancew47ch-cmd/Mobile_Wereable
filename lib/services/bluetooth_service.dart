@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class BluetoothService {
@@ -9,9 +10,25 @@ class BluetoothService {
   Stream<List<ScanResult>> get scanResults => FlutterBluePlus.scanResults;
   Stream<bool> get isScanning => FlutterBluePlus.isScanning;
 
+  /// Solicita los permisos necesarios para escanear/emparejar BLE.
+  Future<bool> ensurePermissions() async {
+    final statuses = await [
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+      Permission.locationWhenInUse,
+    ].request();
+    return statuses.values.every((s) => s.isGranted || s.isLimited);
+  }
+
   /// Starts scanning for Wear OS devices
   Future<void> startScan() async {
     if (await FlutterBluePlus.isSupported == false) return;
+    if (!await ensurePermissions()) return;
+    if (FlutterBluePlus.adapterStateNow != BluetoothAdapterState.on) {
+      FlutterBluePlus.turnOn();
+      await FlutterBluePlus.adapterState
+          .firstWhere((s) => s == BluetoothAdapterState.on);
+    }
 
     // Scan configuration
     await FlutterBluePlus.startScan(

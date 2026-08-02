@@ -22,7 +22,10 @@ class MainNavigationShell extends StatelessWidget {
       body: navigationShell,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: () => navigationShell.goBranch(
+          2,
+          initialLocation: navigationShell.currentIndex == 2,
+        ),
         backgroundColor: const Color(0xFF3E6F58),
         shape: const CircleBorder(),
         elevation: 4,

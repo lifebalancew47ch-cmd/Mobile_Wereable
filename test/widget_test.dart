@@ -16,6 +16,11 @@ void main() {
     // La app real envuelve MyApp en un ProviderScope (ver main.dart).
     await tester.pumpWidget(const ProviderScope(child: MyApp()));
 
+    // El router resuelve el redirect de sesión de forma asíncrona
+    // (lee el token desde Secure Storage), por lo que se necesita al
+    // menos un frame adicional antes de inspeccionar el árbol.
+    await tester.pump();
+
     // Verificamos que el router construyó el MaterialApp sin crashear.
     expect(find.text('LifeBalance'), findsWidgets);
 

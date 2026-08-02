@@ -51,7 +51,7 @@ class ProfileScreen extends ConsumerWidget {
                 leading: const Icon(Icons.badge_outlined),
                 title: const Text('Logros y medallas'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.go('/gamification'),
+                onTap: () => context.push('/profile/gamification'),
               ),
               const Divider(),
               ListTile(
@@ -67,13 +67,6 @@ class ProfileScreen extends ConsumerWidget {
                 subtitle: const Text('Gestionar dispositivos vinculados'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push('/profile/wearable-manage'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.watch, color: Color(0xFF3E6F58)),
-                title: const Text('Vista del reloj'),
-                subtitle: const Text('Abrir pantalla principal del wearable'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/watch'),
               ),
               const Divider(),
               ListTile(

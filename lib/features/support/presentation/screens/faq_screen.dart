@@ -1,221 +1,64 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 class FAQScreen extends StatelessWidget {
   const FAQScreen({super.key});
 
-  void _copyContact(BuildContext context) {
-    Clipboard.setData(const ClipboardData(text: 'soporte@lifebalance.app'));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Correo de soporte copiado: soporte@lifebalance.app'),
-        backgroundColor: Color(0xFF00C2FF),
-        duration: Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _copyDocs(BuildContext context) {
-    Clipboard.setData(const ClipboardData(text: 'https://lifebalance-adv3.onrender.com/api/v1'));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('URL de la API copiada'),
-        backgroundColor: Color(0xFF00C2FF),
-        duration: Duration(seconds: 2),
-      ),
-    );
-  }
+  static const List<({String q, String a})> _faqs = [
+    (
+      q: '¿Cómo detecta LifeBalance el sedentarismo?',
+      a: 'Tu reloj Wear OS manda muestras de acelerómetro al teléfono cada 5 segundos. El motor Fog (FogEngine) agrupa las muestras en ventanas de 30 segundos y calcula su varianza: si la varianza es menor a 0.05, la ventana se marca como inactiva. Tras 90 ventanas consecutivas (unos 45 minutos, configurable) se dispara la alerta.',
+    ),
+    (
+      q: '¿Por qué se me notifica una alerta de inactividad?',
+      a: 'Para recordarte hacer una pausa activa de 2 minutos. La alerta se registra en tu historial local y aparece como notificación en tu teléfono.',
+    ),
+    (
+      q: '¿Cómo emparejo mi reloj Wear OS?',
+      a: 'Ve a Perfil > "Emparejar wearable". El teléfono escaneará dispositivos Bluetooth cercanos; selecciona tu reloj para vincularlo. El reloj debe tener la app LifeBalance Wear instalada y el servicio de sensores activo.',
+    ),
+    (
+      q: '¿Dónde se guardan mis datos de actividad?',
+      a: 'En una base de datos local cifrada con SQLCipher (AES-256). Las sesiones de actividad, signos vitales y alertas se guardan en tu dispositivo. La sincronización con la nube está pendiente de implementarse.',
+    ),
+    (
+      q: '¿Qué significa el puntaje de sedentarismo?',
+      a: 'Es la proporción entre tus minutos inactivos acumulados y el umbral de alerta (90 ventanas). 0 = activo, acercándose a 1 = riesgo alto de alerta inminente.',
+    ),
+    (
+      q: '¿La app necesita internet?',
+      a: 'El análisis Fog es 100% local: los datos del acelerómetro se procesan en tu teléfono sin salir de él. Solo el inicio de sesión, el perfil y las notificaciones requieren conexión a tu cuenta.',
+    ),
+    (
+      q: '¿Cómo protejo mi cuenta?',
+      a: 'Usa una contraseña de mínimo 8 caracteres. Puedes además activar la autenticación biométrica en Perfil > "Perfil Biométrico" para proteger tu acceso.',
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFF0B1220), // Midnight Deep Navy
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        title: const Text('LifeBalance Watch', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: CircleAvatar(radius: 14, backgroundImage: NetworkImage('https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=150')),
-          )
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            const SizedBox(height: 40),
-            // Header Texto
-            const Center(
-              child: Column(
-                children: [
-                  Text('CENTRO DE AYUDA', style: TextStyle(color: Color(0xFF00C2FF), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-                  SizedBox(height: 12),
-                  Text(
-                    'Resolviendo tus\ndudas técnicas',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, height: 1.1),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'Todo lo que necesitas saber sobre nuestra plataforma de bienestar corporativo impulsada por IA.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
-                ],
-              ),
+      appBar: AppBar(title: Text('Centro de Ayuda', style: theme.textTheme.titleLarge)),
+      body: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: _faqs.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final faq = _faqs[index];
+          return ExpansionTile(
+            shape: const Border(),
+            tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            title: Text(
+              faq.q,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
             ),
-            const SizedBox(height: 48),
-
-            // Cuerpo con Categorías y Preguntas
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Sidebar Categorías (Desktop style adapted for mobile)
-                  SizedBox(
-                    width: 100,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('CATEGORIES', style: TextStyle(color: Colors.white24, fontSize: 8, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 16),
-                        _CategoryItem(icon: Icons.settings, label: 'General', isActive: true),
-                        _CategoryItem(icon: Icons.layers_outlined, label: 'Integraciones'),
-                        _CategoryItem(icon: Icons.security_outlined, label: 'Seguridad'),
-                        _CategoryItem(icon: Icons.payments_outlined, label: 'Planes'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  // FAQ List
-                  Expanded(
-                    child: Column(
-                      children: [
-                        _FAQItem(title: '¿Cómo funciona el Sedentary Score?'),
-                        _FAQItem(title: 'Integración con smartwatches', icon: Icons.watch),
-                        _FAQItem(title: 'Privacidad de datos corporativos', icon: Icons.lock_outline),
-                        _FAQItem(title: 'Diferencia entre planes', icon: Icons.grid_view),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 60),
-
-            // Sección Contacto
-            Container(
-              margin: const EdgeInsets.all(20),
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: const Color(0xFF161F30),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('¿Aún tienes dudas?', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Nuestro equipo de soporte técnico está disponible para ayudarte con la implementación en tu empresa.',
-                    style: TextStyle(color: Colors.white54, fontSize: 13, height: 1.4),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      ElevatedButton(
-                        onPressed: () => _copyContact(context),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00C2FF),
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: const Text('Hablar con soporte', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                      ),
-                      const SizedBox(width: 12),
-                      OutlinedButton(
-                        onPressed: () => _copyDocs(context),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Colors.white24),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: const Text('Documentación API', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // Footer
-            const Padding(
-              padding: EdgeInsets.all(24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('LifeBalance', style: TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold)),
-                  Row(
-                    children: [
-                      Text('Privacidad', style: TextStyle(color: Colors.white38, fontSize: 10)),
-                      SizedBox(width: 12),
-                      Text('Términos', style: TextStyle(color: Colors.white38, fontSize: 10)),
-                      SizedBox(width: 12),
-                      Text('Cookies', style: TextStyle(color: Colors.white38, fontSize: 10)),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CategoryItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isActive;
-  const _CategoryItem({required this.icon, required this.label, this.isActive = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Row(
-        children: [
-          Icon(icon, color: isActive ? const Color(0xFF00C2FF) : Colors.white24, size: 16),
-          const SizedBox(width: 12),
-          Text(label, style: TextStyle(color: isActive ? Colors.white : Colors.white24, fontSize: 11, fontWeight: isActive ? FontWeight.bold : FontWeight.normal)),
-        ],
-      ),
-    );
-  }
-}
-
-class _FAQItem extends StatelessWidget {
-  final String title;
-  final IconData? icon;
-  const _FAQItem({required this.title, this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF161F30).withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        leading: icon != null ? Icon(icon, color: const Color(0xFF00C2FF).withValues(alpha: 0.5), size: 18) : null,
-        title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
-        trailing: const Icon(Icons.keyboard_arrow_down, color: Colors.white24, size: 18),
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(faq.a, style: TextStyle(color: Colors.black54, fontSize: 13, height: 1.4)),
+            ],
+          );
+        },
       ),
     );
   }

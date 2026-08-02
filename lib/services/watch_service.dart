@@ -18,9 +18,11 @@ class WatchService implements IWatchService {
 
   WatchService() {
     _accelSub = _wearableService.accelerometerStream.listen((data) {
+      // Solo se persiste un VitalSign cuando existen métricas reales del
+      // sensor. Sin datos de salud (Health Connect) no se fabrican ceros.
       _latestSign = VitalSign(
         timestamp: DateTime.fromMillisecondsSinceEpoch(data.timestamp),
-        heartRate: 0, // Placeholder
+        heartRate: 0,
         hrv: 0,
         spo2: 0,
         steps: 0,
@@ -42,15 +44,17 @@ class WatchService implements IWatchService {
   void startPeriodicSync({Duration interval = const Duration(minutes: 5)}) {
     _syncTimer?.cancel();
     _syncTimer = Timer.periodic(interval, (timer) async {
-      final hasPerm = await requestPermissions();
-      if (hasPerm) {
-        final metrics = await getLatestMetrics();
-        if (metrics != null) {
-          // Delegar al aislar WorkManager nativo u optimización de bajo consumo en SQLite.
-          // Aquí realizamos una pequeña inserción cada 5 minutos. 
-          await SecureDatabaseService.instance.insertVitalSign(metrics);
-        }
+      final metrics = _latestSign;
+      // Evita persistir signos vitales falsos (todos en cero) mientras no
+      // haya integración con Health/sensores de salud del wearable.
+      if (metrics == null ||
+          (metrics.heartRate <= 0 &&
+              metrics.hrv <= 0 &&
+              metrics.spo2 <= 0 &&
+              metrics.steps <= 0)) {
+        return;
       }
+      await SecureDatabaseService.instance.insertVitalSign(metrics);
     });
   }
 

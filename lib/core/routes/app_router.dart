@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lifebalance/core/security/token_service.dart';
 
 // Screens
 import 'package:lifebalance/features/auth/presentation/screens/login_screen.dart';
@@ -16,13 +18,11 @@ import 'package:lifebalance/features/support/presentation/screens/video_explanat
 import 'package:lifebalance/features/profile/presentation/profile_screen.dart';
 import 'package:lifebalance/features/profile/presentation/screens/biometric_profile_screen.dart';
 import 'package:lifebalance/features/profile/presentation/activity_history_screen.dart';
+import 'package:lifebalance/features/gamification/presentation/gamification_screen.dart';
 import 'package:lifebalance/features/fog/presentation/fog_screen.dart';
 import 'package:lifebalance/features/wearable/presentation/screens/device_scanning_screen.dart';
 import 'package:lifebalance/features/wearable/presentation/screens/device_management_screen.dart';
 import 'package:lifebalance/features/notifications/presentation/notifications_screen.dart';
-import 'package:lifebalance/features/wearable/presentation/screens/watch_alert_screen.dart';
-import 'package:lifebalance/features/wearable/presentation/screens/watch_progress_screen.dart';
-import 'package:lifebalance/presentation/screens/watch_dashboard_screen.dart';
 
 // Navigation Shell
 import 'package:lifebalance/shared/widgets/main_navigation_shell.dart';
@@ -36,6 +36,17 @@ final GlobalKey<NavigatorState> _profileNavigatorKey = GlobalKey<NavigatorState>
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/splash',
+  refreshListenable: sessionChangeNotifier,
+  redirect: (BuildContext context, GoRouterState state) async {
+    // Rutas públicas (auth) no requieren sesión.
+    const publicRoutes = {'/splash', '/login', '/auth/register', '/auth/forgot-password'};
+    if (publicRoutes.contains(state.matchedLocation)) return null;
+
+    final tokenService = ProviderScope.containerOf(context).read(tokenServiceProvider);
+    final hasValidSession = await tokenService.hasValidToken();
+    if (!hasValidSession) return '/login';
+    return null;
+  },
   routes: <RouteBase>[
     // Authentication Routes (Outside the shell)
     GoRoute(
@@ -53,18 +64,6 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/auth/forgot-password',
       builder: (BuildContext context, GoRouterState state) => const ForgotPasswordScreen(),
-    ),
-    GoRoute(
-      path: '/watch',
-      builder: (BuildContext context, GoRouterState state) => const WatchDashboardScreen(),
-    ),
-    GoRoute(
-      path: '/watch/alert',
-      builder: (BuildContext context, GoRouterState state) => const WatchAlertScreen(),
-    ),
-    GoRoute(
-      path: '/watch/progress',
-      builder: (BuildContext context, GoRouterState state) => const WatchProgressScreen(),
     ),
     GoRoute(
       path: '/fog',
@@ -149,6 +148,10 @@ final GoRouter appRouter = GoRouter(
                 GoRoute(
                   path: 'biometric',
                   builder: (context, state) => const BiometricProfileScreen(),
+                ),
+                GoRoute(
+                  path: 'gamification',
+                  builder: (context, state) => const GamificationScreen(),
                 ),
                 GoRoute(
                   path: 'settings',

@@ -44,11 +44,6 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
         ),
         actions: [
           IconButton(
-            tooltip: 'Vista del reloj',
-            onPressed: () => context.push('/watch'),
-            icon: const Icon(Icons.watch, color: Colors.black87),
-          ),
-          IconButton(
             tooltip: 'Emparejar wearable',
             onPressed: () => context.push('/profile/wearable-scan'),
             icon: const Icon(Icons.bluetooth_searching, color: Colors.black87),

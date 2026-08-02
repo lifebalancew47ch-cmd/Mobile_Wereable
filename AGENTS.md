@@ -45,20 +45,18 @@ lib/
 ├── data/datasources/ # secure_database_service.dart (encrypted SQLite singleton)
 ├── features/         # Feature-based modules (Clean Architecture)
 │   ├── auth/         # Authentication (CURRENT, Clean Architecture)
-│   ├── authentication/  # LEGACY duplicate screens (splash, login, register) - see caveats
+│   ├── authentication/  # LEGACY: solo SplashScreen (token check) - ver caveats
 │   ├── admin/       # Admin summary
 │   ├── analytics/   # Performance analysis + heatmap
-│   ├── bluetooth/   # Bluetooth screen
 │   ├── dashboard/   # Main app UI after login (executive dashboard)
 │   ├── fog/         # Fog status screen + providers
-│   ├── gamification/ # Gamification screen
+│   ├── gamification/ # Gamification screen (logros y medallas)
 │   ├── notifications/# Notifications UI and logic
 │   ├── profile/     # User profile, biometric, activity history
-│   ├── settings/    # Settings + alert configuration
-│   ├── support/     # FAQ + video explanation
-│   └── wearable/    # Wearable sync UI (device scan/manage, watch alert/progress)
+│   ├── settings/    # Settings + alert configuration (persistida localmente)
+│   ├── support/     # FAQ + explanation screen
+│   └── wearable/    # Wearable sync UI (device scan/manage)
 ├── models/           # Shared models (fog_state, vital_sign)
-├── presentation/     # Global screens (watch_dashboard)
 ├── services/         # Platform services (BackgroundService, WatchService, SyncService, NotificationService, WearableCommunicationService, SensorService, BluetoothService)
 ├── shared/widgets/   # main_navigation_shell (bottom nav)
 └── main.dart         # Entry point: env vars, jailbreak check, DB init, permissions, background service
@@ -71,8 +69,10 @@ Inside each feature (e.g., `features/auth/`), the structure is:
 - **`presentation/`**: Riverpod Providers (State Notifiers), Screens, and Widgets.
 
 ### Navigation (go_router)
-- Top-level routes: `/splash`, `/login`, `/auth/register`, `/auth/forgot-password`, `/watch`, `/watch/alert`, `/watch/progress`, `/fog`
-- StatefulShellRoute with 5 tabs: `/dashboard` (notifications subroute), `/analytics` (heatmap subroute), `/admin`, `/support` (video subroute), `/profile` (biometric, settings, history, wearable-scan, wearable-manage subroutes)
+- Top-level routes: `/splash`, `/login`, `/auth/register`, `/auth/forgot-password`, `/fog`
+- StatefulShellRoute with 5 tabs: `/dashboard` (notifications subroute), `/analytics` (heatmap subroute), `/admin` (accesible vía FAB `+`), `/support` (video subroute), `/profile` (biometric, gamification, settings, history, wearable-scan, wearable-manage subroutes)
+- **Sesión**: `app_router.dart` usa `redirect` + `refreshListenable` (escucha `sessionChangeNotifier` de `token_service.dart`) para expulsar a `/login` cuando el token expira o en un 401. `hasValidToken()` verifica el claim `exp` del JWT.
+- Las pantallas de reloj (`/watch`, `/watch/alert`, `/watch/progress`) fueron ELIMINADAS del móvil: la UI del wearable vive en la app Wear OS nativa (`android/wear`).
 
 ## 4. Data Flow: Wearable → Fog → Local DB (→ Cloud planned)
 
@@ -114,7 +114,8 @@ placeholder stub (pending team API). DB tables already have synced_to_cloud colu
   - `dashboardApiClientProvider` → Dashboard service (`DASHBOARD_API_URL`, default `https://lifebalance-dashboard-service.onrender.com/api/v1`)
   - `notificationsApiClientProvider` → Notifications service (`NOTIFICATIONS_API_URL`, default `https://lifebalance-notifications-api.onrender.com/api/v1`)
 - **Network Resilience**: `RetryWithBackoffInterceptor` retries 500/502/503/429 and network timeouts, max 3 attempts, linear backoff. TLS/certificate failures and cancellations are NEVER retried.
-- **Auth Header**: Bearer token attached via interceptor from `TokenService`; on 401 tokens are cleared.
+- **Auth Header**: Bearer token attached via interceptor from `TokenService`; on 401 tokens are cleared (`sessionChangeNotifier` dispara un refresh del router que redirige a `/login`).
+- **Recordar sesión**: el login guarda solo el email (NUNCA la contraseña) en `FlutterSecureStorage`.
 - **Certificate Pinning**: `certificate_pinning.dart` enforces pinning using `PINNED_CERT_SHA256` from env. Fail-closed (no pins → reject). Disabled in debug/profile for development.
 
 ### 5.2 Background Service (`services/background_service.dart`)
@@ -130,7 +131,9 @@ placeholder stub (pending team API). DB tables already have synced_to_cloud colu
   - Calculates the statistical variance of the magnitudes in the window.
   - If variance < 0.05, the window is marked as "idle".
   - If 90 consecutive idle windows occur (45 minutes), it triggers an alert.
+  - El umbral es **configurable** (`setAlertThreshold(minutes)`) y se sincroniza con la configuración de alertas persistida (`AlertSettings`).
 - **Alert Trigger**: Logs the alert to the secure database (`alerts_log`) and fires a local notification.
+- **Configuración de alertas**: `features/settings/` persiste en `SharedPreferences` el intervalo (30/45/60/90 min), horario de operación, días activos, notificaciones críticas y sonido (`AlertSettingsStore`).
 - NOTE: `lib/services/fog_engine.dart` is a DEAD abstract `IFogEngine` stub — do not use it; the real engine is `lib/core/fog_engine.dart`.
 
 ### 5.4 Wearable Communication (`services/wearable_communication_service.dart`)
@@ -169,7 +172,7 @@ placeholder stub (pending team API). DB tables already have synced_to_cloud colu
 - Files `.env.development` and `.env.production` are **NOT committed** (gitignored via `.env.*`). They are registered as assets in `pubspec.yaml`:88-91, so any Flutter build/Gradle task that bundles assets REQUIRES the files to exist. Each DevOps CI job creates empty placeholders (`touch .env.development .env.production`); the app falls back to defaults via `?? onClick` and `_envBaseUrl`/`dotenv.isInitialized` guards when loaded from an empty env.
 
 ## 8. Known Caveats & Legacy Code
-1. **Duplicate auth features**: `features/auth/` (current, Clean Architecture) vs `features/authentication/` (legacy screens: splash/login/register). `app_router.dart` currently imports the legacy `SplashScreen` and the new auth screens.
+1. **Auth features**: `features/auth/` (current, Clean Architecture) es la única fuente de login/registro. `features/authentication/` conserva solo `SplashScreen` (chequeo de token); las pantallas login/register/forgot legacy duplicadas fueron ELIMINADAS.
 2. **Two FogEngines**: `lib/core/fog_engine.dart` (real, used by `BackgroundService` and `fog_providers.dart`) vs `lib/services/fog_engine.dart` (dead `IFogEngine` stub).
 3. **`MockAuthDataSource`** exists in `features/auth/data/datasources/auth_datasource.dart` but is NOT used by the live repository (violates the No Mocks rule if reactivated).
 4. **Placeholders**: `WatchService` vital signs (heart rate, HRV, SpO2, steps) are hardcoded to 0 pending Health Connect integration.
