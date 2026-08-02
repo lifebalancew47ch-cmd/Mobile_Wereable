@@ -64,6 +64,10 @@ class FogEngine {
     _accelSub = _wearableService.accelerometerStream.listen((AccelerometerData data) {
       // 2. Calculate vector magnitude: |a| = sqrt(x² + y² + z²)
       final double mag = sqrt(data.x * data.x + data.y * data.y + data.z * data.z);
+      // Security: descartar muestras no finitas (NaN/±Inf) provenientes de
+      // sensores comprometidos; un único NaN convertiría la varianza en NaN y
+      // rompería la detección de inactividad (alerta silenciosa).
+      if (!mag.isFinite) return;
       _magnitudes.add(mag);
       _samplesProcessed++;
     });
@@ -90,6 +94,7 @@ class FogEngine {
     if (_isRunning) return;
     _accelSub = _wearableService.accelerometerStream.listen((AccelerometerData data) {
       final double mag = sqrt(data.x * data.x + data.y * data.y + data.z * data.z);
+      if (!mag.isFinite) return;
       _magnitudes.add(mag);
       _samplesProcessed++;
     });

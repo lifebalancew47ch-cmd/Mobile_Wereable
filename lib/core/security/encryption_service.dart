@@ -10,13 +10,15 @@ class EncryptionService {
   static Future<String> getEncryptionKey() async {
     String? key = await _storage.read(key: _keyAlias);
     if (key == null) {
-      key = _generateRandomKey();
+      key = generateRandomKey();
       await _storage.write(key: _keyAlias, value: key);
     }
     return key;
   }
 
-  static String _generateRandomKey() {
+  /// Genera una clave AES-256 (32 bytes) con [Random.secure], codificada en
+  /// base64url. Nunca debe loguearse ni persistirse fuera de Secure Storage.
+  static String generateRandomKey() {
     final random = Random.secure();
     final values = List<int>.generate(32, (i) => random.nextInt(256));
     return base64UrlEncode(values);

@@ -29,8 +29,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       } else {
         context.go('/login');
       }
-    } catch (e) {
-      debugPrint('Error reading token: $e');
+    } catch (_) {
+      // Security: silencio total ante fallos de lectura de token; nunca
+      // loguear contenido de credenciales (PCI-DSS 10.5 / OWASP-API-9).
       context.go('/login');
     }
   }

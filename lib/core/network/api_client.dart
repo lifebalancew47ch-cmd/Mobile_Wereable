@@ -1,7 +1,58 @@
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../security/certificate_pinning.dart';
 import '../security/token_service.dart';
+
+/// Reintenta peticiones fallidas por indisponibilidad transitoria del backend
+/// (500/502/503/429) o errores de red con backoff exponencial, SIN degradar
+/// nunca el canal a HTTP o sin TLS. Los fallos de TLS nunca se reintentan.
+class RetryWithBackoffInterceptor extends Interceptor {
+  RetryWithBackoffInterceptor(
+    this._dio, {
+    this.maxAttempts = 3,
+    this.baseDelay = const Duration(milliseconds: 200),
+  });
+
+  final Dio _dio;
+  final int maxAttempts;
+  final Duration baseDelay;
+
+  int _attempts = 0;
+
+  bool _isRetryable(DioException err) {
+    if (err.type == DioExceptionType.cancel ||
+        err.type == DioExceptionType.badCertificate) {
+      return false;
+    }
+    final status = err.response?.statusCode;
+    if (status != null) {
+      return status == 500 || status == 502 || status == 503 || status == 429;
+    }
+    return err.type == DioExceptionType.connectionTimeout ||
+        err.type == DioExceptionType.receiveTimeout ||
+        err.type == DioExceptionType.connectionError;
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    if (_attempts < maxAttempts && _isRetryable(err)) {
+      _attempts++;
+      Future<void>.delayed(baseDelay * _attempts, () async {
+        try {
+          final response = await _dio.fetch<dynamic>(err.requestOptions);
+          handler.resolve(response);
+        } on DioException catch (retryError) {
+          handler.next(retryError);
+        }
+      });
+      return;
+    }
+    _attempts = 0;
+    handler.next(err);
+  }
+}
 
 Dio _buildDio(Ref ref, String baseUrl) {
   final tokenService = ref.watch(tokenServiceProvider);
@@ -15,6 +66,13 @@ Dio _buildDio(Ref ref, String baseUrl) {
       'Accept': 'application/json',
     },
   ));
+
+  // SSL/TLS Pinning estricto a nivel de adapter (certificado hoja):
+  // verifica la huella SHA-256 contra PINNED_CERT_SHA256. Sin pins
+  // configurados -> fail-closed (la conexión TLS se bloquea).
+  dio.httpClientAdapter = IOHttpClientAdapter(
+    validateCertificate: CertificatePinning.validateCertificate,
+  );
 
   dio.interceptors.add(
     InterceptorsWrapper(
@@ -38,6 +96,10 @@ Dio _buildDio(Ref ref, String baseUrl) {
       },
     ),
   );
+
+  // Reintentos de resiliencia transitoria (500/503): nunca reintenta
+  // errores de certificado ni degrada el canal a cleartext.
+  dio.interceptors.add(RetryWithBackoffInterceptor(dio));
 
   return dio;
 }
