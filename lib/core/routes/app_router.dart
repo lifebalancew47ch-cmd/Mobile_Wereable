@@ -17,6 +17,8 @@ import 'package:lifebalance/features/support/presentation/screens/video_explanat
 import 'package:lifebalance/features/profile/presentation/profile_screen.dart';
 import 'package:lifebalance/features/profile/presentation/screens/biometric_profile_screen.dart';
 import 'package:lifebalance/features/profile/presentation/activity_history_screen.dart';
+import 'package:lifebalance/features/wearable/presentation/screens/device_scanning_screen.dart';
+import 'package:lifebalance/features/wearable/presentation/screens/device_management_screen.dart';
 
 // Navigation Shell
 import 'package:lifebalance/shared/widgets/main_navigation_shell.dart';
@@ -137,6 +139,16 @@ final GoRouter appRouter = GoRouter(
                   path: 'history',
                   parentNavigatorKey: _rootNavigatorKey,
                   builder: (BuildContext context, GoRouterState state) => const ActivityHistoryScreen(),
+                ),
+                GoRoute(
+                  path: 'wearable-scan',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (BuildContext context, GoRouterState state) => const DeviceScanningScreen(),
+                ),
+                GoRoute(
+                  path: 'wearable-manage',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (BuildContext context, GoRouterState state) => const DeviceManagementScreen(),
                 ),
               ],
             ),
