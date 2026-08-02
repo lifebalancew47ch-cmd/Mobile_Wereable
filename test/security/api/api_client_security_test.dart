@@ -25,10 +25,22 @@ void main() {
     storage = MockSecureStorage();
     tokenService = TokenService(storage);
 
-    when(() => storage.read(key: any(named: 'key'))).thenAnswer((_) async => null);
+    // Almacenamiento en memoria: preserva el valor escrito por clave para
+    // poder verificar el refresco atómico (lectura tras escritura).
+    final backing = <String, String>{};
+    when(() => storage.read(key: any(named: 'key'))).thenAnswer(
+      (invocation) async =>
+          backing[invocation.namedArguments[#key] as String],
+    );
     when(() => storage.write(key: any(named: 'key'), value: any(named: 'value')))
-        .thenAnswer((_) async {});
-    when(() => storage.delete(key: any(named: 'key'))).thenAnswer((_) async {});
+        .thenAnswer((invocation) async {
+      backing[invocation.namedArguments[#key] as String] =
+          invocation.namedArguments[#value] as String;
+    });
+    when(() => storage.delete(key: any(named: 'key'))).thenAnswer(
+      (invocation) async =>
+          backing.remove(invocation.namedArguments[#key] as String),
+    );
 
     container = ProviderContainer(
       overrides: [tokenServiceProvider.overrideWithValue(tokenService)],

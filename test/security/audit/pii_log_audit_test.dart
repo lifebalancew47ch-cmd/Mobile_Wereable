@@ -18,6 +18,9 @@ void main() {
     });
 
     List<String> sensitiveLines(File file) {
+      // \blog\s*\( evita falsos positivos de substrings "log(" en
+      // identificadores como showDialog(" / AlertDialog(".
+      final logCall = RegExp(r'\blog\s*\(');
       return file
           .readAsLinesSync()
           .asMap()
@@ -25,7 +28,7 @@ void main() {
           .where((entry) =>
               entry.value.contains('print(') ||
               entry.value.contains('debugPrint(') ||
-              entry.value.contains('log(') ||
+              logCall.hasMatch(entry.value) ||
               entry.value.contains('dart:developer'))
           .where((entry) =>
               RegExp(

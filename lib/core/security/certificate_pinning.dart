@@ -24,7 +24,11 @@ class CertificatePinning {
   static List<String> _pins = _loadPins();
 
   static List<String> _loadPins() {
-    return (dotenv.env['PINNED_CERT_SHA256'] ?? '')
+    // dotenv puede no estar cargado (tests); en ese caso no hay pins
+    // configurados y se conserva el comportamiento fail-closed.
+    final raw =
+        dotenv.isInitialized ? (dotenv.env['PINNED_CERT_SHA256'] ?? '') : '';
+    return raw
         .split(',')
         .map((pin) => pin.trim().replaceAll(':', '').toUpperCase())
         .where((pin) => pin.isNotEmpty)

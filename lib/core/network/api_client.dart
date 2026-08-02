@@ -105,18 +105,33 @@ Dio _buildDio(Ref ref, String baseUrl) {
 }
 
 final apiClientProvider = Provider<Dio>((ref) {
-  final baseUrl = dotenv.env['API_URL'] ?? 'https://lifebalance-auth-service.onrender.com/api/v1';
+  final baseUrl = _envBaseUrl(
+    'API_URL',
+    'https://lifebalance-auth-service.onrender.com/api/v1',
+  );
   return _buildDio(ref, baseUrl);
 });
 
 final dashboardApiClientProvider = Provider<Dio>((ref) {
-  final baseUrl = dotenv.env['DASHBOARD_API_URL'] ??
-      'https://lifebalance-dashboard-service.onrender.com/api/v1';
+  final baseUrl = _envBaseUrl(
+    'DASHBOARD_API_URL',
+    'https://lifebalance-dashboard-service.onrender.com/api/v1',
+  );
   return _buildDio(ref, baseUrl);
 });
 
 final notificationsApiClientProvider = Provider<Dio>((ref) {
-  final baseUrl = dotenv.env['NOTIFICATIONS_API_URL'] ??
-      'https://lifebalance-notifications-api.onrender.com/api/v1';
+  final baseUrl = _envBaseUrl(
+    'NOTIFICATIONS_API_URL',
+    'https://lifebalance-notifications-api.onrender.com/api/v1',
+  );
   return _buildDio(ref, baseUrl);
 });
+
+/// Lee una variable de entorno de forma segura. Si dotenv no está cargado
+/// (p. ej. en tests unitarios), devuelve el fallback en lugar de lanzar
+/// [NotInitializedError].
+String _envBaseUrl(String key, String fallback) {
+  if (!dotenv.isInitialized) return fallback;
+  return dotenv.env[key] ?? fallback;
+}

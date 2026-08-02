@@ -1,4 +1,5 @@
 import 'package:dio/io.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,10 +35,30 @@ void main() {
       );
     });
 
-    test('Certificado nulo -> rechazado', () {
+    test('Bypass de desarrollo en debug; el núcleo sigue fail-closed', () {
       CertificatePinning.configureForTesting([hexPin('AB')]);
+      // En builds debug/profile (y en tests) se aplica el bypass de desarrollo
+      // para no bloquear conexiones sin pin local (ver README).
+      if (kDebugMode || kProfileMode) {
+        expect(CertificatePinning.validateCertificate(null, 'host', 443),
+            isTrue,
+            reason: 'Bypass de desarrollo activo en build de depuración');
+      }
+      // El núcleo de decisión NUNCA se omite ni se degrada.
       expect(
-        CertificatePinning.validateCertificate(null, 'host', 443),
+        CertificatePinning.validatePinnedCertificate(
+          sha256Hex: hexPin('AB'),
+          host: 'host',
+          port: 443,
+        ),
+        isTrue,
+      );
+      expect(
+        CertificatePinning.validatePinnedCertificate(
+          sha256Hex: hexPin('FF'),
+          host: 'host',
+          port: 443,
+        ),
         isFalse,
       );
     });
@@ -115,7 +136,7 @@ void main() {
       }
     });
 
-    test('validateCertificate registrado y fail-closed por defecto', () {
+    test('validateCertificate registrado y núcleo de decisión fail-closed', () {
       final dio = container.read(apiClientProvider);
       final adapter = dio.httpClientAdapter;
       expect(adapter, isA<IOHttpClientAdapter>(),
@@ -123,23 +144,41 @@ void main() {
       final validate = (adapter as IOHttpClientAdapter).validateCertificate;
       expect(validate, isNotNull,
           reason: 'Debe existir un validador de certificados');
-      expect(validate!(null, 'host', 443), isFalse,
-          reason: 'Fail-closed cuando no hay certificado');
+
+      // La garantía fail-closed vive en el núcleo y no depende del build:
+      // sin pins configurados, nunca se acepta.
+      CertificatePinning.configureForTesting(const []);
+      expect(CertificatePinning.isConfigured, isFalse);
+      expect(
+        CertificatePinning.validatePinnedCertificate(
+          sha256Hex: hexPin('AA'),
+          host: 'host',
+          port: 443,
+        ),
+        isFalse,
+        reason: 'Fail-closed en el núcleo de decisión (sin pins)',
+      );
     });
 
-    test('El validador de producción rechaza certs no pinneados', () {
-      // dotenv no está cargado en CI -> pins vacíos -> fail-closed.
+    test('Sin pins configurables -> rechazo fail-closed (núcleo)', () {
+      // dotenv no está cargado en CI/tests -> pins vacíos -> fail-closed.
       CertificatePinning.resetForTesting();
       expect(CertificatePinning.isConfigured, isFalse);
       final adapter =
           container.read(apiClientProvider).httpClientAdapter as IOHttpClientAdapter;
+      expect(adapter.validateCertificate, isNotNull,
+          reason: 'El adapter debe llevar el validador de certificados');
+
+      // En cualquier build, el núcleo rechaza un certificado sin pin
+      // coincidente (nunca degradar).
       expect(
-        adapter.validateCertificate!(
-          null,
-          'lifebalance-auth-service.onrender.com',
-          443,
+        CertificatePinning.validatePinnedCertificate(
+          sha256Hex: hexPin('00'),
+          host: 'lifebalance-auth-service.onrender.com',
+          port: 443,
         ),
         isFalse,
+        reason: 'Pins vacíos => rechazo (nunca degradar)',
       );
     });
 
