@@ -50,7 +50,7 @@ class VideoExplanationScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(24),
                 image: const DecorationImage(
                   image: NetworkImage('https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=600'),
-                  fit: BoxCover.cover,
+                  fit: BoxFit.cover,
                   opacity: 0.3,
                 ),
               ),

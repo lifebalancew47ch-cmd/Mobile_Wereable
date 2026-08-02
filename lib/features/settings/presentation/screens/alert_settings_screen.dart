@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/theme/theme_provider.dart';
+import '../../../../core/theme/theme_provider.dart';
 
 class AlertSettingsScreen extends ConsumerStatefulWidget {
   const AlertSettingsScreen({super.key});
@@ -13,7 +13,6 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
   String _selectedInterval = 'Cada 60 min';
   bool _criticalNotifications = false;
   bool _alertSound = true;
-  String _selectedDay = 'L';
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +51,7 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
                   borderRadius: BorderRadius.circular(20),
                   image: DecorationImage(
                     image: const NetworkImage('https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=400'),
-                    fit: BoxCover.cover,
+                    fit: BoxFit.cover,
                     colorFilter: ColorFilter.mode(
                       Colors.black.withOpacity(0.6),
                       BlendMode.darken,
