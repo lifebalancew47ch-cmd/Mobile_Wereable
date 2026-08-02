@@ -1,12 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../data/datasources/secure_database_service.dart';
+import '../../../fog/presentation/providers/fog_providers.dart';
+import '../../presentation/providers/dashboard_provider.dart';
+import '../../../../models/fog_state.dart';
 
-class ExecutiveDashboardScreen extends StatelessWidget {
+class ExecutiveDashboardScreen extends ConsumerStatefulWidget {
   const ExecutiveDashboardScreen({super.key});
 
   @override
+  ConsumerState<ExecutiveDashboardScreen> createState() => _ExecutiveDashboardScreenState();
+}
+
+class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScreen> {
+  static const int _goalPauses = 5;
+
+  @override
   Widget build(BuildContext context) {
+    final fogEngine = ref.watch(fogEngineProvider);
+    final dashboardAsync = ref.watch(dashboardDataProvider);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F8F4), // Fondo Menta Ultra-Suave
+      backgroundColor: const Color(0xFFF2F8F4),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -28,7 +44,7 @@ class ExecutiveDashboardScreen extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            onPressed: () {},
+            onPressed: () => context.push('/dashboard/notifications'),
             icon: const Icon(Icons.notifications_none, color: Colors.black87),
           ),
           const SizedBox(width: 8),
@@ -38,209 +54,366 @@ class ExecutiveDashboardScreen extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 32),
-            // 1. Sedentary Score Gauge
-            Center(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 200,
-                    height: 200,
-                    child: CircularProgressIndicator(
-                      value: 0.65, // Ajustado visualmente al arco de la imagen
-                      strokeWidth: 14,
-                      backgroundColor: Colors.white,
-                      color: const Color(0xFF3E6F58),
-                      strokeCap: StrokeCap.round,
-                    ),
-                  ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Text(
-                        'PUNTUACIÓN SEDENTARIA',
-                        style: TextStyle(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
-                          color: Color(0xFF3E6F58),
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        '45',
-                        style: TextStyle(
-                          fontSize: 52,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E3A34),
-                          height: 1,
-                        ),
-                      ),
-                      Text(
-                        'MODERADA',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF3E6F58),
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
+            StreamBuilder<FogState>(
+              stream: fogEngine.stateStream,
+              builder: (context, snapshot) {
+                final state = snapshot.data ?? FogState(
+                  status: ActivityStatus.active,
+                  inactiveMinutes: 0,
+                  lastMovement: DateTime.now(),
+                );
+                final score = (state.inactiveMinutes / 90.0).clamp(0.0, 1.0);
+                final label = _riskLabel(state.inactiveMinutes);
 
-            // 2. Trend Pill Badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4, offset: const Offset(0, 2))
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.trending_up, size: 14, color: Color(0xFF3E6F58)),
-                  SizedBox(width: 6),
-                  Text(
-                    '+5% mejor que ayer',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF3E6F58),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
+                return Column(
+                  children: [
+                    _buildScoreGauge(score, state.inactiveMinutes, label),
+                    const SizedBox(height: 24),
+                    _buildTrendPill(),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 40),
 
-            // 3. Metrics Grid
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildMetricCard(
-                          icon: Icons.access_time,
-                          label: 'DIARIO',
-                          value: '5h 24m',
-                          subtitle: 'Inactividad Total',
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildMetricCard(
-                          icon: Icons.chair_alt_outlined,
-                          label: 'RIESGO ALTO',
-                          value: '1h 15m',
-                          subtitle: 'Sentado Actual',
-                          labelColor: Colors.orange.shade700,
-                          hasSideBorder: true,
-                          borderColor: Colors.orange.shade700,
-                        ),
-                      ),
-                    ],
+            FutureBuilder<Map<String, int>>(
+              future: _loadLocalStats(),
+              builder: (context, statsSnapshot) {
+                final stats = statsSnapshot.data ?? {'active': 0, 'idle': 0, 'alerts': 0, 'todaySessions': 0};
+                return dashboardAsync.when(
+                  loading: () => const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: CircularProgressIndicator(color: Color(0xFF3E6F58)),
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildMetricCard(
-                          icon: Icons.bolt,
-                          label: '',
-                          value: '42m',
-                          subtitle: 'Minutos Activos',
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildMetricCard(
-                          icon: Icons.directions_run,
-                          label: 'META',
-                          value: '3/5',
-                          subtitle: 'Pausas Activas',
-                          showProgress: true,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                  error: (_, __) => _buildMetricsGrid(stats),
+                  data: (data) => _buildMetricsGrid(stats, dashboard: data),
+                );
+              },
             ),
             const SizedBox(height: 24),
-
-            // 4. Executive Analysis Card
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.network(
-                      'https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400',
-                      height: 140,
-                      fit: BoxCover.cover,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: const [
-                      Icon(Icons.psychology_outlined, color: Color(0xFF3E6F58), size: 28),
-                      SizedBox(width: 10),
-                      Text(
-                        'Análisis Ejecutivo',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF3E6F58),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  RichText(
-                    text: TextSpan(
-                      style: const TextStyle(color: Colors.black54, fontSize: 12, height: 1.5),
-                      children: [
-                        const TextSpan(text: 'Tus niveles de concentración suelen disminuir después de '),
-                        TextSpan(text: '90 minutos ', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800)),
-                        const TextSpan(text: 'sentado de forma continua. Tomar un descanso de movimiento de 2 minutos ahora probablemente aumentará tu rendimiento cognitivo en un '),
-                        TextSpan(text: '12% ', style: TextStyle(fontWeight: FontWeight.bold, color: const Color(0xFF3E6F58))),
-                        const TextSpan(text: 'durante la próxima hora.'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: () {},
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF3E6F58),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: const Text('Programar Pausa Activa', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            ),
+            _buildAnalysisCard(),
             const SizedBox(height: 40),
           ],
         ),
       ),
+    );
+  }
+
+  Future<Map<String, int>> _loadLocalStats() async {
+    final db = SecureDatabaseService.instance;
+    final today = await db.getActivitySessionsForDay(DateTime.now());
+    var active = 0;
+    var idle = 0;
+    var alerts = 0;
+    for (final session in today) {
+      final duration = (session['duration_minutes'] as int?) ?? 0;
+      final type = (session['type'] as String?) ?? '';
+      if (type == 'active') {
+        active += duration;
+      } else if (type == 'idle') {
+        idle += duration;
+      } else if (type == 'alert') {
+        alerts += duration;
+      }
+    }
+    final todaySessions = await db.countActivitySessionsToday();
+    return {'active': active, 'idle': idle, 'alerts': alerts, 'todaySessions': todaySessions};
+  }
+
+  Widget _buildScoreGauge(double score, int minutes, String label) {
+    return Center(
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 200,
+            height: 200,
+            child: CircularProgressIndicator(
+              value: score,
+              strokeWidth: 14,
+              backgroundColor: Colors.white,
+              color: const Color(0xFF3E6F58),
+              strokeCap: StrokeCap.round,
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'PUNTUACIÓN SEDENTARIA',
+                style: TextStyle(
+                  fontSize: 8,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                  color: Color(0xFF3E6F58),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$minutes',
+                style: const TextStyle(
+                  fontSize: 52,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E3A34),
+                  height: 1,
+                ),
+              ),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF3E6F58),
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _riskLabel(int minutes) {
+    if (minutes < 30) return 'BAJA';
+    if (minutes < 60) return 'MODERADA';
+    return 'ALTA';
+  }
+
+  Widget _buildTrendPill() {
+    return FutureBuilder<List<Map<String, Object?>>>(
+      future: SecureDatabaseService.instance.getActivitySessionsLastDays(2),
+      builder: (context, snapshot) {
+        final sessions = snapshot.data ?? [];
+        final now = DateTime.now();
+        var todayActive = 0;
+        var yesterdayActive = 0;
+        for (final session in sessions) {
+          final start = DateTime.tryParse((session['start_time'] as String?) ?? '');
+          final duration = (session['duration_minutes'] as int?) ?? 0;
+          if (start == null) continue;
+          if ((session['type'] as String?) == 'active') {
+            final isToday = start.year == now.year && start.month == now.month && start.day == now.day;
+            if (isToday) {
+              todayActive += duration;
+            } else {
+              yesterdayActive += duration;
+            }
+          }
+        }
+        final pct = yesterdayActive > 0 ? ((todayActive - yesterdayActive) / yesterdayActive * 100).round() : 0;
+        final up = pct >= 0;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4, offset: const Offset(0, 2))
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(up ? Icons.trending_up : Icons.trending_down, size: 14, color: up ? const Color(0xFF3E6F58) : Colors.orange.shade700),
+              const SizedBox(width: 6),
+              Text(
+                '${up ? '+' : ''}$pct% vs ayer',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: up ? const Color(0xFF3E6F58) : Colors.orange.shade700,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMetricsGrid(Map<String, int> stats, {DashboardData? dashboard}) {
+    final activeMinutes = (dashboard?.summary?.activeMinutes ?? stats['active'] ?? 0).round();
+    final todaySessions = stats['todaySessions'] ?? 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildMetricCard(
+                  icon: Icons.access_time,
+                  label: 'DIARIO',
+                  value: _formatMinutes(stats['idle'] ?? 0),
+                  subtitle: 'Inactividad Total',
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildMetricCard(
+                  icon: Icons.chair_alt_outlined,
+                  label: 'ALERTAS',
+                  value: '${stats['alerts'] ?? 0}',
+                  subtitle: 'Alertas de Sedentarismo',
+                  labelColor: Colors.orange.shade700,
+                  hasSideBorder: true,
+                  borderColor: Colors.orange.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildMetricCard(
+                  icon: Icons.bolt,
+                  label: 'ACTIVO',
+                  value: _formatMinutes(activeMinutes),
+                  subtitle: 'Minutos en Movimiento',
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildMetricCard(
+                  icon: Icons.directions_run,
+                  label: 'META',
+                  value: '$todaySessions/$_goalPauses',
+                  subtitle: 'Pausas Activas',
+                  showProgress: true,
+                  progress: todaySessions / _goalPauses,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatMinutes(int minutes) {
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    return h > 0 ? '${h}h ${m}m' : '${m}m';
+  }
+
+  Widget _buildAnalysisCard() {
+    final fogEngine = ref.watch(fogEngineProvider);
+    final notifications = ref.read(notificationServiceProvider);
+
+    return StreamBuilder<FogState>(
+      stream: fogEngine.stateStream,
+      builder: (context, snapshot) {
+        final state = snapshot.data ?? FogState(
+          status: ActivityStatus.active,
+          inactiveMinutes: 0,
+          lastMovement: DateTime.now(),
+        );
+        final minutes = state.inactiveMinutes;
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  height: 140,
+                  color: const Color(0xFF1E3A34),
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            minutes >= 45 ? Icons.warning_amber_rounded : Icons.monitor_heart_outlined,
+                            color: minutes >= 45 ? const Color(0xFFD68C5E) : Colors.white70,
+                            size: 28,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            minutes >= 45 ? 'Riesgo de inactividad' : 'Estado saludable',
+                            style: TextStyle(
+                              color: minutes >= 45 ? const Color(0xFFD68C5E) : Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        minutes >= 45
+                            ? '$minutes minutos inactivo. Una pausa activa de 2 min restaura tu rendimiento.'
+                            : 'Monitorizando tu actividad en tiempo real. Pausas cada 45-50 min.',
+                        style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  const Icon(Icons.psychology_outlined, color: Color(0xFF3E6F58), size: 28),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Análisis Ejecutivo',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF3E6F58),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                minutes >= 45
+                    ? 'Llevas $minutes minutos de inactividad continua. Tomar un descanso de movimiento de 2 minutos ahora aumentará tu rendimiento cognitivo durante la próxima hora.'
+                    : 'Tu actividad actual es saludable ($minutes min inactivo). Sigue con pausas activas cada 45-50 minutos para mantener tu nivel óptimo.',
+                style: const TextStyle(color: Colors.black54, fontSize: 12, height: 1.5),
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: () async {
+                  final now = DateTime.now().add(const Duration(minutes: 10));
+                  await notifications.scheduleReminder(
+                    hour: now.hour,
+                    minute: now.minute,
+                    title: 'Pausa Activa',
+                    body: 'Es momento de levantarte y moverte 2 minutos.',
+                  );
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Pausa activa programada en 10 minutos'),
+                      backgroundColor: Color(0xFF3E6F58),
+                    ),
+                  );
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF3E6F58),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: const Text('Programar Pausa Activa', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -253,6 +426,7 @@ class ExecutiveDashboardScreen extends StatelessWidget {
     bool hasSideBorder = false,
     Color? borderColor,
     bool showProgress = false,
+    double? progress,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -291,10 +465,10 @@ class ExecutiveDashboardScreen extends StatelessWidget {
             const SizedBox(height: 8),
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: const LinearProgressIndicator(
-                value: 0.6,
-                backgroundColor: Color(0xFFF2F8F4),
-                color: Color(0xFF3E6F58),
+              child: LinearProgressIndicator(
+                value: (progress ?? 0).clamp(0.0, 1.0),
+                backgroundColor: const Color(0xFFF2F8F4),
+                color: const Color(0xFF3E6F58),
                 minHeight: 4,
               ),
             ),
