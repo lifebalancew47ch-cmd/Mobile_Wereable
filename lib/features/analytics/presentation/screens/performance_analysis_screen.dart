@@ -1,97 +1,157 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../data/datasources/secure_database_service.dart';
+import '../../../auth/presentation/providers/profile_provider.dart';
 
-class PerformanceAnalysisScreen extends StatelessWidget {
+class PerformanceAnalysisScreen extends ConsumerStatefulWidget {
   const PerformanceAnalysisScreen({super.key});
 
   @override
+  ConsumerState<PerformanceAnalysisScreen> createState() => _PerformanceAnalysisScreenState();
+}
+
+class _PerformanceAnalysisScreenState extends ConsumerState<PerformanceAnalysisScreen> {
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
-      backgroundColor: const Color(0xFFE9F1EC), // Fondo Menta Claro
+      backgroundColor: const Color(0xFFE9F1EC),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 1. Header
-              _buildHeader(),
-              const SizedBox(height: 24),
+        child: FutureBuilder<Map<String, Object?>>(
+          future: _loadAnalysis(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(color: Color(0xFF3E6F58)),
+              );
+            }
+            final data = snapshot.data ?? const {'activePct': 0.0, 'idlePct': 0.0};
+            final activePct = (data['activePct'] as num?)?.toDouble() ?? 0.0;
+            final idlePct = (data['idlePct'] as num?)?.toDouble() ?? 0.0;
+            final maxIdleMinutes = (data['maxIdleMinutes'] as int?) ?? 0;
+            final maxIdleTime = data['maxIdleTime'] as String? ?? '';
+            final weekly = (data['weekly'] as List<Map<String, Object?>>?) ?? [];
+            final todaySessions = (data['todaySessions'] as List<Map<String, Object?>>?) ?? [];
 
-              // Título de la Sección
-              const Text(
-                'ANÁLISIS DEL SISTEMA',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF3E6F58),
-                  letterSpacing: 1.2,
-                ),
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'ANÁLISIS DEL SISTEMA',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF3E6F58),
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Análisis de\nRendimiento',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF3E6F58),
+                      height: 1.1,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildRiskCard(activePct),
+                  const SizedBox(height: 20),
+                  _buildDailyDivisionCard(activePct, idlePct),
+                  const SizedBox(height: 20),
+                  _buildStreakCard(maxIdleMinutes, maxIdleTime),
+                  const SizedBox(height: 20),
+                  _buildWeeklySedentaryCard(weekly),
+                  const SizedBox(height: 32),
+                  _buildFocusSessionsHeader(),
+                  const SizedBox(height: 16),
+                  if (todaySessions.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                        'Sin sesiones registradas hoy. Actívate y el sistema las registrará aquí.',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                    )
+                  else
+                    ...todaySessions.map((session) => _buildFocusSessionItem(session)),
+                  const SizedBox(height: 40),
+                ],
               ),
-              const SizedBox(height: 4),
-              const Text(
-                'Análisis de\nRendimiento',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF3E6F58),
-                  height: 1.1,
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // 2. Card: Riesgo de Salud Medio-Alto
-              _buildRiskCard(),
-              const SizedBox(height: 20),
-
-              // 3. Card: División Diaria (Circular Progress)
-              _buildDailyDivisionCard(),
-              const SizedBox(height: 20),
-
-              // 4. Card: Racha más Larga
-              _buildStreakCard(),
-              const SizedBox(height: 20),
-
-              // 5. Card: Horas Sedentarias (7 días) - Placeholder/Minichart
-              _buildWeeklySedentaryCard(),
-              const SizedBox(height: 32),
-
-              // 6. Sección: Sesiones de Enfoque
-              _buildFocusSessionsHeader(),
-              const SizedBox(height: 16),
-              _buildFocusSessionItem(
-                icon: Icons.computer_rounded,
-                title: 'Bloque de Trabajo Profundo',
-                time: '09:00 AM - 11:30 AM',
-                duration: '2.5 Horas',
-                intensity: 'Intensidad Alta',
-              ),
-              const SizedBox(height: 12),
-              _buildFocusSessionItem(
-                icon: Icons.group_outlined,
-                title: 'Sincronización Estratégica',
-                time: '02:00 PM - 03:00 PM',
-                duration: '1.0 Hora',
-                intensity: 'Bajo Esfuerzo',
-              ),
-              const SizedBox(height: 40),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
   }
 
+  Future<Map<String, Object?>> _loadAnalysis() async {
+    final db = SecureDatabaseService.instance;
+    final all = await db.getAllActivitySessions(limit: 500);
+    final weekly = await db.getActivitySessionsLastDays(7);
+    final today = await db.getActivitySessionsForDay(DateTime.now());
+
+    var totalActive = 0;
+    var totalIdle = 0;
+    var maxIdleMinutes = 0;
+    String maxIdleTime = '';
+    for (final session in all) {
+      final duration = (session['duration_minutes'] as int?) ?? 0;
+      final type = (session['type'] as String?) ?? '';
+      final start = session['start_time'] as String? ?? '';
+      if (type == 'active') {
+        totalActive += duration;
+      } else if (type == 'idle' || type == 'alert') {
+        totalIdle += duration;
+        if (duration > maxIdleMinutes) {
+          maxIdleMinutes = duration;
+          maxIdleTime = start;
+        }
+      }
+    }
+
+    final total = totalActive + totalIdle;
+    final activePct = total > 0 ? totalActive / total : 0.0;
+    final idlePct = total > 0 ? totalIdle / total : 0.0;
+
+    return {
+      'activePct': activePct,
+      'idlePct': idlePct,
+      'maxIdleMinutes': maxIdleMinutes,
+      'maxIdleTime': maxIdleTime,
+      'weekly': weekly,
+      'todaySessions': today,
+    };
+  }
+
   Widget _buildHeader() {
+    final profileAsync = ref.watch(profileProvider);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Row(
           children: [
-            const CircleAvatar(
-              radius: 20,
-              backgroundImage: NetworkImage('https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=150'),
+            profileAsync.maybeWhen(
+              data: (user) => CircleAvatar(
+                radius: 20,
+                backgroundColor: const Color(0xFF3E6F58),
+                child: Text(
+                  (user.firstName.isNotEmpty ? user.firstName : user.username)
+                      .substring(0, 1)
+                      .toUpperCase(),
+                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+              ),
+              orElse: () => const CircleAvatar(
+                radius: 20,
+                backgroundColor: Color(0xFF3E6F58),
+                child: Icon(Icons.person, color: Colors.white, size: 20),
+              ),
             ),
             const SizedBox(width: 12),
             const Text(
@@ -105,43 +165,35 @@ class PerformanceAnalysisScreen extends StatelessWidget {
           ],
         ),
         IconButton(
-          onPressed: () {},
+          onPressed: () => context.push('/dashboard/notifications'),
           icon: const Icon(Icons.notifications_none, color: Color(0xFF3E6F58)),
         ),
       ],
     );
   }
 
-  Widget _buildRiskCard() {
+  Widget _buildRiskCard(double activePct) {
+    final riskLabel = activePct >= 0.4
+        ? 'Riesgo de\nSalud\nBajo'
+        : activePct >= 0.25
+            ? 'Riesgo de\nSalud\nMedio'
+            : 'Riesgo de\nSalud\nAlto';
+    final percent = (activePct * 100).round();
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'EVALUACIÓN ACTUAL',
-                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey),
-                ),
-                Row(
-                  children: [
-                    const Icon(Icons.trending_up, size: 14, color: Color(0xFFD68C5E)),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'Aumento del 12%',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFD68C5E)),
-                    ),
-                  ],
-                ),
-              ],
+            const Text(
+              'EVALUACIÓN ACTUAL',
+              style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey),
             ),
             const SizedBox(height: 12),
-            const Text(
-              'Riesgo de\nSalud\nMedio-Alto',
-              style: TextStyle(
+            Text(
+              riskLabel,
+              style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF3E6F58),
@@ -153,23 +205,23 @@ class PerformanceAnalysisScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('Umbral de Actividad', style: TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
-                const Text('68%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF3E6F58))),
+                Text('$percent%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF3E6F58))),
               ],
             ),
             const SizedBox(height: 8),
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: const LinearProgressIndicator(
-                value: 0.68,
-                backgroundColor: Color(0xFFE0EAE4),
-                color: Color(0xFF3E6F58),
+              child: LinearProgressIndicator(
+                value: activePct.clamp(0.0, 1.0),
+                backgroundColor: const Color(0xFFE0EAE4),
+                color: const Color(0xFF3E6F58),
                 minHeight: 8,
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
-              'Los patrones sedentarios han aumentado durante las horas de enfoque. Tu tasa metabólica ha caído por debajo de los niveles óptimos. Recomendamos un descanso activo de 5 minutos cada 50 minutos.',
-              style: TextStyle(color: Colors.black54, fontSize: 12, height: 1.5),
+            Text(
+              'Tu umbral de actividad es del $percent% sobre el tiempo registrado. ${activePct >= 0.4 ? 'Mantén este ritmo para conservar un riesgo bajo.' : activePct >= 0.25 ? 'Incrementa tus pausas activas para bajar el riesgo a nivel bajo.' : 'Tus patrones sedentarios predominan. Te recomendamos una pausa activa de 5 minutos cada 50.'}',
+              style: const TextStyle(color: Colors.black54, fontSize: 12, height: 1.5),
             ),
           ],
         ),
@@ -177,7 +229,10 @@ class PerformanceAnalysisScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDailyDivisionCard() {
+  Widget _buildDailyDivisionCard(double activePct, double idlePct) {
+    final active = (activePct * 100).round();
+    final sedentary = (idlePct * 100).round();
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -197,7 +252,7 @@ class PerformanceAnalysisScreen extends StatelessWidget {
                     width: 140,
                     height: 140,
                     child: CircularProgressIndicator(
-                      value: 0.65,
+                      value: (activePct / 0.45).clamp(0.0, 1.0),
                       strokeWidth: 12,
                       backgroundColor: const Color(0xFFF2F6F4),
                       color: const Color(0xFF3E6F58),
@@ -206,12 +261,12 @@ class PerformanceAnalysisScreen extends StatelessWidget {
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
-                        '65%',
-                        style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF3E6F58)),
+                      Text(
+                        '$active%',
+                        style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF3E6F58)),
                       ),
                       const Text(
-                        'Sedentario',
+                        'Activo',
                         style: TextStyle(fontSize: 11, color: Colors.grey),
                       ),
                     ],
@@ -223,8 +278,8 @@ class PerformanceAnalysisScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildSimpleLegend(color: const Color(0xFF3E6F58), label: '25% Activo'),
-                _buildSimpleLegend(color: const Color(0xFFD1DCD6), label: 'Meta: 45%'),
+                _buildSimpleLegend(color: const Color(0xFF3E6F58), label: '$active% Activo'),
+                _buildSimpleLegend(color: const Color(0xFFD1DCD6), label: '$sedentary% Sedentario'),
               ],
             ),
           ],
@@ -243,7 +298,12 @@ class PerformanceAnalysisScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStreakCard() {
+  Widget _buildStreakCard(int maxIdleMinutes, String maxIdleTime) {
+    final time = DateTime.tryParse(maxIdleTime);
+    final timeLabel = time != null
+        ? '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}'
+        : '--:--';
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -265,13 +325,13 @@ class PerformanceAnalysisScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            const Text(
-              '3h 10m',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF3E6F58)),
+            Text(
+              _formatMinutes(maxIdleMinutes),
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF3E6F58)),
             ),
-            const Text(
-              'Sedentarismo ininterrumpido\nregistrado a las 01:45 PM.',
-              style: TextStyle(color: Colors.grey, fontSize: 12, height: 1.4, fontStyle: FontStyle.italic),
+            Text(
+              'Sedentarismo ininterrumpido\nregistrado a las $timeLabel.',
+              style: const TextStyle(color: Colors.grey, fontSize: 12, height: 1.4, fontStyle: FontStyle.italic),
             ),
           ],
         ),
@@ -279,31 +339,77 @@ class PerformanceAnalysisScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildWeeklySedentaryCard() {
+  String _formatMinutes(int minutes) {
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    return h > 0 ? '${h}h ${m.toString().padLeft(2, '0')}m' : '${m}m';
+  }
+
+  Widget _buildWeeklySedentaryCard(List<Map<String, Object?>> weekly) {
+    final perDay = <int>[0, 0, 0, 0, 0, 0, 0];
+    final now = DateTime.now();
+    for (final session in weekly) {
+      final start = DateTime.tryParse((session['start_time'] as String?) ?? '');
+      final duration = (session['duration_minutes'] as int?) ?? 0;
+      final type = (session['type'] as String?) ?? '';
+      if (start == null) continue;
+      if (type != 'active') {
+        final dayDiff = now.difference(DateTime(start.year, start.month, start.day)).inDays;
+        if (dayDiff >= 0 && dayDiff < 7) {
+          perDay[6 - dayDiff] += duration;
+        }
+      }
+    }
+    final max = perDay.reduce((a, b) => a > b ? a : b);
+    const dayLetters = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'HORAS SEDENTARIAS\n(ÚLTIMOS 7 DÍAS)',
-                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey),
-                ),
-                const Text(
-                  'Informe\nCompleto',
-                  textAlign: TextAlign.right,
-                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey),
-                ),
-              ],
+            const Text(
+              'HORAS SEDENTARIAS\n(ÚLTIMOS 7 DÍAS)',
+              style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey),
             ),
-            const SizedBox(height: 48), // Espacio para mini gráfica futura
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 80,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: List.generate(7, (index) {
+                  final value = perDay[index];
+                  final height = max > 0 ? (value / max) * 70.0 : 4.0;
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            value > 0 ? _shortHours(value) : '',
+                            style: const TextStyle(fontSize: 8, color: Colors.grey),
+                          ),
+                          const SizedBox(height: 2),
+                          Container(
+                            height: height.clamp(4.0, 70.0),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF3E6F58).withValues(alpha: value > 0 ? 1.0 : 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+            const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: ['L', 'M', 'M', 'J', 'V', 'S', 'D']
+              children: dayLetters
                   .map((d) => Text(d, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)))
                   .toList(),
             ),
@@ -311,6 +417,11 @@ class PerformanceAnalysisScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _shortHours(int minutes) {
+    final h = minutes ~/ 60;
+    return h > 0 ? '${h}h' : '${minutes}m';
   }
 
   Widget _buildFocusSessionsHeader() {
@@ -322,7 +433,7 @@ class PerformanceAnalysisScreen extends StatelessWidget {
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF3E6F58), height: 1.1),
         ),
         const Text(
-          'Últimas 24\nHoras',
+          'Hoy',
           textAlign: TextAlign.right,
           style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey),
         ),
@@ -330,15 +441,27 @@ class PerformanceAnalysisScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFocusSessionItem({
-    required IconData icon,
-    required String title,
-    required String time,
-    required String duration,
-    required String intensity,
-  }) {
+  Widget _buildFocusSessionItem(Map<String, Object?> session) {
+    final type = (session['type'] as String?) ?? '';
+    final duration = (session['duration_minutes'] as int?) ?? 0;
+    final start = DateTime.tryParse((session['start_time'] as String?) ?? '');
+    final end = DateTime.tryParse((session['end_time'] as String?) ?? '');
+
+    final (icon, title) = switch (type) {
+      'active' => (Icons.directions_run, 'Sesión Activa'),
+      'alert' => (Icons.warning_amber_rounded, 'Alerta de Sedentarismo'),
+      _ => (Icons.chair_alt, 'Período Sedentario'),
+    };
+    final startLabel = start != null
+        ? '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}'
+        : '--:--';
+    final endLabel = end != null
+        ? '${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}'
+        : '--:--';
+
     return Container(
       padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -360,19 +483,27 @@ class PerformanceAnalysisScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                Text(time, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                Text('$startLabel - $endLabel', style: const TextStyle(color: Colors.grey, fontSize: 11)),
               ],
             ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(duration, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFFD68C5E))),
-              Text(intensity, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+              Text(_formatMinutes(duration), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFFD68C5E))),
+              Text(_typeLabel(type), style: const TextStyle(color: Colors.grey, fontSize: 10)),
             ],
           ),
         ],
       ),
     );
+  }
+
+  String _typeLabel(String type) {
+    return switch (type) {
+      'active' => 'Movimiento',
+      'alert' => 'Riesgo',
+      _ => 'Inactivo',
+    };
   }
 }
