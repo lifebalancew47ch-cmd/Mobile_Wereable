@@ -14,6 +14,7 @@ import 'package:lifebalance/features/bluetooth/presentation/bluetooth_screen.dar
 import 'package:lifebalance/features/fog/presentation/fog_screen.dart';
 import 'package:lifebalance/features/gamification/presentation/gamification_screen.dart';
 import 'package:lifebalance/features/profile/presentation/profile_screen.dart';
+import 'package:lifebalance/features/profile/presentation/screens/biometric_profile_screen.dart';
 import 'package:lifebalance/features/settings/presentation/settings_screen.dart';
 import 'package:lifebalance/features/notifications/presentation/notifications_screen.dart';
 
@@ -121,6 +122,10 @@ final GoRouter appRouter = GoRouter(
               path: '/profile',
               builder: (BuildContext context, GoRouterState state) => const ProfileScreen(),
               routes: <RouteBase>[
+                GoRoute(
+                  path: 'biometric',
+                  builder: (context, state) => const BiometricProfileScreen(),
+                ),
                 GoRoute(
                   path: 'settings',
                   parentNavigatorKey: _rootNavigatorKey, // Opens on top of bottom navigation bar

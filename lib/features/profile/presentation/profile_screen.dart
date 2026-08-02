@@ -42,6 +42,12 @@ class ProfileScreen extends ConsumerWidget {
                 onTap: () {},
               ),
               ListTile(
+                leading: const Icon(Icons.accessibility_new_outlined),
+                title: const Text('Perfil Biométrico'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/profile/biometric'),
+              ),
+              ListTile(
                 leading: const Icon(Icons.badge_outlined),
                 title: const Text('Logros y medallas'),
                 trailing: const Icon(Icons.chevron_right),
