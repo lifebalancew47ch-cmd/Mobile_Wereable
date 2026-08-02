@@ -30,9 +30,9 @@ class MainNavigationShell extends StatelessWidget {
             label: 'Dashboard',
           ),
           NavigationDestination(
-            icon: Icon(Icons.watch_outlined),
-            selectedIcon: Icon(Icons.watch),
-            label: 'Wearable',
+            icon: Icon(Icons.analytics_outlined),
+            selectedIcon: Icon(Icons.analytics),
+            label: 'Analytics',
           ),
           NavigationDestination(
             icon: Icon(Icons.cloud_queue),
