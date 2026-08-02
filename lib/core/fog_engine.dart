@@ -27,37 +27,93 @@ class FogEngine {
   DateTime _lastMovement = DateTime.now();
   String _sessionStartTime = DateTime.now().toIso8601String();
 
+  // Real engine metrics (exposed to the UI)
+  int _samplesProcessed = 0;
+  int _windowsAnalyzed = 0;
+  int _alertsTriggered = 0;
+  bool _isRunning = false;
+  Duration _lastWindowAnalysis = Duration.zero;
+
   final _stateController = StreamController<FogState>.broadcast();
 
   /// Stream that provides real-time updates of the Fog status to the UI.
   Stream<FogState> get stateStream => _stateController.stream;
 
+  /// Total accelerometer samples processed by the engine.
+  int get samplesProcessed => _samplesProcessed;
+
+  /// Number of 30-second analysis windows completed.
+  int get windowsAnalyzed => _windowsAnalyzed;
+
+  /// Number of inactivity alerts triggered.
+  int get alertsTriggered => _alertsTriggered;
+
+  /// Whether the engine is currently listening to the wearable.
+  bool get isRunning => _isRunning;
+
+  /// Duration of the last window analysis pass.
+  Duration get lastWindowAnalysis => _lastWindowAnalysis;
+
   FogEngine(this._wearableService, this._notificationService);
 
   /// Starts the engine listening to accelerometer data from the wearable.
   void start() {
+    if (_isRunning) return;
+
     // 1. Receive stream from the wearable accelerometer
     _accelSub = _wearableService.accelerometerStream.listen((AccelerometerData data) {
       // 2. Calculate vector magnitude: |a| = sqrt(x² + y² + z²)
       final double mag = sqrt(data.x * data.x + data.y * data.y + data.z * data.z);
       _magnitudes.add(mag);
+      _samplesProcessed++;
     });
 
     // 3. Analysis window: Group data in 30-second buffers
     _analysisTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       _analyzeWindow();
     });
+
+    _isRunning = true;
+  }
+
+  /// Pauses processing without releasing the state stream.
+  void pause() {
+    _accelSub?.cancel();
+    _analysisTimer?.cancel();
+    _accelSub = null;
+    _analysisTimer = null;
+    _isRunning = false;
+  }
+
+  /// Resumes processing after [pause] (keeps accumulated metrics).
+  void resume() {
+    if (_isRunning) return;
+    _accelSub = _wearableService.accelerometerStream.listen((AccelerometerData data) {
+      final double mag = sqrt(data.x * data.x + data.y * data.y + data.z * data.z);
+      _magnitudes.add(mag);
+      _samplesProcessed++;
+    });
+    _analysisTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      _analyzeWindow();
+    });
+    _isRunning = true;
   }
 
   /// Stops the engine and releases resources.
   void stop() {
     _accelSub?.cancel();
     _analysisTimer?.cancel();
+    _accelSub = null;
+    _analysisTimer = null;
+    _isRunning = false;
     _stateController.close();
   }
 
   void _analyzeWindow() {
+    _windowsAnalyzed++;
     if (_magnitudes.isEmpty) return;
+
+    final Stopwatch stopwatch = Stopwatch()..start();
 
     // 4. Calculate statistical variance (σ²) of the magnitude in this window
     final double mean = _magnitudes.reduce((a, b) => a + b) / _magnitudes.length;
@@ -98,6 +154,8 @@ class FogEngine {
       _inactiveWindows = 0;
     }
 
+    _lastWindowAnalysis = stopwatch.elapsed;
+
     // Notify listeners (UI) in real-time
     _stateController.add(FogState(
       status: status,
@@ -107,6 +165,8 @@ class FogEngine {
   }
 
   void _triggerAlert() {
+    _alertsTriggered++;
+
     // Notify user
     _notificationService.showInactivityAlert(45);
 

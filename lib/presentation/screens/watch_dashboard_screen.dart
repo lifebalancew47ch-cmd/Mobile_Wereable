@@ -1,25 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/fog_engine.dart';
+import '../../features/fog/presentation/providers/fog_providers.dart';
 import '../../models/fog_state.dart';
 import '../../services/watch_service.dart';
-import '../../services/wearable_communication_service.dart';
-import '../../services/notification_service.dart';
 import '../../models/vital_sign.dart';
-
-// Providers para inyección de dependencias (Sección 13: Integración Clean Arch)
-final wearableCommunicationServiceProvider = Provider((ref) => WearableCommunicationService());
-final notificationServiceProvider = Provider((ref) => NotificationService());
-
-final fogEngineProvider = Provider((ref) {
-  final wearable = ref.watch(wearableCommunicationServiceProvider);
-  final notification = ref.watch(notificationServiceProvider);
-  final engine = FogEngine(wearable, notification);
-  // El ciclo de vida del motor se ata al provider
-  engine.start();
-  ref.onDispose(() => engine.stop());
-  return engine;
-});
 
 final watchServiceProvider = Provider<IWatchService>((ref) => WatchService());
 

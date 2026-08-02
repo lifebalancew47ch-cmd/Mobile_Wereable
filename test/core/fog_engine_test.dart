@@ -36,6 +36,7 @@ void main() {
     test('Engine starts and initializes correctly', () {
       fogEngine.start();
       verify(() => mockWearableService.accelerometerStream).called(1);
+      expect(fogEngine.isRunning, isTrue);
     });
 
     test('Engine receives data and processes state correctly', () async {
@@ -49,6 +50,38 @@ void main() {
       await Future.delayed(const Duration(milliseconds: 100));
 
       expect(fogEngine.stateStream, isNotNull);
+      expect(fogEngine.samplesProcessed, greaterThanOrEqualTo(2));
+    });
+
+    test('Pause stops processing and resume restarts it', () async {
+      fogEngine.start();
+      expect(fogEngine.isRunning, isTrue);
+
+      fogEngine.pause();
+      expect(fogEngine.isRunning, isFalse);
+
+      accelerometerController.add(AccelerometerData(1.0, 2.0, 9.8, 1000));
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      final pausedSamples = fogEngine.samplesProcessed;
+
+      fogEngine.resume();
+      expect(fogEngine.isRunning, isTrue);
+
+      accelerometerController.add(AccelerometerData(2.0, 2.0, 9.8, 2000));
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      expect(fogEngine.samplesProcessed, greaterThan(pausedSamples));
+    });
+
+    test('Stop releases resources and marks engine as stopped', () async {
+      fogEngine.start();
+      accelerometerController.add(AccelerometerData(1.0, 2.0, 9.8, 1000));
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      fogEngine.stop();
+      expect(fogEngine.isRunning, isFalse);
+      expect(fogEngine.samplesProcessed, greaterThanOrEqualTo(1));
     });
   });
 }

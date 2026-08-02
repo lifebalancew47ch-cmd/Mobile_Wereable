@@ -89,4 +89,47 @@ CREATE TABLE alerts_log (
       'acknowledged': acknowledged ? 1 : 0,
     });
   }
+
+  /// Número de sesiones de actividad registradas hoy (fecha local).
+  Future<int> countActivitySessionsToday() async {
+    final db = await instance.database;
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day).toIso8601String();
+    final rows = await db.rawQuery(
+      'SELECT COUNT(*) AS total FROM activity_sessions WHERE start_time >= ?',
+      [startOfDay],
+    );
+    return rows.first['total'] as int? ?? 0;
+  }
+
+  /// Número de signos vitales registrados hoy (fecha local).
+  Future<int> countVitalSignsToday() async {
+    final db = await instance.database;
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day).toIso8601String();
+    final rows = await db.rawQuery(
+      'SELECT COUNT(*) AS total FROM vital_signs WHERE timestamp >= ?',
+      [startOfDay],
+    );
+    return rows.first['total'] as int? ?? 0;
+  }
+
+  /// Número de alertas de sedentarismo registradas hoy (fecha local).
+  Future<int> countAlertsToday() async {
+    final db = await instance.database;
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day).toIso8601String();
+    final rows = await db.rawQuery(
+      'SELECT COUNT(*) AS total FROM alerts_log WHERE timestamp >= ?',
+      [startOfDay],
+    );
+    return rows.first['total'] as int? ?? 0;
+  }
+
+  /// Última sesión de actividad registrada (o null si no hay datos).
+  Future<Map<String, Object?>?> getLastActivitySession() async {
+    final db = await instance.database;
+    final rows = await db.query('activity_sessions', orderBy: 'id DESC', limit: 1);
+    return rows.isEmpty ? null : rows.first;
+  }
 }
