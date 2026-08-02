@@ -221,7 +221,7 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4, offset: const Offset(0, 2))
+              BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 4, offset: const Offset(0, 2))
             ],
           ),
           child: Row(
@@ -456,7 +456,7 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: (labelColor ?? const Color(0xFF3E6F58)).withOpacity(0.05),
+                    color: (labelColor ?? const Color(0xFF3E6F58)).withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(

@@ -78,7 +78,7 @@ class AppTheme {
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) => states.contains(WidgetState.selected) ? cyanAccent : Colors.grey),
-        trackColor: WidgetStateProperty.resolveWith((states) => states.contains(WidgetState.selected) ? cyanAccent.withOpacity(0.3) : Colors.grey.withOpacity(0.2)),
+        trackColor: WidgetStateProperty.resolveWith((states) => states.contains(WidgetState.selected) ? cyanAccent.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.2)),
       ),
     );
   }

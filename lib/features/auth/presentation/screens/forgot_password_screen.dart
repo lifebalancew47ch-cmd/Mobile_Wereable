@@ -50,12 +50,13 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   ? null
                   : () async {
                       final success = await ref.read(forgotPasswordProvider.notifier).sendInstructions(_emailController.text);
-                      if (mounted && success) {
+                      if (!context.mounted) return;
+                      if (success) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Si el correo existe, recibirás instrucciones.'), backgroundColor: Colors.green),
                         );
                         context.pop();
-                      } else if (mounted && forgotPasswordState.errorMessage != null) {
+                      } else if (forgotPasswordState.errorMessage != null) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text(forgotPasswordState.errorMessage!), backgroundColor: colorScheme.error),
                         );

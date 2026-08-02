@@ -31,7 +31,7 @@ class MainNavigationShell extends StatelessWidget {
       bottomNavigationBar: NavigationBar(
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: (index) => _onTap(context, index),
-        indicatorColor: const Color(0xFF3E6F58).withOpacity(0.1),
+        indicatorColor: const Color(0xFF3E6F58).withValues(alpha: 0.1),
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.grid_view_outlined),

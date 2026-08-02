@@ -286,7 +286,7 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeColor: const Color(0xFF3E6F58),
+        activeThumbColor: const Color(0xFF3E6F58),
       ),
     );
   }

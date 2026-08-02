@@ -209,11 +209,11 @@ class _FAQItem extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF161F30).withOpacity(0.5),
+        color: const Color(0xFF161F30).withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
-        leading: icon != null ? Icon(icon, color: const Color(0xFF00C2FF).withOpacity(0.5), size: 18) : null,
+        leading: icon != null ? Icon(icon, color: const Color(0xFF00C2FF).withValues(alpha: 0.5), size: 18) : null,
         title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
         trailing: const Icon(Icons.keyboard_arrow_down, color: Colors.white24, size: 18),
       ),

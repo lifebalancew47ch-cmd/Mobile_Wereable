@@ -37,6 +37,12 @@ subprojects {
                 android.namespace = "com.example." + project.name.replace("-", "_")
             }
         }
+        // Los subproyectos de plugins (pub cache) no son codigo propio:
+        // no bloquear el build por errores de lint en dependencias de terceros.
+        android.lint {
+            disable += "RestrictedApi"
+            abortOnError = false
+        }
     }
 }
 

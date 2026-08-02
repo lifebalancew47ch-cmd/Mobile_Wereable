@@ -149,6 +149,7 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
                             await _bluetoothService.linkDevice(device);
                             _checkSavedDevice();
                           } catch (e) {
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Error al vincular: $e')),
                             );
@@ -188,11 +189,11 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
 
     return Card(
       margin: const EdgeInsets.all(16),
-      color: statusColor.withOpacity(0.1),
+      color: statusColor.withValues(alpha: 0.1),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: statusColor.withOpacity(0.5)),
+        side: BorderSide(color: statusColor.withValues(alpha: 0.5)),
       ),
       child: ListTile(
         leading: Icon(statusIcon, color: statusColor, size: 32),

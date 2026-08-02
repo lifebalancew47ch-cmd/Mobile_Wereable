@@ -53,7 +53,7 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
                     image: const NetworkImage('https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=400'),
                     fit: BoxFit.cover,
                     colorFilter: ColorFilter.mode(
-                      Colors.black.withOpacity(0.6),
+                      Colors.black.withValues(alpha: 0.6),
                       BlendMode.darken,
                     ),
                   ),
@@ -194,7 +194,7 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
           decoration: BoxDecoration(
             color: isSelected ? const Color(0xFF161F30) : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isSelected ? const Color(0xFF00C2FF) : Colors.grey.withOpacity(0.2)),
+            border: Border.all(color: isSelected ? const Color(0xFF00C2FF) : Colors.grey.withValues(alpha: 0.2)),
           ),
           child: Text(
             label,
@@ -240,9 +240,9 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
       width: 36,
       height: 36,
       decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFF4A80FF).withOpacity(0.2) : Colors.transparent,
+        color: isSelected ? const Color(0xFF4A80FF).withValues(alpha: 0.2) : Colors.transparent,
         shape: BoxShape.circle,
-        border: Border.all(color: isSelected ? const Color(0xFF4A80FF) : Colors.grey.withOpacity(0.2)),
+        border: Border.all(color: isSelected ? const Color(0xFF4A80FF) : Colors.grey.withValues(alpha: 0.2)),
       ),
       child: Center(
         child: Text(

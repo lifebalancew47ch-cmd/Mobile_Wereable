@@ -144,7 +144,7 @@ class VideoExplanationScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF161F30),
         borderRadius: BorderRadius.circular(20),
-        border: isActive ? Border.all(color: const Color(0xFF00C2FF).withOpacity(0.3)) : null,
+        border: isActive ? Border.all(color: const Color(0xFF00C2FF).withValues(alpha: 0.3)) : null,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -171,7 +171,7 @@ class VideoExplanationScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF161F30).withOpacity(0.5),
+        color: const Color(0xFF161F30).withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(

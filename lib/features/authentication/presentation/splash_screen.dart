@@ -24,6 +24,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     try {
       // Check if token exists
       final hasToken = await ref.read(tokenServiceProvider).hasValidToken();
+      if (!mounted) return;
       if (hasToken) {
         context.go('/dashboard');
       } else {
@@ -32,6 +33,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     } catch (_) {
       // Security: silencio total ante fallos de lectura de token; nunca
       // loguear contenido de credenciales (PCI-DSS 10.5 / OWASP-API-9).
+      if (!mounted) return;
       context.go('/login');
     }
   }
