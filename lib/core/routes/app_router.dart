@@ -7,6 +7,7 @@ import 'package:lifebalance/features/auth/presentation/screens/register_screen.d
 import 'package:lifebalance/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:lifebalance/features/authentication/presentation/splash_screen.dart';
 import 'package:lifebalance/features/dashboard/presentation/screens/executive_dashboard_screen.dart';
+import 'package:lifebalance/features/admin/presentation/screens/admin_summary_screen.dart';
 import 'package:lifebalance/features/analytics/presentation/screens/heatmap_screen.dart';
 import 'package:lifebalance/features/analytics/presentation/screens/performance_analysis_screen.dart';
 import 'package:lifebalance/features/wearable/presentation/wearable_screen.dart';
@@ -92,13 +93,12 @@ final GoRouter appRouter = GoRouter(
           ],
         ),
 
-        // Tab 3: Fog
+        // Tab 3: Admin / Summary
         StatefulShellBranch(
-          navigatorKey: _fogNavigatorKey,
           routes: <RouteBase>[
             GoRoute(
-              path: '/fog',
-              builder: (BuildContext context, GoRouterState state) => const FogScreen(),
+              path: '/admin',
+              builder: (BuildContext context, GoRouterState state) => const AdminSummaryScreen(),
             ),
           ],
         ),
