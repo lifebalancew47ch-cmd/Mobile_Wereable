@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../features/fog/presentation/providers/fog_providers.dart';
 import '../../models/fog_state.dart';
 import '../../services/watch_service.dart';
@@ -82,6 +83,26 @@ class WatchDashboardScreen extends ConsumerWidget {
                         ],
                       );
                     },
+                  ),
+                ),
+                // 4. Accesos a Alerta y Progreso (navegación del reloj)
+                Positioned(
+                  top: 24,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _WatchNavButton(
+                        icon: Icons.notifications_active_outlined,
+                        label: 'Alerta',
+                        onTap: () => context.push('/watch/alert'),
+                      ),
+                      const SizedBox(width: 12),
+                      _WatchNavButton(
+                        icon: Icons.flag_outlined,
+                        label: 'Meta',
+                        onTap: () => context.push('/watch/progress'),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -178,6 +199,44 @@ class _MetricWidget extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _WatchNavButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _WatchNavButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white70, size: 14),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

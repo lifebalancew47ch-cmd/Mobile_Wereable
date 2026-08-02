@@ -22,6 +22,7 @@ import 'package:lifebalance/features/wearable/presentation/screens/device_manage
 import 'package:lifebalance/features/notifications/presentation/notifications_screen.dart';
 import 'package:lifebalance/features/wearable/presentation/screens/watch_alert_screen.dart';
 import 'package:lifebalance/features/wearable/presentation/screens/watch_progress_screen.dart';
+import 'package:lifebalance/presentation/screens/watch_dashboard_screen.dart';
 
 // Navigation Shell
 import 'package:lifebalance/shared/widgets/main_navigation_shell.dart';
@@ -52,6 +53,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/auth/forgot-password',
       builder: (BuildContext context, GoRouterState state) => const ForgotPasswordScreen(),
+    ),
+    GoRoute(
+      path: '/watch',
+      builder: (BuildContext context, GoRouterState state) => const WatchDashboardScreen(),
     ),
     GoRoute(
       path: '/watch/alert',
