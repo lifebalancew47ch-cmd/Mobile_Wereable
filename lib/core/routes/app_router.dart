@@ -11,7 +11,6 @@ import 'package:lifebalance/features/admin/presentation/screens/admin_summary_sc
 import 'package:lifebalance/features/analytics/presentation/screens/heatmap_screen.dart';
 import 'package:lifebalance/features/analytics/presentation/screens/performance_analysis_screen.dart';
 import 'package:lifebalance/features/settings/presentation/screens/alert_settings_screen.dart';
-import 'package:lifebalance/features/notifications/presentation/screens/executive_notifications_screen.dart';
 import 'package:lifebalance/features/support/presentation/screens/faq_screen.dart';
 import 'package:lifebalance/features/support/presentation/screens/video_explanation_screen.dart';
 import 'package:lifebalance/features/profile/presentation/profile_screen.dart';
@@ -19,6 +18,9 @@ import 'package:lifebalance/features/profile/presentation/screens/biometric_prof
 import 'package:lifebalance/features/profile/presentation/activity_history_screen.dart';
 import 'package:lifebalance/features/wearable/presentation/screens/device_scanning_screen.dart';
 import 'package:lifebalance/features/wearable/presentation/screens/device_management_screen.dart';
+import 'package:lifebalance/features/notifications/presentation/notifications_screen.dart';
+import 'package:lifebalance/features/wearable/presentation/screens/watch_alert_screen.dart';
+import 'package:lifebalance/features/wearable/presentation/screens/watch_progress_screen.dart';
 
 // Navigation Shell
 import 'package:lifebalance/shared/widgets/main_navigation_shell.dart';
@@ -49,6 +51,14 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/auth/forgot-password',
       builder: (BuildContext context, GoRouterState state) => const ForgotPasswordScreen(),
+    ),
+    GoRoute(
+      path: '/watch/alert',
+      builder: (BuildContext context, GoRouterState state) => const WatchAlertScreen(),
+    ),
+    GoRoute(
+      path: '/watch/progress',
+      builder: (BuildContext context, GoRouterState state) => const WatchProgressScreen(),
     ),
 
     // Stateful Shell Route for Bottom Navigation Tabs

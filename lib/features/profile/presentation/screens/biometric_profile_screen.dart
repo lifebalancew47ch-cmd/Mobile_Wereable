@@ -1,17 +1,66 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../auth/presentation/providers/profile_provider.dart';
 
-class BiometricProfileScreen extends StatefulWidget {
+class BiometricProfileScreen extends ConsumerStatefulWidget {
   const BiometricProfileScreen({super.key});
 
   @override
-  State<BiometricProfileScreen> createState() => _BiometricProfileScreenState();
+  ConsumerState<BiometricProfileScreen> createState() => _BiometricProfileScreenState();
 }
 
-class _BiometricProfileScreenState extends State<BiometricProfileScreen> {
+class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen> {
+  static const _kGender = 'biometric_gender';
+  static const _kHeightCm = 'biometric_height_cm';
+  static const _kWeightKg = 'biometric_weight_kg';
+  static const _kAge = 'biometric_age';
+
   String? _selectedGender;
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSaved();
+  }
+
+  Future<void> _loadSaved() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _selectedGender = prefs.getString(_kGender);
+      _heightController.text = prefs.getString(_kHeightCm) ?? '';
+      _weightController.text = prefs.getString(_kWeightKg) ?? '';
+      _ageController.text = prefs.getString(_kAge) ?? '';
+    });
+  }
+
+  int _completedCount() {
+    var count = 0;
+    if (_selectedGender != null) count++;
+    if (_heightController.text.trim().isNotEmpty) count++;
+    if (_weightController.text.trim().isNotEmpty) count++;
+    if (_ageController.text.trim().isNotEmpty) count++;
+    return count;
+  }
+
+  Future<void> _save() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kGender, _selectedGender ?? '');
+    await prefs.setString(_kHeightCm, _heightController.text.trim());
+    await prefs.setString(_kWeightKg, _weightController.text.trim());
+    await prefs.setString(_kAge, _ageController.text.trim());
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Datos biométricos guardados'),
+        backgroundColor: Color(0xFF3E6F58),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -23,7 +72,9 @@ class _BiometricProfileScreenState extends State<BiometricProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final profileAsync = ref.watch(profileProvider);
+    final completed = _completedCount();
+    final percent = completed / 4.0;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -46,7 +97,7 @@ class _BiometricProfileScreenState extends State<BiometricProfileScreen> {
         leadingWidth: 100,
         actions: [
           IconButton(
-            onPressed: () {},
+            onPressed: () => Navigator.of(context).pop(),
             icon: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
@@ -63,7 +114,7 @@ class _BiometricProfileScreenState extends State<BiometricProfileScreen> {
         child: Container(
           width: double.infinity,
           decoration: const BoxDecoration(
-            color: Color(0xFFE9F1EC), // Fondo Menta Claro
+            color: Color(0xFFE9F1EC),
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(32),
               topRight: Radius.circular(32),
@@ -86,6 +137,23 @@ class _BiometricProfileScreenState extends State<BiometricProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
+                profileAsync.when(
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
+                  data: (user) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: Text(
+                      'Hola, ${user.firstName.isNotEmpty ? user.firstName : user.username}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF3E6F58),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 24.0),
                   child: Text(
@@ -98,9 +166,8 @@ class _BiometricProfileScreenState extends State<BiometricProfileScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 32),
 
-                // Card de Formulario
                 Container(
                   padding: const EdgeInsets.all(28.0),
                   decoration: BoxDecoration(
@@ -139,6 +206,7 @@ class _BiometricProfileScreenState extends State<BiometricProfileScreen> {
                         controller: _heightController,
                         hintText: '175',
                         suffixText: 'cm',
+                        onChanged: (_) => setState(() {}),
                       ),
                       const SizedBox(height: 24),
 
@@ -147,6 +215,7 @@ class _BiometricProfileScreenState extends State<BiometricProfileScreen> {
                         controller: _weightController,
                         hintText: '70',
                         suffixText: 'kg',
+                        onChanged: (_) => setState(() {}),
                       ),
                       const SizedBox(height: 24),
 
@@ -155,26 +224,36 @@ class _BiometricProfileScreenState extends State<BiometricProfileScreen> {
                         controller: _ageController,
                         hintText: '28',
                         suffixIcon: Icons.calendar_today_outlined,
+                        onChanged: (_) => setState(() {}),
                       ),
                       const SizedBox(height: 40),
 
-                      // Barra de Progreso
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: const [
-                          Text('Completado', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
-                          Text('25%', style: TextStyle(fontSize: 10, color: Color(0xFF3E6F58), fontWeight: FontWeight.bold)),
+                        children: [
+                          const Text('Completado', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+                          Text('${(percent * 100).round()}%', style: const TextStyle(fontSize: 10, color: Color(0xFF3E6F58), fontWeight: FontWeight.bold)),
                         ],
                       ),
                       const SizedBox(height: 8),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(4),
-                        child: const LinearProgressIndicator(
-                          value: 0.25,
-                          backgroundColor: Color(0xFFE0EAE4),
-                          color: Color(0xFF3E6F58),
+                        child: LinearProgressIndicator(
+                          value: percent,
+                          backgroundColor: const Color(0xFFE0EAE4),
+                          color: const Color(0xFF3E6F58),
                           minHeight: 6,
                         ),
+                      ),
+                      const SizedBox(height: 24),
+                      FilledButton(
+                        onPressed: _save,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF3E6F58),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Guardar cambios', style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
@@ -265,18 +344,21 @@ class _BiometricTextField extends StatelessWidget {
   final String hintText;
   final String? suffixText;
   final IconData? suffixIcon;
+  final ValueChanged<String>? onChanged;
 
   const _BiometricTextField({
     required this.controller,
     required this.hintText,
     this.suffixText,
     this.suffixIcon,
+    this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
+      onChanged: onChanged,
       keyboardType: TextInputType.number,
       style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
       decoration: InputDecoration(

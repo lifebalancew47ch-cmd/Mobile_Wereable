@@ -1,13 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../data/datasources/secure_database_service.dart';
+import '../../../../features/fog/presentation/providers/fog_providers.dart';
+import '../../../../models/fog_state.dart';
 
-class WatchProgressScreen extends StatelessWidget {
+class WatchProgressScreen extends ConsumerStatefulWidget {
   const WatchProgressScreen({super.key});
 
   @override
+  ConsumerState<WatchProgressScreen> createState() => _WatchProgressScreenState();
+}
+
+class _WatchProgressScreenState extends ConsumerState<WatchProgressScreen> {
+  static const int _goalPauses = 5;
+
+  @override
   Widget build(BuildContext context) {
-    // Obtenemos el tamaño de la pantalla para calcular el centro seguro
     final screenSize = MediaQuery.of(context).size;
-    final double padding = screenSize.width * 0.1; // 10% de margen de seguridad
+    final double padding = screenSize.width * 0.1;
+    final engine = ref.watch(fogEngineProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFE9F1EC),
@@ -15,85 +26,103 @@ class WatchProgressScreen extends StatelessWidget {
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(
-          // Borde sutil que sigue la forma del reloj
           border: Border.all(color: const Color(0xFFD1DCD6), width: 2),
           shape: BoxShape.circle,
           color: Colors.white,
         ),
         child: Padding(
           padding: EdgeInsets.all(padding),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                'META DIARIA',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF3E6F58),
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      width: screenSize.width * 0.6,
-                      height: screenSize.width * 0.6,
-                      child: const CircularProgressIndicator(
-                        value: 0.45,
-                        strokeWidth: 10,
-                        backgroundColor: Color(0xFFE9F1EC),
-                        color: Color(0xFF3E6F58),
+          child: StreamBuilder<FogState>(
+            stream: engine.stateStream,
+            builder: (context, snapshot) {
+              final state = snapshot.data ?? FogState(
+                status: ActivityStatus.active,
+                inactiveMinutes: 0,
+                lastMovement: DateTime.now(),
+              );
+              final score = (state.inactiveMinutes / 90.0).clamp(0.0, 1.0);
+
+              return FutureBuilder<int>(
+                future: SecureDatabaseService.instance.countActivitySessionsToday(),
+                builder: (context, countSnapshot) {
+                  final pauses = countSnapshot.data ?? 0;
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'META DIARIA',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF3E6F58),
+                          letterSpacing: 1.5,
+                        ),
                       ),
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Text(
-                          '45',
-                          style: TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1E3A34),
-                            height: 1,
-                          ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            SizedBox(
+                              width: screenSize.width * 0.6,
+                              height: screenSize.width * 0.6,
+                              child: CircularProgressIndicator(
+                                value: score,
+                                strokeWidth: 10,
+                                backgroundColor: const Color(0xFFE9F1EC),
+                                color: const Color(0xFF3E6F58),
+                              ),
+                            ),
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${state.inactiveMinutes}',
+                                  style: const TextStyle(
+                                    fontSize: 36,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1E3A34),
+                                    height: 1,
+                                  ),
+                                ),
+                                const Text(
+                                  'MIN INACTIVO',
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                        Text(
-                          'PUNTAJE',
-                          style: TextStyle(
-                            fontSize: 8,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.grey,
-                          ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '$pauses/$_goalPauses Pausas',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E3A34),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '3/5 Pausas',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E3A34),
-                ),
-              ),
-              const SizedBox(height: 4),
-              _buildDots(),
-              const SizedBox(height: 4),
-            ],
+                      ),
+                      const SizedBox(height: 4),
+                      _buildDots(pauses),
+                      const SizedBox(height: 4),
+                    ],
+                  );
+                },
+              );
+            },
           ),
         ),
       ),
     );
   }
 
-  Widget _buildDots() {
+  Widget _buildDots(int pauses) {
+    final filled = pauses.clamp(0, 4);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(4, (index) => Container(
@@ -101,7 +130,7 @@ class WatchProgressScreen extends StatelessWidget {
         width: 4,
         height: 4,
         decoration: BoxDecoration(
-          color: index == 1 ? const Color(0xFF3E6F58) : Colors.grey.shade300,
+          color: index < filled ? const Color(0xFF3E6F58) : Colors.grey.shade300,
           shape: BoxShape.circle,
         ),
       )),
