@@ -32,7 +32,7 @@ class MainNavigationShell extends StatelessWidget {
           NavigationDestination(
             icon: Icon(Icons.analytics_outlined),
             selectedIcon: Icon(Icons.analytics),
-            label: 'Analytics',
+            label: 'Rendimiento',
           ),
           NavigationDestination(
             icon: Icon(Icons.cloud_queue),

@@ -8,6 +8,7 @@ import 'package:lifebalance/features/auth/presentation/screens/forgot_password_s
 import 'package:lifebalance/features/authentication/presentation/splash_screen.dart';
 import 'package:lifebalance/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:lifebalance/features/analytics/presentation/screens/heatmap_screen.dart';
+import 'package:lifebalance/features/analytics/presentation/screens/performance_analysis_screen.dart';
 import 'package:lifebalance/features/wearable/presentation/wearable_screen.dart';
 import 'package:lifebalance/features/bluetooth/presentation/bluetooth_screen.dart';
 import 'package:lifebalance/features/fog/presentation/fog_screen.dart';
@@ -73,13 +74,19 @@ final GoRouter appRouter = GoRouter(
           ],
         ),
 
-        // Tab 2: Analytics / Heatmap
+        // Tab 2: Analytics / Performance
         StatefulShellBranch(
           navigatorKey: _wearableNavigatorKey,
           routes: <RouteBase>[
             GoRoute(
               path: '/analytics',
-              builder: (BuildContext context, GoRouterState state) => const HeatmapScreen(),
+              builder: (BuildContext context, GoRouterState state) => const PerformanceAnalysisScreen(),
+              routes: [
+                GoRoute(
+                  path: 'heatmap',
+                  builder: (context, state) => const HeatmapScreen(),
+                ),
+              ],
             ),
           ],
         ),
