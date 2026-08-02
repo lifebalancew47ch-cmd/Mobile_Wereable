@@ -14,6 +14,8 @@ import 'package:lifebalance/features/wearable/presentation/wearable_screen.dart'
 import 'package:lifebalance/features/bluetooth/presentation/bluetooth_screen.dart';
 import 'package:lifebalance/features/fog/presentation/fog_screen.dart';
 import 'package:lifebalance/features/gamification/presentation/gamification_screen.dart';
+import 'package:lifebalance/features/settings/presentation/screens/alert_settings_screen.dart';
+import 'package:lifebalance/features/notifications/presentation/screens/executive_notifications_screen.dart';
 import 'package:lifebalance/features/profile/presentation/profile_screen.dart';
 import 'package:lifebalance/features/profile/presentation/screens/biometric_profile_screen.dart';
 import 'package:lifebalance/features/settings/presentation/settings_screen.dart';
@@ -103,13 +105,12 @@ final GoRouter appRouter = GoRouter(
           ],
         ),
 
-        // Tab 4: Gamification
+        // Tab 4: Notifications
         StatefulShellBranch(
-          navigatorKey: _gamificationNavigatorKey,
           routes: <RouteBase>[
             GoRoute(
-              path: '/gamification',
-              builder: (BuildContext context, GoRouterState state) => const GamificationScreen(),
+              path: '/notifications',
+              builder: (BuildContext context, GoRouterState state) => const ExecutiveNotificationsScreen(),
             ),
           ],
         ),
@@ -129,7 +130,7 @@ final GoRouter appRouter = GoRouter(
                 GoRoute(
                   path: 'settings',
                   parentNavigatorKey: _rootNavigatorKey, // Opens on top of bottom navigation bar
-                  builder: (BuildContext context, GoRouterState state) => const SettingsScreen(),
+                  builder: (BuildContext context, GoRouterState state) => const AlertSettingsScreen(),
                 ),
               ],
             ),
