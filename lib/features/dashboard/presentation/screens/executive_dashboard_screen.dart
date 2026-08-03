@@ -81,10 +81,10 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
             ),
             const SizedBox(height: 40),
 
-            FutureBuilder<Map<String, int>>(
+            FutureBuilder<Map<String, dynamic>>(
               future: _loadLocalStats(),
               builder: (context, statsSnapshot) {
-                final stats = statsSnapshot.data ?? {'active': 0, 'idle': 0, 'alerts': 0, 'todaySessions': 0};
+                final stats = statsSnapshot.data ?? {'active': 0, 'idle': 0, 'alerts': 0, 'todaySessions': 0, 'steps': 0, 'heartRate': 0.0};
                 return dashboardAsync.when(
                   loading: () => const Center(
                     child: Padding(
@@ -106,7 +106,7 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
     );
   }
 
-  Future<Map<String, int>> _loadLocalStats() async {
+  Future<Map<String, dynamic>> _loadLocalStats() async {
     final db = SecureDatabaseService.instance;
     final today = await db.getActivitySessionsForDay(DateTime.now());
     var active = 0;
@@ -124,7 +124,17 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
       }
     }
     final todaySessions = await db.countActivitySessionsToday();
-    return {'active': active, 'idle': idle, 'alerts': alerts, 'todaySessions': todaySessions};
+    
+    final dbInstance = await db.database;
+    final vitalRows = await dbInstance.query('vital_signs', orderBy: 'timestamp DESC', limit: 1);
+    var localSteps = 0;
+    var localHeartRate = 0.0;
+    if (vitalRows.isNotEmpty) {
+      localSteps = (vitalRows.first['steps'] as num?)?.toInt() ?? 0;
+      localHeartRate = (vitalRows.first['heart_rate'] as num?)?.toDouble() ?? 0.0;
+    }
+
+    return {'active': active, 'idle': idle, 'alerts': alerts, 'todaySessions': todaySessions, 'steps': localSteps, 'heartRate': localHeartRate};
   }
 
   Widget _buildScoreGauge(double score, int minutes, String label) {
@@ -239,9 +249,17 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
     );
   }
 
-  Widget _buildMetricsGrid(Map<String, int> stats, {DashboardData? dashboard}) {
+  Widget _buildMetricsGrid(Map<String, dynamic> stats, {DashboardData? dashboard}) {
     final activeMinutes = (dashboard?.summary?.activeMinutes ?? stats['active'] ?? 0).round();
     final todaySessions = stats['todaySessions'] ?? 0;
+    
+    final cloudSteps = dashboard?.kpis?.dailySteps ?? dashboard?.summary?.dailySteps;
+    final localSteps = stats['steps'] as int? ?? 0;
+    final displaySteps = cloudSteps != null && cloudSteps > 0 ? cloudSteps : localSteps;
+
+    final cloudHR = dashboard?.kpis?.heartRate;
+    final localHR = stats['heartRate'] as double? ?? 0.0;
+    final displayHR = cloudHR != null && cloudHR > 0 ? cloudHR : localHR;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
@@ -301,7 +319,7 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
                 child: _buildMetricCard(
                   icon: Icons.directions_walk,
                   label: 'PASOS',
-                  value: '${dashboard?.kpis?.dailySteps ?? dashboard?.summary?.dailySteps ?? '--'}',
+                  value: displaySteps > 0 ? '$displaySteps' : '--',
                   subtitle: 'Total del día',
                   labelColor: Colors.blue.shade700,
                   hasSideBorder: true,
@@ -313,7 +331,7 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
                 child: _buildMetricCard(
                   icon: Icons.favorite,
                   label: 'LATIDOS',
-                  value: dashboard?.kpis != null ? '${dashboard!.kpis!.heartRate.toStringAsFixed(0)} bpm' : '--',
+                  value: displayHR > 0 ? '${displayHR.toStringAsFixed(0)} bpm' : '--',
                   subtitle: 'Ritmo cardíaco',
                   labelColor: Colors.red.shade700,
                   hasSideBorder: true,
