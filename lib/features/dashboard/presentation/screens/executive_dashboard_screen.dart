@@ -5,6 +5,7 @@ import '../../../../data/datasources/secure_database_service.dart';
 import '../../../fog/presentation/providers/fog_providers.dart';
 import '../../presentation/providers/dashboard_provider.dart';
 import '../../../../models/fog_state.dart';
+import '../../../../models/vital_sign.dart';
 
 class ExecutiveDashboardScreen extends ConsumerStatefulWidget {
   const ExecutiveDashboardScreen({super.key});
@@ -54,6 +55,25 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
           ),
           const SizedBox(width: 8),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF3E6F58),
+        onPressed: () async {
+          final db = SecureDatabaseService.instance;
+          await db.insertVitalSign(VitalSign(
+            timestamp: DateTime.now(),
+            heartRate: 85.0,
+            hrv: 45.0,
+            spo2: 98.0,
+            steps: 3450,
+            isSedentaryRisk: false,
+          ));
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('¡Datos inyectados en la BD!')));
+            setState(() {});
+          }
+        },
+        child: const Icon(Icons.bug_report, color: Colors.white),
       ),
       body: SingleChildScrollView(
         child: Column(
