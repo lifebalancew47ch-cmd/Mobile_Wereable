@@ -8,7 +8,7 @@ class VideoExplanationScreen extends StatelessWidget {
   static const List<({String title, String desc, IconData icon})> _steps = [
     (
       title: 'Vincula tu reloj',
-      desc: 'Perfil > "Emparejar wearable". El teléfono escanea dispositivos Bluetooth y guarda tu reloj vinculado.',
+      desc: 'Empareja tu reloj desde la app Wear OS del teléfono (Bluetooth). LifeBalance detecta la conexión automáticamente.',
       icon: Icons.watch_outlined,
     ),
     (

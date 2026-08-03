@@ -13,12 +13,12 @@ class FAQScreen extends StatelessWidget {
       a: 'Para recordarte hacer una pausa activa de 2 minutos. La alerta se registra en tu historial local y aparece como notificación en tu teléfono.',
     ),
     (
-      q: '¿Cómo emparejo mi reloj Wear OS?',
-      a: 'Ve a Perfil > "Emparejar wearable". El teléfono escaneará dispositivos Bluetooth cercanos; selecciona tu reloj para vincularlo. El reloj debe tener la app LifeBalance Wear instalada y el servicio de sensores activo.',
+      q: '¿Cómo conecto mi reloj Wear OS?',
+      a: 'El emparejamiento se hace a nivel del sistema: en la app Wear OS de tu teléfono debes vincular el reloj por Bluetooth. La app LifeBalance detecta automáticamente esa conexión (Wearable Data Layer) y muestra el estado en Perfil > "Emparejar wearable". El reloj debe tener la app LifeBalance Wear instalada y el servicio de sensores activo.',
     ),
     (
       q: '¿Dónde se guardan mis datos de actividad?',
-      a: 'En una base de datos local cifrada con SQLCipher (AES-256). Las sesiones de actividad, signos vitales y alertas se guardan en tu dispositivo. La sincronización con la nube está pendiente de implementarse.',
+      a: 'En una base de datos local cifrada con SQLCipher (AES-256). Las sesiones de actividad, signos vitales y alertas se guardan en tu dispositivo y se sincronizan con la nube cada 15 minutos cuando hay conexión.',
     ),
     (
       q: '¿Qué significa el puntaje de sedentarismo?',

@@ -1,103 +1,24 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart' as fbp;
-import '../../../../services/bluetooth_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../wearable_provider.dart';
 
-class DeviceScanningScreen extends StatefulWidget {
+/// Estado real del wearable: conexión Wear OS (Wearable Data Layer) y último
+/// lote de datos recibido. La vinculación se hace a nivel de sistema (app
+/// Wear OS del teléfono); aquí solo se muestra el estado en vivo del reloj.
+class DeviceScanningScreen extends ConsumerStatefulWidget {
   const DeviceScanningScreen({super.key});
 
   @override
-  State<DeviceScanningScreen> createState() => _DeviceScanningScreenState();
+  ConsumerState<DeviceScanningScreen> createState() => _DeviceScanningScreenState();
 }
 
-class _DeviceScanningScreenState extends State<DeviceScanningScreen> {
-  final BluetoothService _bluetooth = BluetoothService();
-  StreamSubscription? _resultsSub;
-  StreamSubscription? _scanningSub;
-  bool _isScanning = false;
-  List<fbp.ScanResult> _devices = [];
-  String? _linkedDeviceId;
-  bool _isPairing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _resultsSub = _bluetooth.scanResults.listen((results) {
-      if (!mounted) return;
-      setState(() {
-        _devices = results.where((r) => r.device.platformName.isNotEmpty).toList();
-      });
-    });
-    _scanningSub = _bluetooth.isScanning.listen((value) {
-      if (!mounted) return;
-      setState(() => _isScanning = value);
-    });
-    _loadLinkedDevice();
-  }
-
-  Future<void> _loadLinkedDevice() async {
-    final id = await _bluetooth.getLinkedDeviceId();
-    if (!mounted) return;
-    setState(() => _linkedDeviceId = id);
-  }
-
-  Future<void> _toggleScan() async {
-    if (_isScanning) {
-      await _bluetooth.stopScan();
-      return;
-    }
-    if (!mounted) return;
-    setState(() => _devices = []);
-    try {
-      await _bluetooth.startScan();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('No se pudo iniciar el escaneo: ${e.toString().replaceAll('Exception: ', '')}'),
-          backgroundColor: const Color(0xFFD68C5E),
-        ),
-      );
-    }
-  }
-
-  Future<void> _pairDevice(fbp.BluetoothDevice device) async {
-    if (_isPairing) return;
-    setState(() => _isPairing = true);
-    try {
-      await _bluetooth.linkDevice(device);
-      await _bluetooth.stopScan();
-      if (!mounted) return;
-      setState(() => _linkedDeviceId = device.remoteId.str);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Vinculado: ${device.platformName}'),
-          backgroundColor: const Color(0xFF3E6F58),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('No se pudo vincular: ${e.toString().replaceAll('Exception: ', '')}'),
-          backgroundColor: const Color(0xFFD68C5E),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _isPairing = false);
-    }
-  }
-
-  @override
-  void dispose() {
-    _resultsSub?.cancel();
-    _scanningSub?.cancel();
-    _bluetooth.stopScan();
-    super.dispose();
-  }
-
+class _DeviceScanningScreenState extends ConsumerState<DeviceScanningScreen> {
   @override
   Widget build(BuildContext context) {
+    final wearableState = ref.watch(wearableProvider);
+    final connected = wearableState.isConnected;
+    final last = wearableState.lastData;
+
     return Scaffold(
       backgroundColor: const Color(0xFFE9F1EC),
       appBar: AppBar(
@@ -105,149 +26,122 @@ class _DeviceScanningScreenState extends State<DeviceScanningScreen> {
         title: const Text('EXECUTIVE\nWELLNESS',
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF3E6F58), letterSpacing: 1.5)
         ),
-        actions: [
-          IconButton(
-            onPressed: _toggleScan,
-            icon: Icon(
-              _isScanning ? Icons.stop_circle_outlined : Icons.bluetooth_searching,
-              color: _isScanning ? const Color(0xFFD68C5E) : const Color(0xFF3E6F58),
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
       ),
-      body: Column(
-        children: [
-          const SizedBox(height: 20),
-          Center(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 250,
-                  height: 250,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        const Color(0xFF3E6F58).withValues(alpha: _isScanning ? 0.2 : 0.1),
-                        const Color(0xFFE9F1EC),
-                      ],
-                    ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 20),
+            Center(
+              child: Container(
+                width: 160,
+                height: 160,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFF3E6F58).withValues(alpha: connected ? 0.25 : 0.1),
+                      const Color(0xFFE9F1EC),
+                    ],
                   ),
                 ),
-                ...List.generate(3, (index) => AnimatedOpacity(
-                  opacity: _isScanning ? 1.0 : 0.3,
-                  duration: Duration(milliseconds: 500 + index * 200),
-                  child: Container(
-                    width: 80.0 + (index * 60),
-                    height: 80.0 + (index * 60),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF3E6F58).withValues(alpha: 0.2)),
-                    ),
-                  ),
-                )),
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                child: Center(
                   child: Icon(
-                    _linkedDeviceId != null ? Icons.bluetooth_connected : Icons.bluetooth,
-                    color: _linkedDeviceId != null ? const Color(0xFF3E6F58) : const Color(0xFFD68C5E),
-                    size: 40,
+                    connected ? Icons.watch : Icons.watch_off,
+                    color: connected ? const Color(0xFF3E6F58) : const Color(0xFFD68C5E),
+                    size: 64,
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 40),
-          Text(_isScanning ? 'Buscando dispositivos...' : (_linkedDeviceId != null ? 'Dispositivo vinculado' : 'Inicia el escaneo'),
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF3E6F58))),
-          const SizedBox(height: 8),
-          const Text('Asegúrate de que tu dispositivo esté en\nmodo emparejamiento.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey, fontSize: 13)),
-
-          const SizedBox(height: 40),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+            const SizedBox(height: 24),
+            Text(
+              connected ? 'Reloj conectado' : 'Reloj no detectado',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF3E6F58)),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Conectado vía Wear OS (Bluetooth). Asegúrate de que el reloj tenga la app LifeBalance abierta y el monitoreo activo.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.5),
+            ),
+            const SizedBox(height: 32),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('DISPOSITIVOS CERCANOS',
+                  const Text('DATOS EN VIVO',
                     style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
                   const SizedBox(height: 16),
-                  if (_devices.isEmpty && !_isScanning)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 24),
-                      child: Text(
-                        'Ningún dispositivo detectado.\nPulsa el ícono para escanear.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey, fontSize: 12, height: 1.5),
+                  if (last == null)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Column(
+                          children: [
+                            CircularProgressIndicator(color: Color(0xFF3E6F58)),
+                            SizedBox(height: 12),
+                            Text('Esperando datos del reloj...',
+                              style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          ],
+                        ),
                       ),
                     )
                   else
-                    ..._devices.map((result) => _buildDeviceItem(result)),
+                    Column(
+                      children: [
+                        _buildDataRow('Eje X', last.x.toStringAsFixed(3)),
+                        const SizedBox(height: 12),
+                        _buildDataRow('Eje Y', last.y.toStringAsFixed(3)),
+                        const SizedBox(height: 12),
+                        _buildDataRow('Eje Z', last.z.toStringAsFixed(3)),
+                      ],
+                    ),
                 ],
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDeviceItem(fbp.ScanResult result) {
-    final device = result.device;
-    final isLinked = device.remoteId.str == _linkedDeviceId;
-    final rssi = result.rssi;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: const Color(0xFFF0F7F4), borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.watch_rounded, color: Color(0xFF3E6F58), size: 20),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(device.platformName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                Text(_signalLabel(rssi), style: const TextStyle(color: Colors.grey, fontSize: 11)),
-              ],
-            ),
-          ),
-          isLinked
-              ? const Icon(Icons.check_circle, color: Color(0xFF3E6F58), size: 24)
-              : ElevatedButton(
-                  onPressed: _isPairing ? null : () => _pairDevice(device),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF3E6F58),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F7F4),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, color: Color(0xFF3E6F58), size: 18),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'El emparejamiento se realiza desde la app Wear OS del teléfono (no desde esta app). '
+                      'Una vez vinculado, los datos del acelerómetro aparecerán aquí automáticamente.',
+                      style: TextStyle(color: Colors.grey, fontSize: 11, height: 1.4),
+                    ),
                   ),
-                  child: const Text('Pair', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                ),
-        ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  String _signalLabel(int rssi) {
-    if (rssi >= -60) return 'Señal fuerte';
-    if (rssi >= -80) return 'Señal media';
-    return 'Señal débil';
+  Widget _buildDataRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E3A34))),
+      ],
+    );
   }
 }

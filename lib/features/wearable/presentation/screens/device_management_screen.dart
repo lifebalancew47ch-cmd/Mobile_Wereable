@@ -1,23 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart' as fbp;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../data/datasources/secure_database_service.dart';
-import '../../../../services/bluetooth_service.dart';
+import '../wearable_provider.dart';
 
-class DeviceManagementScreen extends StatefulWidget {
+/// Gestión del wearable vía Wear OS: muestra el estado real de conexión y la
+/// última sincronización registrada en la BD local (sin escaneo BLE).
+class DeviceManagementScreen extends ConsumerStatefulWidget {
   const DeviceManagementScreen({super.key});
 
   @override
-  State<DeviceManagementScreen> createState() => _DeviceManagementScreenState();
+  ConsumerState<DeviceManagementScreen> createState() => _DeviceManagementScreenState();
 }
 
-class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
+class _DeviceManagementScreenState extends ConsumerState<DeviceManagementScreen> {
   static const _kRealtimeAlerts = 'device_manage_realtime_alerts';
   static const _kAutoSync = 'device_manage_auto_sync';
   static const _kLowPower = 'device_manage_low_power';
 
-  final BluetoothService _bluetooth = BluetoothService();
-  fbp.BluetoothDevice? _device;
   bool _loading = true;
   bool _realtimeAlerts = true;
   bool _autoSync = true;
@@ -32,20 +32,9 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final deviceId = await _bluetooth.getLinkedDeviceId();
-    var lastSync = 'Nunca';
-    if (deviceId != null) {
-      final device = await _bluetooth.reconnectSavedDevice();
-      if (device != null) {
-        final lastSession = await _lastActivityTime();
-        lastSync = lastSession ?? 'Hace un momento';
-      } else {
-        lastSync = 'Dispositivo no encontrado';
-      }
-    }
+    final lastSync = await _lastActivityTime();
     if (!mounted) return;
     setState(() {
-      _device = deviceId != null ? fbp.BluetoothDevice.fromId(deviceId) : null;
       _realtimeAlerts = prefs.getBool(_kRealtimeAlerts) ?? true;
       _autoSync = prefs.getBool(_kAutoSync) ?? true;
       _lowPower = prefs.getBool(_kLowPower) ?? false;
@@ -75,31 +64,10 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
     await prefs.setBool(key, value);
   }
 
-  Future<void> _disconnect() async {
-    if (_device == null) return;
-    try {
-      await _bluetooth.unlinkDevice(_device!);
-      if (!mounted) return;
-      setState(() => _device = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Dispositivo desconectado'),
-          backgroundColor: Color(0xFFD68C5E),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al desconectar: ${e.toString().replaceAll('Exception: ', '')}'),
-          backgroundColor: const Color(0xFFD68C5E),
-        ),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final connected = ref.watch(wearableProvider).isConnected;
+
     return Scaffold(
       backgroundColor: const Color(0xFFE9F1EC),
       appBar: AppBar(
@@ -130,98 +98,67 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
                         child: CircularProgressIndicator(color: Color(0xFF3E6F58)),
                       ),
                     )
-                  : _device == null
-                      ? Column(
+                  : Column(
+                      children: [
+                        Row(
                           children: [
-                            const Icon(Icons.bluetooth_disabled, color: Colors.grey, size: 48),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'No hay dispositivo vinculado',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(color: const Color(0xFFF0F7F4), borderRadius: BorderRadius.circular(12)),
+                              child: const Icon(Icons.watch_rounded, color: Color(0xFF3E6F58), size: 28),
                             ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Escanea y vincula tu wearable desde la pantalla de dispositivos.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey, fontSize: 12),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              onPressed: () => Navigator.of(context).pop(),
-                              icon: const Icon(Icons.bluetooth_searching, size: 16),
-                              label: const Text('Ir a escanear'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF3E6F58),
-                                foregroundColor: Colors.white,
-                                elevation: 0,
+                            const SizedBox(width: 16),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Galaxy Watch (Wear OS)',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                  Text('Conectado vía Wearable Data Layer',
+                                      style: TextStyle(color: Colors.grey, fontSize: 10)),
+                                  SizedBox(height: 4),
+                                ],
                               ),
                             ),
                           ],
-                        )
-                      : Column(
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(color: const Color(0xFFF0F7F4), borderRadius: BorderRadius.circular(12)),
-                                  child: const Icon(Icons.watch_rounded, color: Color(0xFF3E6F58), size: 28),
+                            const Text('Estado',
+                                style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: connected
+                                    ? const Color(0xFF3E6F58).withValues(alpha: 0.1)
+                                    : const Color(0xFFD68C5E).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                connected ? 'Conectado' : 'Sin datos',
+                                style: TextStyle(
+                                  color: connected ? const Color(0xFF3E6F58) : const Color(0xFFD68C5E),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(_device!.platformName.isNotEmpty ? _device!.platformName : 'Dispositivo vinculado',
-                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                                      Text(_device!.remoteId.str, style: const TextStyle(color: Colors.grey, fontSize: 10)),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          if (_device!.isConnected)
-                                            const Icon(Icons.bluetooth_connected, color: Color(0xFF3E6F58), size: 12),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            _device!.isConnected ? 'Conectado via Bluetooth' : 'Guardado (offline)',
-                                            style: TextStyle(
-                                              color: _device!.isConnected ? const Color(0xFF3E6F58) : Colors.grey,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('Última sinc.', style: TextStyle(color: Colors.grey, fontSize: 11)),
-                                    Text(_lastSyncLabel ?? 'Nunca', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                  ],
-                                ),
-                                ElevatedButton(
-                                  onPressed: _disconnect,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFFEF3EB),
-                                    foregroundColor: const Color(0xFFD68C5E),
-                                    elevation: 0,
-                                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
-                                  child: const Text('Desconectar', style: TextStyle(fontWeight: FontWeight.bold)),
-                                ),
-                              ],
+                              ),
                             ),
                           ],
                         ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Última sinc.',
+                                style: TextStyle(color: Colors.grey, fontSize: 11)),
+                            Text(_lastSyncLabel ?? 'Nunca',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          ],
+                        ),
+                      ],
+                    ),
             ),
 
             const SizedBox(height: 32),

@@ -57,7 +57,7 @@ class ProfileScreen extends ConsumerWidget {
               ListTile(
                 leading: const Icon(Icons.bluetooth_searching, color: Color(0xFF3E6F58)),
                 title: const Text('Emparejar wearable'),
-                subtitle: const Text('Buscar y conectar tu Galaxy Watch'),
+                subtitle: const Text('Ver estado de conexión del reloj'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push('/profile/wearable-scan'),
               ),

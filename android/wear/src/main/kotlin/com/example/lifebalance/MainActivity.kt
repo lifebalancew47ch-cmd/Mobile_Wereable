@@ -35,13 +35,18 @@ class MainActivity : Activity(), SensorEventListener {
     private lateinit var statusText: TextView
     private lateinit var minutesText: TextView
     private lateinit var varianceText: TextView
+    private lateinit var stepsText: TextView
+    private lateinit var bpmText: TextView
 
     private lateinit var sensorManager: SensorManager
     private var accelerometer: Sensor? = null
+    private var stepCounter: Sensor? = null
+    private var heartRateSensor: Sensor? = null
 
     private val magnitudes = ArrayList<Double>(200)
     private var windowStartTime = 0L
     private var idleWindows = 0L
+    private var activeWindows = 0L
     private var alertShown = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,9 +58,12 @@ class MainActivity : Activity(), SensorEventListener {
         statusText = findViewById(R.id.statusText)
         minutesText = findViewById(R.id.minutesText)
         varianceText = findViewById(R.id.varianceText)
+        stepsText = findViewById(R.id.stepsText)
+        bpmText = findViewById(R.id.bpmText)
 
         findViewById<Button>(R.id.pauseButton).setOnClickListener {
             idleWindows = 0
+            activeWindows = 0
             updateUi(0.0)
         }
 
@@ -102,12 +110,22 @@ class MainActivity : Activity(), SensorEventListener {
     private fun startSensors() {
         sensorManager = getSystemService(SensorManager::class.java)
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        stepCounter = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+        heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
+
         accelerometer?.let {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
             statusText.text = "Monitorizando..."
             startSensorService()
         } ?: run {
             statusText.text = "Sin acelerómetro disponible."
+        }
+        
+        stepCounter?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+        }
+        heartRateSensor?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
         }
     }
 
@@ -133,6 +151,12 @@ class MainActivity : Activity(), SensorEventListener {
             accelerometer?.let {
                 sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
             }
+            stepCounter?.let {
+                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+            }
+            heartRateSensor?.let {
+                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+            }
         }
     }
 
@@ -152,21 +176,30 @@ class MainActivity : Activity(), SensorEventListener {
 
     override fun onSensorChanged(event: SensorEvent?) {
         event ?: return
-        if (event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
+        
+        when (event.sensor.type) {
+            Sensor.TYPE_STEP_COUNTER -> {
+                stepsText.text = event.values[0].toInt().toString()
+            }
+            Sensor.TYPE_HEART_RATE -> {
+                bpmText.text = event.values[0].toInt().toString()
+            }
+            Sensor.TYPE_ACCELEROMETER -> {
+                val mag = sqrt(
+                    event.values[0].toDouble().pow(2) +
+                            event.values[1].toDouble().pow(2) +
+                            event.values[2].toDouble().pow(2)
+                )
+                if (!mag.isFinite()) return
 
-        val mag = sqrt(
-            event.values[0].toDouble().pow(2) +
-                    event.values[1].toDouble().pow(2) +
-                    event.values[2].toDouble().pow(2)
-        )
-        if (!mag.isFinite()) return
+                val now = System.currentTimeMillis()
+                if (windowStartTime == 0L) windowStartTime = now
 
-        val now = System.currentTimeMillis()
-        if (windowStartTime == 0L) windowStartTime = now
-
-        magnitudes.add(mag)
-        if (now - windowStartTime >= WINDOW_MS) {
-            analyzeWindow(now)
+                magnitudes.add(mag)
+                if (now - windowStartTime >= WINDOW_MS) {
+                    analyzeWindow(now)
+                }
+            }
         }
     }
 
@@ -179,14 +212,15 @@ class MainActivity : Activity(), SensorEventListener {
 
         if (variance < VARIANCE_THRESHOLD) {
             idleWindows++
+            activeWindows = 0L
         } else {
-            idleWindows = 0
+            idleWindows = 0L
+            activeWindows++
             alertShown = false
         }
 
         if (idleWindows >= alertWindows && !alertShown) {
             alertShown = true
-            statusText.text = "¡Alerta de sedentarismo!"
         }
         updateUi(variance)
     }
@@ -198,16 +232,19 @@ class MainActivity : Activity(), SensorEventListener {
     }
 
     private fun updateUi(variance: Double) {
-        val minutes = idleWindows / 2 // 2 ventanas de 30s por minuto
-        minutesText.text = "$minutes min"
-
         if (idleWindows >= alertWindows) {
+            val minutes = idleWindows / 2
+            minutesText.text = "$minutes min"
             statusText.text = "¡Alerta de sedentarismo!"
             statusText.setTextColor(android.graphics.Color.parseColor("#FF3B30"))
         } else if (idleWindows > 0) {
+            val minutes = idleWindows / 2
+            minutesText.text = "$minutes min"
             statusText.text = "Inactivo"
             statusText.setTextColor(android.graphics.Color.parseColor("#FF9500"))
         } else {
+            val minutes = activeWindows / 2
+            minutesText.text = "$minutes min"
             statusText.text = "Activo"
             statusText.setTextColor(android.graphics.Color.parseColor("#00C2FF"))
         }
