@@ -86,12 +86,7 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
               builder: (context, statsSnapshot) {
                 final stats = statsSnapshot.data ?? {'active': 0, 'idle': 0, 'alerts': 0, 'todaySessions': 0, 'steps': 0, 'heartRate': 0.0};
                 return dashboardAsync.when(
-                  loading: () => const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: CircularProgressIndicator(color: Color(0xFF3E6F58)),
-                    ),
-                  ),
+                  loading: () => _buildMetricsGrid(stats),
                   error: (_, __) => _buildMetricsGrid(stats),
                   data: (data) => _buildMetricsGrid(stats, dashboard: data),
                 );
