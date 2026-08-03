@@ -6,6 +6,7 @@ import '../../../fog/presentation/providers/fog_providers.dart';
 import '../../presentation/providers/dashboard_provider.dart';
 import '../../../../models/fog_state.dart';
 import '../../../../models/vital_sign.dart';
+import '../../../wearable/presentation/wearable_provider.dart';
 
 class ExecutiveDashboardScreen extends ConsumerStatefulWidget {
   const ExecutiveDashboardScreen({super.key});
@@ -21,9 +22,10 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
   Widget build(BuildContext context) {
     final fogEngine = ref.watch(fogEngineProvider);
     final dashboardAsync = ref.watch(dashboardDataProvider);
+    final liveSensor = ref.watch(sensorSampleProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F8F4),
+      backgroundColor: AppTheme.midnightBackground,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -56,25 +58,6 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
           const SizedBox(width: 8),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF3E6F58),
-        onPressed: () async {
-          final db = SecureDatabaseService.instance;
-          await db.insertVitalSign(VitalSign(
-            timestamp: DateTime.now(),
-            heartRate: 85.0,
-            hrv: 45.0,
-            spo2: 98.0,
-            steps: 3450,
-            isSedentaryRisk: false,
-          ));
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('¡Datos inyectados en la BD!')));
-            setState(() {});
-          }
-        },
-        child: const Icon(Icons.bug_report, color: Colors.white),
-      ),
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -105,6 +88,14 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
               future: _loadLocalStats(),
               builder: (context, statsSnapshot) {
                 final stats = statsSnapshot.data ?? {'active': 0, 'idle': 0, 'alerts': 0, 'todaySessions': 0, 'steps': 0, 'heartRate': 0.0};
+                
+                // Sobrescribir stats locales con datos EN VIVO del wearable si existen
+                if (liveSensor.value != null) {
+                  final live = liveSensor.value!;
+                  if (live.steps > 0) stats['steps'] = live.steps;
+                  if (live.heartRate > 0) stats['heartRate'] = live.heartRate;
+                }
+
                 return dashboardAsync.when(
                   loading: () => _buildMetricsGrid(stats),
                   error: (_, __) => _buildMetricsGrid(stats),

@@ -46,3 +46,8 @@ final wearableCommunicationServiceProvider = Provider((ref) => WearableCommunica
 final wearableProvider = StateNotifierProvider<WearableNotifier, WearableState>((ref) {
   return WearableNotifier(ref.watch(wearableCommunicationServiceProvider));
 });
+
+final sensorSampleProvider = StreamProvider<WearableSensorSample>((ref) {
+  final service = ref.watch(wearableCommunicationServiceProvider);
+  return service.sensorStreamThrottled;
+});
