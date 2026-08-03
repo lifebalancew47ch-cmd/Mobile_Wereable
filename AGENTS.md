@@ -72,7 +72,7 @@ Inside each feature (e.g., `features/auth/`), the structure is:
 - Top-level routes: `/splash`, `/login`, `/auth/register`, `/auth/forgot-password`, `/fog`
 - StatefulShellRoute with 5 tabs: `/dashboard` (notifications subroute), `/analytics` (heatmap subroute), `/admin` (accesible vía FAB `+`), `/support` (video subroute), `/profile` (biometric, gamification, settings, history, wearable-scan, wearable-manage subroutes)
 - **Sesión**: `app_router.dart` usa `redirect` + `refreshListenable` (escucha `sessionChangeNotifier` de `token_service.dart`) para expulsar a `/login` cuando el token expira o en un 401. `hasValidToken()` verifica el claim `exp` del JWT.
-- Las pantallas de reloj (`/watch`, `/watch/alert`, `/watch/progress`) fueron ELIMINADAS del móvil: la UI del wearable vive en la app Wear OS nativa (`android/wear`).
+- Las pantallas de reloj (`/watch`, `/watch/alert`, `/watch/progress`) fueron ELIMINADAS del móvil: la UI del wearable vive en la app Wear OS nativa (`android/wear`), donde `MainActivity.kt` implementa un dashboard propio que analiza localmente la varianza del acelerómetro en ventanas de 30s (mismo criterio que el FogEngine) y muestra estado Activo/Inactivo, minutos inactivos y alerta de sedentarismo a los 45 min (90 ventanas), con botón "Pausa activa" que reinicia el contador local.
 
 ## 4. Data Flow: Wearable → Fog → Local DB (→ Cloud planned)
 
