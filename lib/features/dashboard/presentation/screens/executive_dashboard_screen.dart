@@ -17,6 +17,13 @@ class ExecutiveDashboardScreen extends ConsumerStatefulWidget {
 
 class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScreen> {
   static const int _goalPauses = 5;
+  Future<Map<String, dynamic>>? _statsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _statsFuture = _loadLocalStats();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +92,7 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
             const SizedBox(height: 40),
 
             FutureBuilder<Map<String, dynamic>>(
-              future: _loadLocalStats(),
+              future: _statsFuture,
               builder: (context, statsSnapshot) {
                 final stats = statsSnapshot.data ?? {'active': 0, 'idle': 0, 'alerts': 0, 'todaySessions': 0, 'steps': 0, 'heartRate': 0.0};
                 
@@ -261,11 +268,11 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
     
     final cloudSteps = dashboard?.kpis?.dailySteps ?? dashboard?.summary?.dailySteps;
     final localSteps = stats['steps'] as int? ?? 0;
-    final displaySteps = cloudSteps != null && cloudSteps > 0 ? cloudSteps : localSteps;
+    final displaySteps = localSteps > 0 ? localSteps : (cloudSteps != null && cloudSteps > 0 ? cloudSteps : 0);
 
     final cloudHR = dashboard?.kpis?.heartRate;
     final localHR = stats['heartRate'] as double? ?? 0.0;
-    final displayHR = cloudHR != null && cloudHR > 0 ? cloudHR : localHR;
+    final displayHR = localHR > 0 ? localHR : (cloudHR != null && cloudHR > 0 ? cloudHR : 0.0);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
