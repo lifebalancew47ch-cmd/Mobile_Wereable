@@ -110,13 +110,19 @@ class WearableCommunicationService {
     );
   }
 
-  /// Stream de muestras completas throttled para la UI.
+  /// Stream de muestras completas throttled para la UI (última del lote).
   Stream<WearableSensorSample> get sensorStreamThrottled {
-    return sensorStream.throttleTime(const Duration(seconds: 5));
+    return _batches.map((batch) {
+      if (batch.isEmpty) return null;
+      return WearableSensorSample.fromJson(batch.last);
+    }).where((sample) => sample != null).cast<WearableSensorSample>();
   }
 
-  /// Stream de acelerómetro throttled para la UI.
+  /// Stream de acelerómetro throttled para la UI (última del lote).
   Stream<AccelerometerData> get accelerometerStreamThrottled {
-    return accelerometerStream.throttleTime(const Duration(seconds: 5));
+    return _batches.map((batch) {
+      if (batch.isEmpty) return null;
+      return AccelerometerData.fromJson(batch.last);
+    }).where((data) => data != null).cast<AccelerometerData>();
   }
 }

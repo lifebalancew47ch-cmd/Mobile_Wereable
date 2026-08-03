@@ -19,13 +19,8 @@ object WearDataBus {
 
     fun emit(data: String) {
         pendingData = data
-
-        val now = System.currentTimeMillis()
-        if (now - lastEmitTime >= EMIT_THROTTLE_MS) {
-            lastEmitTime = now
-            Handler(Looper.getMainLooper()).post {
-                eventSink?.success(data)
-            }
+        Handler(Looper.getMainLooper()).post {
+            eventSink?.success(data)
         }
     }
 }
