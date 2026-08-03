@@ -17,15 +17,13 @@ class WatchService implements IWatchService {
   VitalSign? _latestSign;
 
   WatchService() {
-    _accelSub = _wearableService.accelerometerStream.listen((data) {
-      // Solo se persiste un VitalSign cuando existen métricas reales del
-      // sensor. Sin datos de salud (Health Connect) no se fabrican ceros.
+    _accelSub = _wearableService.sensorStream.listen((data) {
       _latestSign = VitalSign(
         timestamp: DateTime.fromMillisecondsSinceEpoch(data.timestamp),
-        heartRate: 0,
-        hrv: 0,
-        spo2: 0,
-        steps: 0,
+        heartRate: data.heartRate,
+        hrv: data.hrv,
+        spo2: data.spo2,
+        steps: data.steps,
         isSedentaryRisk: false,
       );
     });
