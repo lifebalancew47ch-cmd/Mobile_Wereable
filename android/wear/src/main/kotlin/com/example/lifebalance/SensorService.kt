@@ -27,6 +27,16 @@ class SensorService : Service(), SensorEventListener2 {
     private lateinit var sensorManager: SensorManager
     private var accelerometer: Sensor? = null
     private var offBodySensor: Sensor? = null
+    private var gyroscope: Sensor? = null
+    private var stepCounter: Sensor? = null
+    private var heartRateSensor: Sensor? = null
+
+    // Últimos valores de sensores fisiológicos adjuntados a cada lote.
+    private var lastGyroX = 0f
+    private var lastGyroY = 0f
+    private var lastGyroZ = 0f
+    private var totalSteps = 0
+    private var lastHeartRate = 0f
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
@@ -72,6 +82,24 @@ class SensorService : Service(), SensorEventListener2 {
                 5_000_000 // 5 seconds batching in microseconds
             )
         }
+
+        // Giroscopio: orientación espacial del brazo/cuerpo (Filtro Clínico).
+        gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+        gyroscope?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
+        }
+
+        // Podómetro: contador acumulativo de pasos diarios.
+        stepCounter = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+        stepCounter?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+        }
+
+        // Frecuencia cardíaca (lpm). Requiere permiso BODY_SENSORS en runtime.
+        heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
+        heartRateSensor?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -102,6 +130,18 @@ class SensorService : Service(), SensorEventListener2 {
                     Log.d("SensorService", "Watch is on-body. Resuming collection.")
                 }
             }
+            Sensor.TYPE_GYROSCOPE -> {
+                lastGyroX = event.values[0]
+                lastGyroY = event.values[1]
+                lastGyroZ = event.values[2]
+            }
+            Sensor.TYPE_STEP_COUNTER -> {
+                totalSteps = event.values[0].toInt()
+            }
+            Sensor.TYPE_HEART_RATE -> {
+                // values[0] en lpm; 0 cuando no hay contacto/toma fiable.
+                lastHeartRate = event.values[0]
+            }
             Sensor.TYPE_ACCELEROMETER -> {
                 if (!isOnBody) return // Don't collect if not on wrist
 
@@ -110,6 +150,11 @@ class SensorService : Service(), SensorEventListener2 {
                     put("x", event.values[0])
                     put("y", event.values[1])
                     put("z", event.values[2])
+                    put("gyroX", lastGyroX)
+                    put("gyroY", lastGyroY)
+                    put("gyroZ", lastGyroZ)
+                    put("steps", totalSteps)
+                    put("heartRate", lastHeartRate)
                     put("timestamp", timestamp)
                 }
 

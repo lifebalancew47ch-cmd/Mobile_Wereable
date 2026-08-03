@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../security/certificate_pinning.dart';
 import '../security/token_service.dart';
 
@@ -55,7 +56,14 @@ class RetryWithBackoffInterceptor extends Interceptor {
 }
 
 Dio _buildDio(Ref ref, String baseUrl) {
-  final tokenService = ref.watch(tokenServiceProvider);
+  return buildSecureDio(baseUrl, authService: ref.watch(tokenServiceProvider));
+}
+
+/// Construye un cliente Dio con la seguridad del proyecto (pinning estricto,
+/// reintentos con backoff, auth Bearer) sin depender de Riverpod. Reutilizable
+/// desde aislados de segundo plano donde no existe [Ref].
+Dio buildSecureDio(String baseUrl, {TokenService? authService}) {
+  final tokenService = authService ?? TokenService(const FlutterSecureStorage());
 
   final dio = Dio(BaseOptions(
     baseUrl: baseUrl,
@@ -122,6 +130,46 @@ final notificationsApiClientProvider = Provider<Dio>((ref) {
   final baseUrl = _envBaseUrl(
     'NOTIFICATIONS_API_URL',
     'https://lifebalance-notifications-api.onrender.com/api/v1',
+  );
+  return _buildDio(ref, baseUrl);
+});
+
+final ingestionApiClientProvider = Provider<Dio>((ref) {
+  final baseUrl = _envBaseUrl(
+    'INGESTION_API_URL',
+    'https://ingestion-service-fouo.onrender.com/api/v1',
+  );
+  return _buildDio(ref, baseUrl);
+});
+
+final gamificationApiClientProvider = Provider<Dio>((ref) {
+  final baseUrl = _envBaseUrl(
+    'GAMIFICATION_API_URL',
+    'https://gamification-service-9o3z.onrender.com/api/v1',
+  );
+  return _buildDio(ref, baseUrl);
+});
+
+final sedentaryApiClientProvider = Provider<Dio>((ref) {
+  final baseUrl = _envBaseUrl(
+    'SEDENTARY_API_URL',
+    'https://sedentary-engine-service.onrender.com/api/v1',
+  );
+  return _buildDio(ref, baseUrl);
+});
+
+final medicalApiClientProvider = Provider<Dio>((ref) {
+  final baseUrl = _envBaseUrl(
+    'MEDICAL_API_URL',
+    'https://medical-service-hb0v.onrender.com/api/v1',
+  );
+  return _buildDio(ref, baseUrl);
+});
+
+final mlApiClientProvider = Provider<Dio>((ref) {
+  final baseUrl = _envBaseUrl(
+    'ML_API_URL',
+    'https://ml-prediction-service-0sqa.onrender.com/api/v1',
   );
   return _buildDio(ref, baseUrl);
 });

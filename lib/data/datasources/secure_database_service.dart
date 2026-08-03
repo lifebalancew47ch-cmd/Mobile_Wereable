@@ -1,6 +1,7 @@
 import 'package:sqflite_sqlcipher/sqflite.dart';
 import 'package:path/path.dart';
 import '../../models/vital_sign.dart';
+import '../../models/active_break.dart';
 import '../../core/security/encryption_service.dart';
 
 class SecureDatabaseService {
@@ -24,10 +25,31 @@ class SecureDatabaseService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       password: encryptionKey,
       onCreate: _createDB,
+      onUpgrade: _onUpgrade,
     );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+CREATE TABLE active_breaks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  timestamp TEXT NOT NULL,
+  type TEXT NOT NULL,
+  duration_minutes INTEGER NOT NULL,
+  steps_taken INTEGER NOT NULL,
+  points INTEGER NOT NULL,
+  completed INTEGER NOT NULL,
+  synced_to_cloud INTEGER DEFAULT 0
+)
+''');
+      await db.execute(
+        'ALTER TABLE alerts_log ADD COLUMN synced_to_cloud INTEGER DEFAULT 0',
+      );
+    }
   }
 
   Future _createDB(Database db, int version) async {
@@ -60,7 +82,21 @@ CREATE TABLE alerts_log (
   timestamp TEXT NOT NULL,
   type TEXT NOT NULL,
   duration_minutes INTEGER NOT NULL,
-  acknowledged INTEGER NOT NULL
+  acknowledged INTEGER NOT NULL,
+  synced_to_cloud INTEGER DEFAULT 0
+)
+''');
+
+    await db.execute('''
+CREATE TABLE active_breaks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  timestamp TEXT NOT NULL,
+  type TEXT NOT NULL,
+  duration_minutes INTEGER NOT NULL,
+  steps_taken INTEGER NOT NULL,
+  points INTEGER NOT NULL,
+  completed INTEGER NOT NULL,
+  synced_to_cloud INTEGER DEFAULT 0
 )
 ''');
   }
@@ -166,5 +202,80 @@ CREATE TABLE alerts_log (
       orderBy: 'start_time ASC',
     );
     return rows;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Pausas activas (gamificación)
+  // ---------------------------------------------------------------------------
+
+  Future<void> insertActiveBreak(ActiveBreak activeBreak) async {
+    final db = await instance.database;
+    await db.insert('active_breaks', activeBreak.toMap());
+  }
+
+  Future<List<ActiveBreak>> getActiveBreaks({int limit = 50}) async {
+    final db = await instance.database;
+    final rows = await db.query(
+      'active_breaks',
+      orderBy: 'timestamp DESC',
+      limit: limit,
+    );
+    return rows.map(ActiveBreak.fromMap).toList();
+  }
+
+  Future<int> countActiveBreaksToday() async {
+    final db = await instance.database;
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day).toIso8601String();
+    final rows = await db.rawQuery(
+      'SELECT COUNT(*) AS total FROM active_breaks WHERE timestamp >= ?',
+      [startOfDay],
+    );
+    return rows.first['total'] as int? ?? 0;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cola Offline-First -> sincronización cloud (synced_to_cloud = 0)
+  // ---------------------------------------------------------------------------
+
+  Future<List<Map<String, Object?>>> getUnsyncedVitalSigns() async {
+    final db = await instance.database;
+    return db.query('vital_signs', where: 'synced_to_cloud = 0', orderBy: 'timestamp ASC');
+  }
+
+  Future<List<Map<String, Object?>>> getUnsyncedActivitySessions() async {
+    final db = await instance.database;
+    return db.query('activity_sessions', where: 'synced_to_cloud = 0', orderBy: 'start_time ASC');
+  }
+
+  Future<List<Map<String, Object?>>> getUnsyncedAlerts() async {
+    final db = await instance.database;
+    return db.query('alerts_log', where: 'synced_to_cloud = 0', orderBy: 'timestamp ASC');
+  }
+
+  Future<List<ActiveBreak>> getUnsyncedActiveBreaks() async {
+    final db = await instance.database;
+    final rows = await db.query('active_breaks', where: 'synced_to_cloud = 0', orderBy: 'timestamp ASC');
+    return rows.map(ActiveBreak.fromMap).toList();
+  }
+
+  Future<void> markVitalSignSynced(int id) async {
+    final db = await instance.database;
+    await db.update('vital_signs', {'synced_to_cloud': 1}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> markActivitySessionSynced(int id) async {
+    final db = await instance.database;
+    await db.update('activity_sessions', {'synced_to_cloud': 1}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> markAlertSynced(int id) async {
+    final db = await instance.database;
+    await db.update('alerts_log', {'synced_to_cloud': 1}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> markActiveBreakSynced(int id) async {
+    final db = await instance.database;
+    await db.update('active_breaks', {'synced_to_cloud': 1}, where: 'id = ?', whereArgs: [id]);
   }
 }

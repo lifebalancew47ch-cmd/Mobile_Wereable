@@ -60,6 +60,8 @@ dependencies:
   workmanager: ^0.9.0
   timezone: ^0.9.4
   rxdart: ^0.28.0
+  connectivity_plus: ^6.0.5
+  geolocator: ^12.0.0
 
 dev_dependencies:
   flutter_test:

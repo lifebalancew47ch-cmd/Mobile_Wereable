@@ -57,7 +57,7 @@ lib/
 │   ├── support/     # FAQ + explanation screen
 │   └── wearable/    # Wearable sync UI (device scan/manage)
 ├── models/           # Shared models (fog_state, vital_sign)
-├── services/         # Platform services (BackgroundService, WatchService, SyncService, NotificationService, WearableCommunicationService, SensorService, BluetoothService)
+├── services/         # Platform services (BackgroundService, WatchService, SyncService, NotificationService, WearableCommunicationService, SensorService, BluetoothService, OfflineSyncService, ConnectivityMonitor, DeviceIdentityService, DeviceRegistrationService, LocationService)
 ├── shared/widgets/   # main_navigation_shell (bottom nav)
 └── main.dart         # Entry point: env vars, jailbreak check, DB init, permissions, background service
 ```
@@ -74,11 +74,11 @@ Inside each feature (e.g., `features/auth/`), the structure is:
 - **Sesión**: `app_router.dart` usa `redirect` + `refreshListenable` (escucha `sessionChangeNotifier` de `token_service.dart`) para expulsar a `/login` cuando el token expira o en un 401. `hasValidToken()` verifica el claim `exp` del JWT.
 - Las pantallas de reloj (`/watch`, `/watch/alert`, `/watch/progress`) fueron ELIMINADAS del móvil: la UI del wearable vive en la app Wear OS nativa (`android/wear`), donde `MainActivity.kt` implementa un dashboard propio que analiza localmente la varianza del acelerómetro en ventanas de 30s (mismo criterio que el FogEngine) y muestra estado Activo/Inactivo, minutos inactivos y alerta de sedentarismo a los 45 min (90 ventanas), con botón "Pausa activa" que reinicia el contador local.
 
-## 4. Data Flow: Wearable → Fog → Local DB (→ Cloud planned)
+## 4. Data Flow: Wearable → Fog → Local DB → Cloud
 
 ```
 Wear OS (android/wear/.../SensorService.kt)
-  ├─ Hardware batching: accelerometer registered with 5s maxReportLatencyUs
+  ├─ Hardware batching: accelerometer/gyroscope/stepCounter/heartRate
   ├─ readingsBuffer (ArrayDeque, cap 50) accumulates JSON readings
   ├─ flushBuffer() every BATCH_INTERVAL_MS = 5_000 ms (also on off-body / sensor flush)
   └─ sendBatch() → Wearable MessageClient → path "/lifebalance/sensors"
@@ -91,17 +91,26 @@ Phone app (android/app/.../WearMessageListenerService.kt)
         │
         ▼
 Dart (lib/services/wearable_communication_service.dart)
-  └─ accelerometerStream: expand(batch) → individual AccelerometerData
+  ├─ accelerometerStream: expand(batch) → individual AccelerometerData
+  └─ sensorStream: expand(batch) → WearableSensorSample (accel+gyro+steps+HR)
         │
         ▼
 FogEngine (lib/core/fog_engine.dart)
-  ├─ 30s Timer → _analyzeWindow() → variance < 0.05 ⇒ idle
-  ├─ 90 idle windows (45 min) ⇒ alert → local notification
-  └─ SecureDatabaseService: insertActivitySession / logAlert (LOCAL ONLY)
+  ├─ 30s Timer → _analyzeWindow() → variance < 0.05 ⇒ idle (variance via `compute`)
+  ├─ ClinicalStateClassifier: reposo/sueño verificados pausan o congelan el timer
+  ├─ 90 idle windows (45 min) ⇒ alert → local notification + GPS ping
+  └─ SecureDatabaseService: insertActivitySession / logAlert / insertActiveBreak
         │
         ▼
-Cloud: NOT YET IMPLEMENTED. SyncService.syncLocalDataToCloud() is an empty
-placeholder stub (pending team API). DB tables already have synced_to_cloud column.
+Secure SQLite (activity_sessions, vital_signs, alerts_log, active_breaks)
+  └─ columnas synced_to_cloud marcan pendientes de envío
+        │
+        ▼
+OfflineSyncService (lib/services/offline_sync_service.dart)
+  ├─ flush cada 15 min (+ en reconexión) con cola SQLite offline-first
+  ├─ DeviceRegistrationService: registerDevice (FCM no-op seguro)
+  └─ POST /api/v1/ingestion/sync (ClientBatchId, DeviceId, VitalSigns,
+        ActivitySessions, Alerts) → marca synced_to_cloud=1
 ```
 
 ## 5. Key Components
@@ -109,10 +118,16 @@ placeholder stub (pending team API). DB tables already have synced_to_cloud colu
 ### 5.1 Authentication Flow & Network (`features/auth`, `core/network`)
 - **Strict Rule**: No mocked data. All authentication and profile data must be fetched from the live API.
 - **Providers**: `loginProvider`, `registerProvider`, `forgotPasswordProvider`, `profileProvider` manage state and coordinate with Use Cases (`LoginUseCase`, `RegisterUseCase`, `ForgotPasswordUseCase`, `GetProfileUseCase`, `LogoutUseCase`).
-- **API clients** (3 independent Dio instances in `api_client.dart`):
+- **API clients** (8 independent Dio instances in `api_client.dart`):
   - `apiClientProvider` → Auth service (`API_URL`, default `https://lifebalance-auth-service.onrender.com/api/v1`)
   - `dashboardApiClientProvider` → Dashboard service (`DASHBOARD_API_URL`, default `https://lifebalance-dashboard-service.onrender.com/api/v1`)
   - `notificationsApiClientProvider` → Notifications service (`NOTIFICATIONS_API_URL`, default `https://lifebalance-notifications-api.onrender.com/api/v1`)
+  - `ingestionApiClientProvider` → Ingestion service (`INGESTION_API_URL`, default `https://ingestion-service-fouo.onrender.com/api/v1`)
+  - `gamificationApiClientProvider` → Gamification service (`GAMIFICATION_API_URL`, default `https://gamification-service-9o3z.onrender.com/api/v1`)
+  - `sedentaryApiClientProvider` → Sedentary engine (`SEDENTARY_API_URL`, default `https://sedentary-engine-service.onrender.com/api/v1`)
+  - `medicalApiClientProvider` → Medical service (`MEDICAL_API_URL`, default `https://medical-service-hb0v.onrender.com/api/v1`)
+  - `mlApiClientProvider` → ML prediction (`ML_API_URL`, default `https://ml-prediction-service-0sqa.onrender.com/api/v1`)
+- All clients are built with `buildSecureDio(...)` (non-Riverpod factory) which applies pinning, `RetryWithBackoffInterceptor` and the Bearer token interceptor. URLs for the background isolate come from `_urlFromEnv` (env not available off-isolate → deployed defaults).
 - **Network Resilience**: `RetryWithBackoffInterceptor` retries 500/502/503/429 and network timeouts, max 3 attempts, linear backoff. TLS/certificate failures and cancellations are NEVER retried.
 - **Auth Header**: Bearer token attached via interceptor from `TokenService`; on 401 tokens are cleared (`sessionChangeNotifier` dispara un refresh del router que redirige a `/login`).
 - **Recordar sesión**: el login guarda solo el email (NUNCA la contraseña) en `FlutterSecureStorage`.
@@ -128,11 +143,15 @@ placeholder stub (pending team API). DB tables already have synced_to_cloud colu
 - **Mechanism**:
   - Collects acceleration vector magnitudes (sqrt(x²+y²+z²)), discards non-finite samples.
   - Groups data into **30-second analysis windows** (`Timer.periodic`).
-  - Calculates the statistical variance of the magnitudes in the window.
+  - Calculates the statistical variance of the magnitudes in the window via `compute` (Isolate).
   - If variance < 0.05, the window is marked as "idle".
-  - If 90 consecutive idle windows occur (45 minutes), it triggers an alert.
+  - If 90 consecutive idle windows occur (45 minutes), it triggers an alert (and resets `_inactiveWindows`).
   - El umbral es **configurable** (`setAlertThreshold(minutes)`) y se sincroniza con la configuración de alertas persistida (`AlertSettings`).
-- **Alert Trigger**: Logs the alert to the secure database (`alerts_log`) and fires a local notification.
+- **Clinical State Filter** (`core/filters/clinical_state_classifier.dart`): `ClinicalStateClassifier` ingiere muestras (`feedClinicalSample`) e infiere reposo/sueño verificados:
+  - **Reposo verificado**: FC 60-100 lpm + steady-state sentado 5-10 min o recostado 20-30 min (estado `reposo`). Pausa el temporizador de sedentarismo.
+  - **Sueño**: FC < 60 con HRV ≥ 30 y orientación horizontal prolongada (estado `sueño`). Congela el temporizador.
+  - Exposición: `fog_state.dart` (`ClinicalState`, `clinicalState`, `reposoVerificado`, `restMinutes`).
+- **Alert Trigger**: Logs the alert to the secure database (`alerts_log`) and fires a local notification + GPS ping (`LocationService`).
 - **Configuración de alertas**: `features/settings/` persiste en `SharedPreferences` el intervalo (30/45/60/90 min), horario de operación, días activos, notificaciones críticas y sonido (`AlertSettingsStore`).
 - NOTE: `lib/services/fog_engine.dart` is a DEAD abstract `IFogEngine` stub — do not use it; the real engine is `lib/core/fog_engine.dart`.
 
@@ -140,6 +159,7 @@ placeholder stub (pending team API). DB tables already have synced_to_cloud colu
 - `EventChannel('com.example.lifebalance/wearable_sensors')` receives JSON batches from the watch.
 - `accelerometerStream`: decodes each batch (list of `{x, y, z, timestamp}`) into individual `AccelerometerData` via `expand()`.
 - `accelerometerStreamThrottled`: RxDart `throttleTime(5s)` variant for UI.
+- `sensorStream` / `sensorStreamThrottled`: decode batches into `WearableSensorSample` (accel + gyro + steps + heartRate) for the clinical classifier and vital-sign persistence.
 
 ### 5.5 Watch / Wearable Integration (`services/watch_service.dart`)
 - `WatchService` listens to `accelerometerStream` and builds `VitalSign` records (heart_rate/hrv/spo2/steps are currently **placeholders = 0**).
@@ -151,13 +171,16 @@ placeholder stub (pending team API). DB tables already have synced_to_cloud colu
 - Tables:
   - `activity_sessions(id, start_time UNIQUE, end_time, type, duration_minutes, synced_to_cloud DEFAULT 0)`
   - `vital_signs(id, timestamp UNIQUE, heart_rate, hrv, spo2, steps, synced_to_cloud DEFAULT 0)`
-  - `alerts_log(id, timestamp, type, duration_minutes, acknowledged)`
-- Query helpers: counts for today (sessions/vitals/alerts), last session, sessions per day, all sessions, sessions for last N days.
+  - `alerts_log(id, timestamp, type, duration_minutes, acknowledged, synced_to_cloud DEFAULT 0)`
+  - `active_breaks(id, timestamp, type, steps, duration_minutes, points, synced_to_cloud DEFAULT 0)`
+- Query helpers: counts for today (sessions/vitals/alerts), last session, sessions per day, all sessions, sessions for last N days, plus `getUnsynced*` / `mark*Synced` helpers for the offline-first sync queue.
 
-### 5.7 Cloud Sync (PLACEHOLDER — do not assume it works)
-- `lib/services/sync_service.dart:62-68` — `syncLocalDataToCloud()` is an **empty stub** with a TODO for Firebase.
-- The `synced_to_cloud` column exists in the schema but no code reads or flips it.
-- **Status**: The team's API is not deployed yet; cloud batching will be implemented later. Do not implement or mock cloud uploads until the backend exists.
+### 5.7 Cloud Sync (IMPLEMENTED)
+- `lib/services/offline_sync_service.dart`: offline-first queue backed by SQLite (`synced_to_cloud` flags). Flushes pending batches every 15 min (`Timer.periodic`) and on connectivity restore, then `POST /api/v1/ingestion/sync` with `ClientBatchId`, `DeviceId`, `VitalSigns`, `ActivitySessions`, `Alerts`. On success it marks rows `synced_to_cloud=1`; failures remain queued.
+- `lib/features/ingestion/data/ingestion_api_service.dart` implements the real backend contract (`SyncBatchRequest`/`SyncBatchResponse`) from `backapi-main` (IngestionController).
+- `lib/services/device_identity_service.dart`: stable per-install UUID. `lib/services/device_registration_service.dart`: `registerDevice` via notifications API; FCM token comes from `DefaultFcmTokenProvider.getToken()` (returns `null` → safe no-op until `firebase_messaging` + `google-services.json` are configured).
+- `lib/services/connectivity_monitor.dart`: connectivity status stream to gate sync. `lib/services/location_service.dart`: GPS ping on alert.
+- **Gamification**: `lib/features/gamification/data/gamification_api_service.dart` (profile/events/rewards) and `lib/features/gamification/data/active_break_service.dart` (rutinas Tipo A: 2 min → 50 pts; Tipo B: 200 pasos → 100 pts, persistidas como `active_breaks`).
 
 ## 6. Security
 1. **Jailbreak/Root Detection**: `main.dart` calls `FlutterJailbreakDetection.jailbroken`; if compromised → `exit(0)` immediately.
@@ -168,7 +191,7 @@ placeholder stub (pending team API). DB tables already have synced_to_cloud colu
 
 ## 7. Environment Variables (`flutter_dotenv`)
 - Loaded in `main.dart` via `--dart-define=ENV_FILE` (default `.env.development`).
-- `API_URL`, `DASHBOARD_API_URL`, `NOTIFICATIONS_API_URL`, `PINNED_CERT_SHA256`.
+- `API_URL`, `DASHBOARD_API_URL`, `NOTIFICATIONS_API_URL`, `INGESTION_API_URL`, `GAMIFICATION_API_URL`, `SEDENTARY_API_URL`, `MEDICAL_API_URL`, `ML_API_URL`, `API_GATEWAY_URL`, `PINNED_CERT_SHA256`.
 - Files `.env.development` and `.env.production` are **NOT committed** (gitignored via `.env.*`). They are registered as assets in `pubspec.yaml`:88-91, so any Flutter build/Gradle task that bundles assets REQUIRES the files to exist. Each DevOps CI job creates empty placeholders (`touch .env.development .env.production`); the app falls back to defaults via `?? onClick` and `_envBaseUrl`/`dotenv.isInitialized` guards when loaded from an empty env.
 
 ## 8. Known Caveats & Legacy Code
@@ -177,7 +200,7 @@ placeholder stub (pending team API). DB tables already have synced_to_cloud colu
 3. **`MockAuthDataSource`** exists in `features/auth/data/datasources/auth_datasource.dart` but is NOT used by the live repository (violates the No Mocks rule if reactivated).
 4. **Placeholders**: `WatchService` vital signs (heart rate, HRV, SpO2, steps) are hardcoded to 0 pending Health Connect integration.
 5. **Firebase dependencies** (`firebase_auth`, `cloud_firestore`) are declared but not wired into the app flow yet.
-6. **Cloud upload is NOT implemented** (see 5.7).
+6. **Cloud sync IS implemented** (see 5.7) — replaced the old placeholder. The remaining gap is device push: FCM `registerDevice` is a safe no-op until `firebase_messaging` + `google-services.json` are configured.
 
 ## 9. Coding Guidelines & AI Agent Rules
 1. **No Mocks**: Do not use simulated/mocked data for API calls. If an endpoint fails, debug and fix the implementation or API structure.
@@ -188,4 +211,4 @@ placeholder stub (pending team API). DB tables already have synced_to_cloud colu
    - Ensure sensitive data (tokens, passwords, health data) is stored using `SecureDatabaseService` or `FlutterSecureStorage`.
    - Never disable Jailbreak detection or Certificate Pinning in production code.
 6. **Environment Variables**: Use `flutter_dotenv`. Secrets and config change between `.env.development` and `.env.production`.
-7. **Do not implement Cloud sync**: The backend API for fog/vitals upload is not deployed yet. Leave `syncLocalDataToCloud()` as-is until the team provides the endpoint.
+7. **Cloud sync is implemented**: The offline-first sync queue (`OfflineSyncService`) posts batches to `POST /api/v1/ingestion/sync` using the real `backapi-main` contract. Do not stub or mock it; keep the `synced_to_cloud` flags in sync with actual uploads.

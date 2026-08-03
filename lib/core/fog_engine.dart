@@ -1,13 +1,34 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import '../models/fog_state.dart';
 import '../services/notification_service.dart';
 import '../services/wearable_communication_service.dart';
 import '../data/datasources/secure_database_service.dart';
+import 'filters/clinical_state_classifier.dart';
 
-/// FogEngine is the main algorithms engine for sedentary detection.
-/// It evaluates accelerometer variance in 30-second windows.
-/// (Sección 5 of the PDF Technical Specification).
+/// Función top-level invocada en un Isolate secundario (vía [compute]) para
+/// calcular la varianza de las magnitudes del acelerómetro sin bloquear el
+/// hilo principal ni el aislado del motor Fog. Devuelve 0 para listas vacías.
+double _computeVarianceOf(List<double> values) {
+  if (values.isEmpty) return 0.0;
+  final length = values.length;
+  var sum = 0.0;
+  for (final v in values) {
+    sum += v;
+  }
+  final mean = sum / length;
+  var sq = 0.0;
+  for (final v in values) {
+    final d = v - mean;
+    sq += d * d;
+  }
+  return sq / length;
+}
+
+/// FogEngine es el motor principal de detección de sedentarismo.
+/// Evalúa la varianza del acelerómetro en ventanas de 30 segundos y lo cruza
+/// con el Filtro Clínico de Falsos Positivos ([ClinicalStateClassifier]).
 class FogEngine {
   final WearableCommunicationService _wearableService;
   final NotificationService _notificationService;
@@ -15,20 +36,27 @@ class FogEngine {
   StreamSubscription? _accelSub;
   Timer? _analysisTimer;
 
-  // Accummulates acceleration vector magnitudes in the current window
+  // Acumula magnitudes vectoriales y vectores crudos de la ventana actual.
   final List<double> _magnitudes = [];
+  final List<AccelerometerData> _vectors = [];
 
-  // Counter for consecutive inactive windows (30s each)
-  // 90 windows × 30s = 2700s = 45 minutes (configurable)
+  // Contador de ventanas inactivas consecutivas (30s c/u).
+  // 90 ventanas x 30s = 2700s = 45 minutos (configurable).
   int _inactiveWindows = 0;
   int _alertThresholdWindows = 90;
   static const double _varianceThreshold = 0.05;
-  static const int _minutesPerWindow = 2; // 2 windows por minuto (30s c/u)
+  static const int _minutesPerWindow = 2; // 2 ventanas por minuto (30s c/u)
 
   DateTime _lastMovement = DateTime.now();
   String _sessionStartTime = DateTime.now().toIso8601String();
 
-  // Real engine metrics (exposed to the UI)
+  // Filtro Clínico de Falsos Positivos.
+  final ClinicalStateClassifier _clinicalClassifier = ClinicalStateClassifier();
+  double? _latestHeartRate;
+  double? _latestHrv;
+  bool _windowInFlight = false;
+
+  // Métricas del motor real (expuestas a la UI).
   int _samplesProcessed = 0;
   int _windowsAnalyzed = 0;
   int _alertsTriggered = 0;
@@ -37,51 +65,53 @@ class FogEngine {
 
   final _stateController = StreamController<FogState>.broadcast();
 
-  /// Stream that provides real-time updates of the Fog status to the UI.
+  /// Stream con actualizaciones en tiempo real del estado Fog.
   Stream<FogState> get stateStream => _stateController.stream;
 
-  /// Total accelerometer samples processed by the engine.
   int get samplesProcessed => _samplesProcessed;
-
-  /// Number of 30-second analysis windows completed.
   int get windowsAnalyzed => _windowsAnalyzed;
-
-  /// Number of inactivity alerts triggered.
   int get alertsTriggered => _alertsTriggered;
-
-  /// Whether the engine is currently listening to the wearable.
   bool get isRunning => _isRunning;
-
-  /// Duration of the last window analysis pass.
   Duration get lastWindowAnalysis => _lastWindowAnalysis;
+
+  /// Estado clínico actual (Filtro de Falsos Positivos).
+  ClinicalState get clinicalState => _toUiState(_clinicalClassifier.state);
+
+  /// `true` cuando el reposo clínico fue verificado (steady-state).
+  bool get reposoVerificado => _clinicalClassifier.reposoVerificado;
+
+  /// Minutos acumulados de reposo clínico.
+  int get restMinutes => _clinicalClassifier.restMinutes;
 
   FogEngine(this._wearableService, this._notificationService);
 
-  /// Starts the engine listening to accelerometer data from the wearable.
+  /// Inyecta la lectura clínica más reciente (FC y HRV) desde el sensor
+  /// de salud del wearable para alimentar el Filtro de Falsos Positivos.
+  void feedClinicalSample({required double? heartRate, required double? hrv}) {
+    _latestHeartRate = heartRate;
+    _latestHrv = hrv;
+  }
+
+  /// Inicia el motor escuchando el acelerómetro del wearable.
   void start() {
     if (_isRunning) return;
 
-    // 1. Receive stream from the wearable accelerometer
     _accelSub = _wearableService.accelerometerStream.listen((AccelerometerData data) {
-      // 2. Calculate vector magnitude: |a| = sqrt(x² + y² + z²)
       final double mag = sqrt(data.x * data.x + data.y * data.y + data.z * data.z);
-      // Security: descartar muestras no finitas (NaN/±Inf) provenientes de
-      // sensores comprometidos; un único NaN convertiría la varianza en NaN y
-      // rompería la detección de inactividad (alerta silenciosa).
+      // Descarta muestras no finitas para no envenenar la varianza.
       if (!mag.isFinite) return;
       _magnitudes.add(mag);
+      _vectors.add(data);
       _samplesProcessed++;
     });
 
-    // 3. Analysis window: Group data in 30-second buffers
-    _analysisTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+    _analysisTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       _analyzeWindow();
     });
 
     _isRunning = true;
   }
 
-  /// Pauses processing without releasing the state stream.
   void pause() {
     _accelSub?.cancel();
     _analysisTimer?.cancel();
@@ -90,22 +120,21 @@ class FogEngine {
     _isRunning = false;
   }
 
-  /// Resumes processing after [pause] (keeps accumulated metrics).
   void resume() {
     if (_isRunning) return;
     _accelSub = _wearableService.accelerometerStream.listen((AccelerometerData data) {
       final double mag = sqrt(data.x * data.x + data.y * data.y + data.z * data.z);
       if (!mag.isFinite) return;
       _magnitudes.add(mag);
+      _vectors.add(data);
       _samplesProcessed++;
     });
-    _analysisTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+    _analysisTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       _analyzeWindow();
     });
     _isRunning = true;
   }
 
-  /// Stops the engine and releases resources.
   void stop() {
     _accelSub?.cancel();
     _analysisTimer?.cancel();
@@ -115,76 +144,101 @@ class FogEngine {
     _stateController.close();
   }
 
-  void _analyzeWindow() {
+  Future<void> _analyzeWindow() async {
+    if (_windowInFlight) return; // evita análisis superpuestos
+    _windowInFlight = true;
     _windowsAnalyzed++;
-    if (_magnitudes.isEmpty) return;
+    try {
+      if (_magnitudes.isEmpty) return;
 
-    final Stopwatch stopwatch = Stopwatch()..start();
+      final stopwatch = Stopwatch()..start();
 
-    // 4. Calculate statistical variance (σ²) of the magnitude in this window
-    final double mean = _magnitudes.reduce((a, b) => a + b) / _magnitudes.length;
-    final double variance = _magnitudes.map((m) => pow(m - mean, 2).toDouble()).reduce((a, b) => a + b) / _magnitudes.length;
-    _magnitudes.clear();
+      // Aislar el cálculo de varianza en un Isolate (no bloquea el UI).
+      final samples = List<double>.from(_magnitudes);
+      _magnitudes.clear();
+      final variance = await compute(_computeVarianceOf, samples);
 
-    ActivityStatus status;
-
-    // 5. Detection logic: Compare variance against threshold
-    if (variance < _varianceThreshold) {
-      // State: idle (inactive)
-      _inactiveWindows++;
-      status = ActivityStatus.idle;
-    } else {
-      // State: active (in movement)
-      if (_inactiveWindows > 0) {
-        // Log the ended idle session to DB
-        SecureDatabaseService.instance.insertActivitySession(
-          _sessionStartTime,
-          DateTime.now().toIso8601String(),
-          'idle',
-          _inactiveWindows ~/ 2,
-        );
-        _sessionStartTime = DateTime.now().toIso8601String();
+      // Vector promedio de la ventana para estimar orientación corporal.
+      var sx = 0.0, sy = 0.0, sz = 0.0;
+      final vectors = List<AccelerometerData>.from(_vectors);
+      _vectors.clear();
+      for (final v in vectors) {
+        sx += v.x;
+        sy += v.y;
+        sz += v.z;
       }
-      _inactiveWindows = 0;
-      _lastMovement = DateTime.now();
-      status = ActivityStatus.active;
+      final count = vectors.isEmpty ? 1 : vectors.length;
+      final orientation = inferBodyOrientation(sx / count, sy / count, sz / count);
+
+      // Alimentar el Filtro Clínico (immobile = varianza baja).
+      final immobile = variance < _varianceThreshold;
+      _clinicalClassifier.feed(
+        immobile: immobile,
+        orientation: orientation,
+        heartRate: _latestHeartRate,
+        hrv: _latestHrv,
+      );
+
+      final suppressed = _clinicalClassifier.state == SedentaryState.clinicalRest ||
+          _clinicalClassifier.state == SedentaryState.sleep;
+
+      ActivityStatus status;
+      if (immobile && !suppressed) {
+        _inactiveWindows++;
+        status = ActivityStatus.idle;
+      } else if (immobile && suppressed) {
+        // Reposo clínico verificado o sueño: se pausa/congela el contador.
+        _inactiveWindows = 0;
+        status = ActivityStatus.idle;
+      } else {
+        // Activo: se cierra y registra la sesión de inactividad previa.
+        if (_inactiveWindows > 0) {
+          SecureDatabaseService.instance.insertActivitySession(
+            _sessionStartTime,
+            DateTime.now().toIso8601String(),
+            'idle',
+            _inactiveWindows ~/ 2,
+          );
+          _sessionStartTime = DateTime.now().toIso8601String();
+        }
+        _inactiveWindows = 0;
+        _lastMovement = DateTime.now();
+        status = ActivityStatus.active;
+      }
+
+      // Procesamiento de alerta tras N ventanas inactivas consecutivas.
+      final thresholdMinutes = _alertThresholdWindows ~/ _minutesPerWindow;
+      if (_inactiveWindows >= _alertThresholdWindows) {
+        status = ActivityStatus.alertTriggered;
+        _triggerAlert(thresholdMinutes);
+        _inactiveWindows = 0;
+      }
+
+      _lastWindowAnalysis = stopwatch.elapsed;
+
+      _stateController.add(FogState(
+        status: status,
+        inactiveMinutes: _inactiveWindows ~/ 2,
+        lastMovement: _lastMovement,
+        clinicalState: clinicalState,
+        reposoVerificado: reposoVerificado,
+        restMinutes: restMinutes,
+      ));
+    } finally {
+      _windowInFlight = false;
     }
-
-    // 6. Alert processing: Trigger after N consecutive inactive windows
-    final int thresholdMinutes = _alertThresholdWindows ~/ _minutesPerWindow;
-    if (_inactiveWindows >= _alertThresholdWindows) {
-      status = ActivityStatus.alertTriggered;
-      _triggerAlert(thresholdMinutes);
-
-      // Reset counter after alert or keep tracking?
-      // PDF says "al llegar a 90 ventanas... cambiar el estado a alertTriggered"
-      _inactiveWindows = 0;
-    }
-
-    _lastWindowAnalysis = stopwatch.elapsed;
-
-    // Notify listeners (UI) in real-time
-    _stateController.add(FogState(
-      status: status,
-      inactiveMinutes: _inactiveWindows ~/ 2,
-      lastMovement: _lastMovement,
-    ));
   }
 
   void _triggerAlert(int minutes) {
     _alertsTriggered++;
-
-    // Notify user
     _notificationService.showInactivityAlert(minutes);
 
-    // 7. Register in alerts_log table (Sección 16)
     SecureDatabaseService.instance.logAlert(
       DateTime.now().toIso8601String(),
       minutes,
-      false
+      false,
     );
 
-    // Also insert an activity session record for the alert period
     SecureDatabaseService.instance.insertActivitySession(
       _sessionStartTime,
       DateTime.now().toIso8601String(),
@@ -194,9 +248,20 @@ class FogEngine {
     _sessionStartTime = DateTime.now().toIso8601String();
   }
 
-  /// Configura el umbral de alerta en minutos (recomputa las ventanas de 30s).
+  /// Configura el umbral de alerta en minutos (recalcula las ventanas de 30s).
   void setAlertThreshold(int minutes) {
     _alertThresholdWindows = (minutes * _minutesPerWindow).clamp(1, 10000);
     _inactiveWindows = 0;
+  }
+
+  static ClinicalState _toUiState(SedentaryState s) {
+    switch (s) {
+      case SedentaryState.clinicalRest:
+        return ClinicalState.clinicalRest;
+      case SedentaryState.sleep:
+        return ClinicalState.sleep;
+      case SedentaryState.sedentaryWork:
+        return ClinicalState.sedentaryWork;
+    }
   }
 }

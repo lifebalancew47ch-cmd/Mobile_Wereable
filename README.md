@@ -4,7 +4,7 @@ LifeBalance is a comprehensive health and activity tracking application built wi
 
 ## 🌟 Features
 
-*   **Activity Monitoring (FogEngine):** Analyzes accelerometer magnitude variance in 30-second windows. Triggers alerts after 90 consecutive idle windows (45 minutes of inactivity).
+*   **Activity Monitoring (FogEngine):** Analyzes accelerometer magnitude variance in 30-second windows. Triggers alerts after 90 consecutive idle windows (45 minutes of inactivity). Includes a **clinical-state filter** that pauses/freezes the timer during verified rest and sleep.
 *   **Wear OS Integration:** A companion native Wear OS app (`android/wear/`) batches accelerometer readings every 5 seconds and streams them to the phone over the Wearable Data Layer.
 *   **Executive Dashboard:** KPI summaries from the live Dashboard service (activity sessions, vital signs, alerts) plus admin summary, analytics (performance analysis + heatmap), FAQ/video support, and profile screens.
 *   **Secure Authentication:** Live REST API (Render) for login, registration, password recovery, and profile management.
@@ -23,11 +23,11 @@ The application strictly adheres to **Clean Architecture** principles and is mod
 *   **Domain Layer:** Entities, Use Cases, and Repository Interfaces containing the core business rules.
 *   **Data Layer:** API Services (using `dio`), Local Database interactions, and Repository implementations.
 
-### Data Flow: Watch → Fog → Local DB (Cloud pending)
+### Data Flow: Watch → Fog → Local DB → Cloud
 
 ```
 Wear OS (SensorService.kt)
-  └─ 5s hardware batching → Wearable MessageClient → "/lifebalance/sensors"
+  └─ 5s hardware batching (accel + gyro + steps + HR) → Wearable MessageClient → "/lifebalance/sensors"
         │
         ▼
 Phone (WearMessageListenerService → WearDataBus → EventChannel)
@@ -36,13 +36,16 @@ Phone (WearMessageListenerService → WearDataBus → EventChannel)
 Dart: wearable_communication_service.dart (batch decode)
         │
         ▼
-FogEngine (30s windows, variance < 0.05 = idle, 90 windows = alert)
+FogEngine (30s windows, variance, clinical-state filter, 90 windows = alert)
         │
         ▼
-Secure SQLite (activity_sessions, vital_signs, alerts_log)
+Secure SQLite (activity_sessions, vital_signs, alerts_log, active_breaks)
         │
         ▼
-Cloud sync (syncLocalDataToCloud): ⏳ NOT IMPLEMENTED YET — placeholder stub
+OfflineSyncService (15-min flush, offline-first queue, reconnection)
+        │
+        ▼
+POST /api/v1/ingestion/sync  (ClientBatchId, VitalSigns, ActivitySessions, Alerts)
 ```
 
 ## 🛠 Tech Stack
@@ -89,13 +92,21 @@ Cloud sync (syncLocalDataToCloud): ⏳ NOT IMPLEMENTED YET — placeholder stub
 
 ### Backend Services (Render)
 
-The app consumes three independent REST microservices:
+The app consumes a set of independent REST microservices hosted on Render:
 
 | Service | Env var | Default URL |
 |---|---|---|
 | Auth | `API_URL` | `https://lifebalance-auth-service.onrender.com/api/v1` |
 | Dashboard | `DASHBOARD_API_URL` | `https://lifebalance-dashboard-service.onrender.com/api/v1` |
 | Notifications | `NOTIFICATIONS_API_URL` | `https://lifebalance-notifications-api.onrender.com/api/v1` |
+| Organization (SaaS) | `ORGANIZATION_API_URL` | `https://lifebalance-organization-saas.onrender.com/api/v1` |
+| Administration | `ADMINISTRATION_API_URL` | `https://lifebalance-administration-service.onrender.com/api/v1` |
+| API Gateway | `API_GATEWAY_URL` | `https://lifebalance-api-gateway.onrender.com/api/v1` |
+| Sedentary engine | `SEDENTARY_API_URL` | `https://sedentary-engine-service.onrender.com/api/v1` |
+| ML prediction | `ML_API_URL` | `https://ml-prediction-service-0sqa.onrender.com/api/v1` |
+| Gamification | `GAMIFICATION_API_URL` | `https://gamification-service-9o3z.onrender.com/api/v1` |
+| Medical | `MEDICAL_API_URL` | `https://medical-service-hb0v.onrender.com/api/v1` |
+| Ingestion | `INGESTION_API_URL` | `https://ingestion-service-fouo.onrender.com/api/v1` |
 
 ## 🔒 Security Notes
 
@@ -105,8 +116,8 @@ The app consumes three independent REST microservices:
 
 ## ⚠️ Current Status & Roadmap
 
-*   **Implemented:** Watch → phone sensor streaming, FogEngine inactivity detection & alerts, encrypted local persistence, auth/dashboard/notifications APIs, background monitoring, biometrics.
-*   **Not implemented:** Cloud upload (batching to the cloud). `SyncService.syncLocalDataToCloud()` is an empty placeholder; the `synced_to_cloud` column exists in the DB schema but is never flipped. This will be implemented when the team's backend API is deployed. **Do not implement or mock cloud uploads until the backend exists.**
+*   **Implemented:** Watch → phone sensor streaming (accel/gyro/steps/HR), FogEngine inactivity detection with clinical-state filter, encrypted local persistence, auth/dashboard/notifications APIs, background monitoring, biometrics, offline-first cloud sync to `POST /api/v1/ingestion/sync`, device registration, active-break gamification scoring, and API clients for the sedentary, ML, gamification, medical and ingestion microservices.
+*   **Pending:** wiring the Firebase cloud layer (device push via FCM is a safe no-op until `google-services.json` is configured), and full UI for leaderboards/rewards against the new gamification endpoints.
 
 ## 📜 License
 

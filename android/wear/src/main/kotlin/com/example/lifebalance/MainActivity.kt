@@ -24,7 +24,7 @@ class MainActivity : Activity(), SensorEventListener {
 
     companion object {
         private const val WINDOW_MS = 30_000L
-        private const val VARIANCE_THRESHOLD = 0.05
+        private const val VARIANCE_THRESHOLD = 0.8 // Aumentado para ignorar movimientos leves de brazo
         private const val ALERT_WINDOWS = 90L // 90 ventanas x 30s = 45 min
     }
 
@@ -177,14 +177,17 @@ class MainActivity : Activity(), SensorEventListener {
 
     private fun updateUi(variance: Double) {
         val minutes = idleWindows / 2 // 2 ventanas de 30s por minuto
-        minutesText.text = "$minutes min inactivo(s)"
+        minutesText.text = "$minutes min"
 
         if (idleWindows >= ALERT_WINDOWS) {
             statusText.text = "¡Alerta de sedentarismo!"
+            statusText.setTextColor(android.graphics.Color.parseColor("#FF3B30"))
         } else if (idleWindows > 0) {
             statusText.text = "Inactivo"
+            statusText.setTextColor(android.graphics.Color.parseColor("#FF9500"))
         } else {
             statusText.text = "Activo"
+            statusText.setTextColor(android.graphics.Color.parseColor("#34C759"))
         }
         varianceText.text = "varianza: %.4f".format(variance)
     }

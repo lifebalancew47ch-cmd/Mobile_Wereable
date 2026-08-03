@@ -35,4 +35,22 @@ class NotificationsApiService {
       throw Exception('Error de conexión');
     }
   }
+
+  /// Registra el token FCM del dispositivo para recibir alertas preventivas
+  /// basadas en los modelos de ML en la nube.
+  Future<void> registerDevice({
+    required String fcmToken,
+    required String deviceId,
+  }) async {
+    try {
+      await _dio.post('/notifications/register-device', data: {
+        'deviceId': deviceId,
+        'token': fcmToken,
+        'platform': 'android',
+      });
+    } on DioException catch (e) {
+      final message = e.response?.data?['message'];
+      throw Exception(message?.toString() ?? 'Error al registrar el dispositivo');
+    }
+  }
 }
