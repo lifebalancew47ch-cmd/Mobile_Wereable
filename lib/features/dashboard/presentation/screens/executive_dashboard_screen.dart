@@ -294,6 +294,34 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildMetricCard(
+                  icon: Icons.directions_walk,
+                  label: 'PASOS',
+                  value: '${dashboard?.kpis?.dailySteps ?? dashboard?.summary?.dailySteps ?? '--'}',
+                  subtitle: 'Total del día',
+                  labelColor: Colors.blue.shade700,
+                  hasSideBorder: true,
+                  borderColor: Colors.blue.shade700,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildMetricCard(
+                  icon: Icons.favorite,
+                  label: 'LATIDOS',
+                  value: dashboard?.kpis != null ? '${dashboard!.kpis!.heartRate.toStringAsFixed(0)} bpm' : '--',
+                  subtitle: 'Ritmo cardíaco',
+                  labelColor: Colors.red.shade700,
+                  hasSideBorder: true,
+                  borderColor: Colors.red.shade700,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
