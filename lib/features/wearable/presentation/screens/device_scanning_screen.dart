@@ -17,7 +17,8 @@ class _DeviceScanningScreenState extends ConsumerState<DeviceScanningScreen> {
   Widget build(BuildContext context) {
     final wearableState = ref.watch(wearableProvider);
     final connected = wearableState.isConnected;
-    final last = wearableState.lastData;
+    final liveSensor = ref.watch(sensorSampleProvider);
+    final sample = liveSensor.value;
 
     return Scaffold(
       backgroundColor: const Color(0xFFE9F1EC),
@@ -80,7 +81,7 @@ class _DeviceScanningScreenState extends ConsumerState<DeviceScanningScreen> {
                   const Text('DATOS EN VIVO',
                     style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
                   const SizedBox(height: 16),
-                  if (last == null)
+                  if (sample == null)
                     const Center(
                       child: Padding(
                         padding: EdgeInsets.symmetric(vertical: 24),
@@ -97,11 +98,11 @@ class _DeviceScanningScreenState extends ConsumerState<DeviceScanningScreen> {
                   else
                     Column(
                       children: [
-                        _buildDataRow('Eje X', last.x.toStringAsFixed(3)),
+                        _buildDataRow('Pasos Acumulados', sample.steps > 0 ? '${sample.steps}' : '--'),
                         const SizedBox(height: 12),
-                        _buildDataRow('Eje Y', last.y.toStringAsFixed(3)),
+                        _buildDataRow('Ritmo Cardíaco', sample.heartRate > 0 ? '${sample.heartRate.toStringAsFixed(0)} bpm' : '--'),
                         const SizedBox(height: 12),
-                        _buildDataRow('Eje Z', last.z.toStringAsFixed(3)),
+                        _buildDataRow('VFC (Variabilidad)', sample.hrv > 0 ? '${sample.hrv.toStringAsFixed(1)} ms' : '--'),
                       ],
                     ),
                 ],
