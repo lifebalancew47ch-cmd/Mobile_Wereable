@@ -136,7 +136,7 @@ class SensorService : Service(), SensorEventListener2 {
                 lastGyroZ = event.values[2]
             }
             Sensor.TYPE_STEP_COUNTER -> {
-                totalSteps = event.values[0].toInt()
+                totalSteps = TodaySteps.of(this, event.values[0].toInt())
             }
             Sensor.TYPE_HEART_RATE -> {
                 // values[0] en lpm; 0 cuando no hay contacto/toma fiable.

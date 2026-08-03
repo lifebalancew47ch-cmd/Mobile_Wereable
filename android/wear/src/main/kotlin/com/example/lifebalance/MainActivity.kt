@@ -179,7 +179,7 @@ class MainActivity : Activity(), SensorEventListener {
         
         when (event.sensor.type) {
             Sensor.TYPE_STEP_COUNTER -> {
-                stepsText.text = event.values[0].toInt().toString()
+                stepsText.text = TodaySteps.of(this, event.values[0].toInt()).toString()
             }
             Sensor.TYPE_HEART_RATE -> {
                 bpmText.text = event.values[0].toInt().toString()
