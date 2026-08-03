@@ -2,6 +2,7 @@ package com.example.lifebalance
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.hardware.Sensor
@@ -10,6 +11,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
 import android.widget.TextView
 import kotlin.math.pow
@@ -25,8 +27,10 @@ class MainActivity : Activity(), SensorEventListener {
     companion object {
         private const val WINDOW_MS = 30_000L
         private const val VARIANCE_THRESHOLD = 0.8 // Aumentado para ignorar movimientos leves de brazo
-        private const val ALERT_WINDOWS = 90L // 90 ventanas x 30s = 45 min
+        private const val DEFAULT_ALERT_WINDOWS = 90L // 90 ventanas x 30s = 45 min
     }
+
+    private var alertWindows = DEFAULT_ALERT_WINDOWS // Se actualiza desde SharedPreferences
 
     private lateinit var statusText: TextView
     private lateinit var minutesText: TextView
@@ -43,6 +47,8 @@ class MainActivity : Activity(), SensorEventListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        loadAlertThreshold()
 
         statusText = findViewById(R.id.statusText)
         minutesText = findViewById(R.id.minutesText)
@@ -109,8 +115,20 @@ class MainActivity : Activity(), SensorEventListener {
         startForegroundService(Intent(this, SensorService::class.java))
     }
 
+    /**
+     * Lee el umbral de alerta (en minutos) persistido por
+     * WearSettingsListenerService y lo traduce a ventanas de 30s.
+     */
+    private fun loadAlertThreshold() {
+        val prefs = getSharedPreferences("wear_settings", Context.MODE_PRIVATE)
+        val minutes = prefs.getLong("alert_threshold_minutes", 45L)
+        alertWindows = minutes * 2 // 2 ventanas de 30s por minuto
+        Log.d("MainActivity", "Alert threshold: $minutes min ($alertWindows windows)")
+    }
+
     override fun onResume() {
         super.onResume()
+        loadAlertThreshold() // NUEVO: captar cambios mientras la app estaba en background
         if (::sensorManager.isInitialized) {
             accelerometer?.let {
                 sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
@@ -166,7 +184,7 @@ class MainActivity : Activity(), SensorEventListener {
             alertShown = false
         }
 
-        if (idleWindows >= ALERT_WINDOWS && !alertShown) {
+        if (idleWindows >= alertWindows && !alertShown) {
             alertShown = true
             statusText.text = "¡Alerta de sedentarismo!"
         }
@@ -183,7 +201,7 @@ class MainActivity : Activity(), SensorEventListener {
         val minutes = idleWindows / 2 // 2 ventanas de 30s por minuto
         minutesText.text = "$minutes min"
 
-        if (idleWindows >= ALERT_WINDOWS) {
+        if (idleWindows >= alertWindows) {
             statusText.text = "¡Alerta de sedentarismo!"
             statusText.setTextColor(android.graphics.Color.parseColor("#FF3B30"))
         } else if (idleWindows > 0) {

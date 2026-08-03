@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../fog/presentation/providers/fog_providers.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../wearable/presentation/wearable_provider.dart';
 import '../providers/alert_settings_provider.dart';
 import '../../domain/alert_settings.dart';
 
@@ -67,6 +68,10 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
 
     await ref.read(alertSettingsProvider.notifier).save(settings);
     ref.read(fogEngineProvider).setAlertThreshold(settings.intervalMinutes);
+
+    // NUEVO: Sincronizar al reloj vía DataClient
+    final wearableService = ref.read(wearableCommunicationServiceProvider);
+    wearableService.syncAlertInterval(settings.intervalMinutes);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

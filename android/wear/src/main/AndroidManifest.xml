@@ -40,6 +40,16 @@
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/lifebalance" />
             </intent-filter>
         </service>
+
+        <service
+            android:name=".WearSettingsListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data android:scheme="wear" android:host="*"
+                      android:pathPrefix="/lifebalance/settings" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

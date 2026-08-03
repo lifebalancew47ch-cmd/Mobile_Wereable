@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -71,6 +72,21 @@ class WearableSensorSample {
 class WearableCommunicationService {
   static const EventChannel _wearableEventChannel =
       EventChannel('com.example.lifebalance/wearable_sensors');
+
+  // Nuevo MethodChannel para enviar configuración al código nativo Android.
+  static const MethodChannel _settingsChannel =
+      MethodChannel('com.example.lifebalance/wearable_settings');
+
+  /// Sincroniza el umbral de alerta de sedentarismo con el reloj vía DataClient.
+  /// Retorna silenciosamente si falla (best-effort, DataClient reintenta solo).
+  Future<void> syncAlertInterval(int minutes) async {
+    try {
+      await _settingsChannel.invokeMethod('syncAlertInterval', {'minutes': minutes});
+    } catch (e) {
+      // Silenciar: DataClient persiste el dato para sync futuro.
+      debugPrint('[WearSync] Error sincronizando umbral: $e');
+    }
+  }
 
   Stream<List<Map<String, dynamic>>> get _batches {
     return _wearableEventChannel.receiveBroadcastStream().map((event) {
