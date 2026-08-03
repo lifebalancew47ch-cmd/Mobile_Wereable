@@ -43,9 +43,12 @@ final offlineSyncServiceProvider = Provider<OfflineSyncService>((ref) {
 
 /// Registro del dispositivo para push remoto (FCM), no-bloqueante.
 final deviceRegistrationServiceProvider = Provider<DeviceRegistrationService>((ref) {
-  return DeviceRegistrationService(
+  final service = DeviceRegistrationService(
     notificationsApi: ref.watch(notificationsApiServiceProvider),
   );
+  service.registerDevice();
+  service.registerDeviceOnTokenRefresh();
+  return service;
 });
 
 final fogEngineProvider = Provider((ref) {

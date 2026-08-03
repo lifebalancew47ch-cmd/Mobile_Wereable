@@ -59,9 +59,9 @@ POST /api/v1/ingestion/sync  (ClientBatchId, VitalSigns, ActivitySessions, Alert
 *   **Sensors & Bluetooth:** `sensors_plus`, `flutter_blue_plus`
 *   **Health Data:** `health` (Health Connect), `timezone`, `rxdart`
 *   **Security:** `flutter_jailbreak_detection`, `local_auth`
-*   **Notifications:** `flutter_local_notifications`
-*   **Firebase:** `firebase_core`, `firebase_crashlytics`, `firebase_auth`, `cloud_firestore` (installed; not yet wired)
-*   **Dev / Tooling:** `flutter_lints`, `dart_code_metrics`, `mocktail`, `flutter_launcher_icons`
+*   **Notifications:** `flutter_local_notifications`, `firebase_messaging`
+*   **Firebase:** `firebase_core`, `firebase_crashlytics`, `firebase_auth`, `cloud_firestore` (installed; auth/firestore not yet wired)
+*   **Dev / Tooling:** `flutter_lints`, `mocktail`, `flutter_launcher_icons`
 
 ## 🚀 Getting Started
 
@@ -79,13 +79,15 @@ POST /api/v1/ingestion/sync  (ClientBatchId, VitalSigns, ActivitySessions, Alert
     flutter pub get
     ```
 3.  **Environment Setup:**
-    Ensure you have the environment files (`.env.development` and `.env.production`) at the root of the project. These files define the API URLs (`API_URL`, `DASHBOARD_API_URL`, `NOTIFICATIONS_API_URL`) and the `PINNED_CERT_SHA256` for certificate pinning.
-4.  **Run the app (Development):**
+    Ensure you have the environment files (`.env.development` and `.env.production`) at the root of the project. These files define the API URLs (`API_URL`, `DASHBOARD_API_URL`, `NOTIFICATIONS_API_URL`, etc.) and the `PINNED_CERT_SHA256` for certificate pinning.
+4.  **Firebase (FCM push, opcional):**
+    Drop your `google-services.json` (package `com.example.lifebalance`) into `android/app/`. The Google Services Gradle plugin activates automatically when the file exists; without it the app runs with local notifications only.
+5.  **Run the app (Development):**
     Certificate pinning is automatically disabled in debug mode to facilitate development.
     ```bash
     flutter run
     ```
-5.  **Build for Production:**
+6.  **Build for Production:**
     ```bash
     flutter build apk --release
     ```
@@ -116,8 +118,8 @@ The app consumes a set of independent REST microservices hosted on Render:
 
 ## ⚠️ Current Status & Roadmap
 
-*   **Implemented:** Watch → phone sensor streaming (accel/gyro/steps/HR), FogEngine inactivity detection with clinical-state filter, encrypted local persistence, auth/dashboard/notifications APIs, background monitoring, biometrics, offline-first cloud sync to `POST /api/v1/ingestion/sync`, device registration, active-break gamification scoring, and API clients for the sedentary, ML, gamification, medical and ingestion microservices.
-*   **Pending:** wiring the Firebase cloud layer (device push via FCM is a safe no-op until `google-services.json` is configured), and full UI for leaderboards/rewards against the new gamification endpoints.
+*   **Implemented:** Watch → phone sensor streaming (accel/gyro/steps/HR), FogEngine inactivity detection with clinical-state filter, encrypted local persistence, auth/dashboard/notifications APIs, background monitoring, biometrics, offline-first cloud sync to `POST /api/v1/ingestion/sync`, device registration + FCM push (activado con `android/app/google-services.json`), active-break gamification scoring, and API clients for the sedentary, ML, gamification, medical and ingestion microservices.
+*   **Pending:** wiring `firebase_auth`/`cloud_firestore` into the app flow, and full UI for leaderboards/rewards against the new gamification endpoints.
 
 ## 📜 License
 

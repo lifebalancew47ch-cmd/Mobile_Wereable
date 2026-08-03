@@ -5,6 +5,14 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Firebase (google-services) se aplica SOLO si existe google-services.json.
+// Así el build funciona sin configurar el proyecto Firebase (CI, dev) y se
+// activa automáticamente cuando se añade el archivo. El plugin ya está
+// declarado en settings.gradle.kts con `apply false`.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.example.lifebalance"
     compileSdk = flutter.compileSdkVersion

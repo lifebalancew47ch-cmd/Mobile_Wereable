@@ -128,6 +128,7 @@ class BackgroundService {
       notificationsApi: notificationsApi,
     );
     deviceRegistration.registerDevice();
+    deviceRegistration.registerDeviceOnTokenRefresh();
 
     final watchService = WatchService();
     watchService.startPeriodicSync();

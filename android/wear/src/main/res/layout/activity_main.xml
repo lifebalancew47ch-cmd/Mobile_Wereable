@@ -4,11 +4,14 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:background="#0B1220">
 
-    <ScrollView
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/scrollView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
         app:boxedEdges="all">
 
         <LinearLayout
@@ -23,7 +26,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="LIFEBALANCE"
-                android:textColor="#8E2DE2"
+                android:textColor="#00C2FF"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:fontFamily="sans-serif-medium"
@@ -73,6 +76,6 @@
                 android:textSize="10sp" />
 
         </LinearLayout>
-    </ScrollView>
+    </androidx.core.widget.NestedScrollView>
 
 </androidx.wear.widget.BoxInsetLayout>

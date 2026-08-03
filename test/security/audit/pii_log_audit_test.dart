@@ -149,12 +149,24 @@ void main() {
               'los secretos están trackeados en el repositorio');
     });
 
+    test('google-services.json está en .gitignore (no llega al repo ni a CI)',
+        () async {
+      final result = await Process.run('git', [
+        'check-ignore',
+        'android/app/google-services.json',
+      ]);
+      expect(result.exitCode, 0,
+          reason: 'google-services.json contiene claves del proyecto Firebase '
+              'y debe estar ignorado; si el archivo ya está trackeado, '
+              'haz `git rm --cached android/app/google-services.json`');
+    });
+
     test('CI/scripts: ningún secreto en la raíz del repo (estático)', () {
       final offenders = <String>[];
       for (final path in ['pubspec.yaml', 'android/app/build.gradle.kts']) {
         final src = File(path).readAsStringSync();
         if (RegExp(
-          r'''(sk[-_]?live|-----BEGIN|google-services\.json|api[_-]?key\s*[:=]\s*["\'][A-Za-z0-9]{16,})''',
+          r'''(sk[-_]?live|-----BEGIN|api[_-]?key\s*[:=]\s*["\'][A-Za-z0-9]{16,})''',
           caseSensitive: false,
         ).hasMatch(src)) {
           offenders.add(path);

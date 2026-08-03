@@ -26,9 +26,9 @@ This document provides a comprehensive overview of the LifeBalance mobile applic
   - `flutter_jailbreak_detection` (app exits immediately if rooted/jailbroken)
   - `certificate_pinning.dart` (Fail-closed strict certificate pinning in Release mode)
   - `local_auth` (biometric profile authentication)
-- **Notifications**: `flutter_local_notifications`
-- **Firebase**: `firebase_core`, `firebase_crashlytics`, `firebase_auth`, `cloud_firestore` (dependencies installed; intended for future Cloud layer)
-- **Dev / Tooling**: `flutter_lints`, `dart_code_metrics`, `mocktail`, `flutter_launcher_icons`
+- **Notifications**: `flutter_local_notifications`, `firebase_messaging` (FCM push)
+- **Firebase**: `firebase_core`, `firebase_crashlytics`, `firebase_messaging` (integrado); `firebase_auth`, `cloud_firestore` (dependencies installed; intended for future Cloud layer)
+- **Dev / Tooling**: `flutter_lints`, `mocktail`, `flutter_launcher_icons`
 
 ## 3. Architecture
 The project follows **Clean Architecture** patterns separated by features.
@@ -178,7 +178,7 @@ OfflineSyncService (lib/services/offline_sync_service.dart)
 ### 5.7 Cloud Sync (IMPLEMENTED)
 - `lib/services/offline_sync_service.dart`: offline-first queue backed by SQLite (`synced_to_cloud` flags). Flushes pending batches every 15 min (`Timer.periodic`) and on connectivity restore, then `POST /api/v1/ingestion/sync` with `ClientBatchId`, `DeviceId`, `VitalSigns`, `ActivitySessions`, `Alerts`. On success it marks rows `synced_to_cloud=1`; failures remain queued.
 - `lib/features/ingestion/data/ingestion_api_service.dart` implements the real backend contract (`SyncBatchRequest`/`SyncBatchResponse`) from `backapi-main` (IngestionController).
-- `lib/services/device_identity_service.dart`: stable per-install UUID. `lib/services/device_registration_service.dart`: `registerDevice` via notifications API; FCM token comes from `DefaultFcmTokenProvider.getToken()` (returns `null` → safe no-op until `firebase_messaging` + `google-services.json` are configured).
+- `lib/services/device_identity_service.dart`: stable per-install UUID. `lib/services/device_registration_service.dart`: `registerDevice` via notifications API + re-registro en `onTokenRefresh`. El token lo provee `FirebaseMessagingFcmTokenProvider` (firebase_messaging); sin `google-services.json` degrada a `null` → no-op seguro.
 - `lib/services/connectivity_monitor.dart`: connectivity status stream to gate sync. `lib/services/location_service.dart`: GPS ping on alert.
 - **Gamification**: `lib/features/gamification/data/gamification_api_service.dart` (profile/events/rewards) and `lib/features/gamification/data/active_break_service.dart` (rutinas Tipo A: 2 min → 50 pts; Tipo B: 200 pasos → 100 pts, persistidas como `active_breaks`).
 
@@ -200,7 +200,7 @@ OfflineSyncService (lib/services/offline_sync_service.dart)
 3. **`MockAuthDataSource`** exists in `features/auth/data/datasources/auth_datasource.dart` but is NOT used by the live repository (violates the No Mocks rule if reactivated).
 4. **Placeholders**: `WatchService` vital signs (heart rate, HRV, SpO2, steps) are hardcoded to 0 pending Health Connect integration.
 5. **Firebase dependencies** (`firebase_auth`, `cloud_firestore`) are declared but not wired into the app flow yet.
-6. **Cloud sync IS implemented** (see 5.7) — replaced the old placeholder. The remaining gap is device push: FCM `registerDevice` is a safe no-op until `firebase_messaging` + `google-services.json` are configured.
+6. **Cloud sync IS implemented** (see 5.7) — replaced the old placeholder. **FCM push** está integrado y activado: `firebase_messaging` (`FirebaseMessagingFcmTokenProvider` + re-registro en `onTokenRefresh`), `firebase_core.initializeApp()` en `main.dart` (no-bloqueante), y el plugin de Gradle `google-services` se aplica condicionalmente (solo si `android/app/google-services.json` existe, package `com.example.lifebalance`). `google-services.json` está en `.gitignore`; el APK ya construye con él.
 
 ## 9. Coding Guidelines & AI Agent Rules
 1. **No Mocks**: Do not use simulated/mocked data for API calls. If an endpoint fails, debug and fix the implementation or API structure.

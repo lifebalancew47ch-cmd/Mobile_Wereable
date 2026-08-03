@@ -53,6 +53,10 @@ class MainActivity : Activity(), SensorEventListener {
             updateUi(0.0)
         }
 
+        // Habilitar el scroll nativo con el bisel rotatorio de Samsung
+        val scrollView = findViewById<android.view.View>(R.id.scrollView)
+        scrollView.requestFocus()
+
         requestRequiredPermissions()
     }
 
@@ -187,7 +191,7 @@ class MainActivity : Activity(), SensorEventListener {
             statusText.setTextColor(android.graphics.Color.parseColor("#FF9500"))
         } else {
             statusText.text = "Activo"
-            statusText.setTextColor(android.graphics.Color.parseColor("#34C759"))
+            statusText.setTextColor(android.graphics.Color.parseColor("#00C2FF"))
         }
         varianceText.text = "varianza: %.4f".format(variance)
     }

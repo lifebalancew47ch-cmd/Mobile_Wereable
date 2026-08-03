@@ -17,6 +17,13 @@ android/.kotlin/
 .env.local
 .env.*
 
+# Firebase config (contiene claves del proyecto; se aporta localmente por
+# desarrollador/CI, igual que los .env). No commitearlo.
+android/app/google-services.json
+firebase_options.dart
+firebase.json
+.firebaserc
+
 # Editors
 .vscode/
 .idea/

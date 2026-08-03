@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_jailbreak_detection/flutter_jailbreak_detection.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'package:lifebalance/core/routes/app_router.dart';
 import 'package:lifebalance/core/theme/app_theme.dart';
@@ -14,7 +15,7 @@ import 'package:lifebalance/data/datasources/secure_database_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Load environment variables (Security - Sección 2 Cloud Prep)
   await dotenv.load(fileName: const String.fromEnvironment('ENV_FILE', defaultValue: '.env.development'));
 
@@ -24,6 +25,10 @@ void main() async {
     exit(0); // Cierre inmediato en dispositivos comprometidos
   }
 
+  // Firebase (push remoto FCM). No-bloqueante: si no hay google-services.json
+  // la app sigue funcionando con notificaciones locales únicamente.
+  await _initializeFirebaseSafely();
+
   // Inicializar Base de Datos Segura
   await SecureDatabaseService.instance.database;
 
@@ -32,6 +37,19 @@ void main() async {
       child: MyApp(),
     ),
   );
+}
+
+/// Inicializa Firebase si el proyecto está configurado. Nunca lanza: ante
+/// cualquier fallo (falta google-services.json, dispositivo sin Google Play
+/// Services) se degrada a un no-op seguro.
+Future<void> _initializeFirebaseSafely() async {
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp();
+    }
+  } catch (e) {
+    debugPrint('Firebase no configurado: push remoto desactivado.');
+  }
 }
 
 class MyApp extends ConsumerStatefulWidget {
