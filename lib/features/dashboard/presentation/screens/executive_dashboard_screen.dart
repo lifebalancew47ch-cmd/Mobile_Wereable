@@ -25,7 +25,7 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
     final liveSensor = ref.watch(sensorSampleProvider);
 
     return Scaffold(
-      backgroundColor: AppTheme.midnightBackground,
+      backgroundColor: const Color(0xFFF2F8F4),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
