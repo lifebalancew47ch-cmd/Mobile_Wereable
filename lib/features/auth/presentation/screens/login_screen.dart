@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/login_provider.dart';
 import '../providers/login_state.dart';
 
@@ -83,6 +84,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/landing'),
+          tooltip: 'Volver',
+        ),
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -165,9 +173,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       : const Text('Iniciar Sesión'),
                 ),
                 const SizedBox(height: 16),
-                OutlinedButton(
-                  onPressed: () => context.push('/auth/register'),
-                  child: const Text('Crear Cuenta'),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    const url = 'https://lifebalance-adv3.onrender.com/register';
+                    final uri = Uri.parse(url);
+                    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    if (!launched && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('No se pudo abrir el registro en la web.')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  label: const Text('Crear Cuenta en la Web'),
                 ),
               ],
             ),

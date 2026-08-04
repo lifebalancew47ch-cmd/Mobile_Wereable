@@ -11,6 +11,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener2
 import android.hardware.SensorManager
 import android.os.IBinder
+import android.os.PowerManager
 import android.util.Log
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.CoroutineScope
@@ -37,6 +38,9 @@ class SensorService : Service(), SensorEventListener2 {
     private var lastGyroZ = 0f
     private var totalSteps = 0
     private var lastHeartRate = 0f
+    private var lastHeartRateTime = 0L
+
+    private var wakeLock: PowerManager.WakeLock? = null
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
@@ -63,6 +67,9 @@ class SensorService : Service(), SensorEventListener2 {
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .build()
         startForeground(1, notification)
+
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "LifeBalance:SensorServiceWakeLock")
 
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         
@@ -112,6 +119,9 @@ class SensorService : Service(), SensorEventListener2 {
         Log.d("SensorService", "Flushing sensors before destroy")
         sensorManager.flush(this)
         sensorManager.unregisterListener(this)
+        wakeLock?.let {
+            if (it.isHeld) it.release()
+        }
         job.cancel()
         super.onDestroy()
     }
@@ -137,15 +147,24 @@ class SensorService : Service(), SensorEventListener2 {
             }
             Sensor.TYPE_STEP_COUNTER -> {
                 totalSteps = TodaySteps.of(this, event.values[0].toInt())
+                Log.d("SensorService", "Step counter event: totalSteps=$totalSteps (raw=${event.values[0]})")
             }
             Sensor.TYPE_HEART_RATE -> {
                 // values[0] en lpm; 0 cuando no hay contacto/toma fiable.
-                lastHeartRate = event.values[0]
+                val hr = event.values[0]
+                if (hr > 0) {
+                    lastHeartRate = hr
+                    lastHeartRateTime = System.currentTimeMillis()
+                    Log.d("SensorService", "Heart rate event: $lastHeartRate bpm")
+                }
             }
             Sensor.TYPE_ACCELEROMETER -> {
                 if (!isOnBody) return // Don't collect if not on wrist
 
-                val timestamp = System.currentTimeMillis() // Or use event.timestamp for better accuracy relative to boot
+                val timestamp = System.currentTimeMillis()
+                // Caducidad de frecuencia cardíaca: si pasaron > 15s sin lectura fresca, enviar 0f
+                val finalHR = if (timestamp - lastHeartRateTime < 15_000L) lastHeartRate else 0f
+
                 val reading = JSONObject().apply {
                     put("x", event.values[0])
                     put("y", event.values[1])
@@ -154,7 +173,8 @@ class SensorService : Service(), SensorEventListener2 {
                     put("gyroY", lastGyroY)
                     put("gyroZ", lastGyroZ)
                     put("steps", totalSteps)
-                    put("heartRate", lastHeartRate)
+                    put("heartRate", finalHR)
+                    put("isOnBody", isOnBody)
                     put("timestamp", timestamp)
                 }
 
@@ -215,6 +235,7 @@ class SensorService : Service(), SensorEventListener2 {
         }
 
         try {
+            wakeLock?.acquire(3000L) // Retener CPU durante la transmisión
             Wearable.getMessageClient(this@SensorService).sendMessage(
                 nodeId,
                 "/lifebalance/sensors",

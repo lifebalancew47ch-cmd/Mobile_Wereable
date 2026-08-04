@@ -40,15 +40,16 @@ class FogEngine {
   final List<double> _magnitudes = [];
   final List<AccelerometerData> _vectors = [];
 
-  // Contador de ventanas inactivas consecutivas (30s c/u).
-  // 90 ventanas x 30s = 2700s = 45 minutos (configurable).
+  // Contador de ventanas inactivas y activas consecutivas (30s c/u).
   int _inactiveWindows = 0;
+  int _activeWindows = 0;
   int _alertThresholdWindows = 90;
   static const double _varianceThreshold = 0.05;
   static const int _minutesPerWindow = 2; // 2 ventanas por minuto (30s c/u)
 
   DateTime _lastMovement = DateTime.now();
   String _sessionStartTime = DateTime.now().toIso8601String();
+  String _activeStartTime = DateTime.now().toIso8601String();
 
   // Filtro Clínico de Falsos Positivos.
   final ClinicalStateClassifier _clinicalClassifier = ClinicalStateClassifier();
@@ -171,7 +172,12 @@ class FogEngine {
       final orientation = inferBodyOrientation(sx / count, sy / count, sz / count);
 
       // Alimentar el Filtro Clínico (immobile = varianza baja).
-      final immobile = variance < _varianceThreshold;
+      // Si la varianza es prácticamente nula (< 0.0001) y no hay lectura de pulso,
+      // el reloj está inmóvil sobre una mesa (Off-Body). No sumar inactividad.
+      final isOffBodyTable = (variance < 0.0001) && (_latestHeartRate == null || _latestHeartRate! <= 0);
+      final insufficientSamples = samples.length < 5;
+
+      final immobile = variance < _varianceThreshold && !isOffBodyTable && !insufficientSamples;
       _clinicalClassifier.feed(
         immobile: immobile,
         orientation: orientation,
@@ -184,26 +190,61 @@ class FogEngine {
 
       ActivityStatus status;
       if (immobile && !suppressed) {
+        if (_activeWindows > 0) {
+          final activeMins = max(1, _activeWindows ~/ 2);
+          SecureDatabaseService.instance.insertActivitySession(
+            _activeStartTime,
+            DateTime.now().toIso8601String(),
+            'active',
+            activeMins,
+          );
+          _activeWindows = 0;
+        }
         _inactiveWindows++;
         status = ActivityStatus.idle;
       } else if (immobile && suppressed) {
-        // Reposo clínico verificado o sueño: se pausa/congela el contador.
+        if (_activeWindows > 0) {
+          final activeMins = max(1, _activeWindows ~/ 2);
+          SecureDatabaseService.instance.insertActivitySession(
+            _activeStartTime,
+            DateTime.now().toIso8601String(),
+            'active',
+            activeMins,
+          );
+          _activeWindows = 0;
+        }
         _inactiveWindows = 0;
         status = ActivityStatus.idle;
       } else {
         // Activo: se cierra y registra la sesión de inactividad previa.
         if (_inactiveWindows > 0) {
+          final idleMins = max(1, _inactiveWindows ~/ 2);
           SecureDatabaseService.instance.insertActivitySession(
             _sessionStartTime,
             DateTime.now().toIso8601String(),
             'idle',
-            _inactiveWindows ~/ 2,
+            idleMins,
           );
           _sessionStartTime = DateTime.now().toIso8601String();
         }
+        if (_activeWindows == 0) {
+          _activeStartTime = DateTime.now().toIso8601String();
+        }
+        _activeWindows++;
         _inactiveWindows = 0;
         _lastMovement = DateTime.now();
         status = ActivityStatus.active;
+
+        // Persistir sesión activa acumulada
+        final currentActiveMins = _activeWindows ~/ 2;
+        if (currentActiveMins >= 1) {
+          SecureDatabaseService.instance.insertActivitySession(
+            _activeStartTime,
+            DateTime.now().toIso8601String(),
+            'active',
+            currentActiveMins,
+          );
+        }
       }
 
       // Procesamiento de alerta tras N ventanas inactivas consecutivas.

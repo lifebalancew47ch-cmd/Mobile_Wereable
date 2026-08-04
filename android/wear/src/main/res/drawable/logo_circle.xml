@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo circular de la app en el reloj: fondo blanco con borde mint y
+     aro de sombra, igual que el logo del onboarding móvil. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#1AFFFFFF" />
+        </shape>
+    </item>
+    <item android:left="6dp" android:top="6dp" android:right="6dp" android:bottom="6dp">
+        <shape android:shape="oval">
+            <stroke android:width="2dp" android:color="#E9F1EC" />
+            <solid android:color="#FFFFFF" />
+        </shape>
+    </item>
+</layer-list>

@@ -16,6 +16,44 @@ class MainNavigationShell extends StatelessWidget {
     );
   }
 
+  Widget _buildNavItem(
+    BuildContext context,
+    int index,
+    IconData icon,
+    IconData selectedIcon,
+    String label,
+  ) {
+    final isSelected = navigationShell.currentIndex == index;
+    const activeColor = Color(0xFF3E6F58);
+
+    return InkWell(
+      onTap: () => _onTap(context, index),
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? selectedIcon : icon,
+              color: isSelected ? activeColor : Colors.grey.shade600,
+              size: 22,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? activeColor : Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -27,42 +65,27 @@ class MainNavigationShell extends StatelessWidget {
           initialLocation: navigationShell.currentIndex == 2,
         ),
         backgroundColor: const Color(0xFF3E6F58),
-        shape: const CircleBorder(),
         elevation: 4,
-        child: const Icon(Icons.add, color: Colors.white, size: 32),
+        shape: const CircleBorder(),
+        child: const Icon(Icons.add, color: Colors.white, size: 28),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
-        onDestinationSelected: (index) => _onTap(context, index),
-        indicatorColor: const Color(0xFF3E6F58).withValues(alpha: 0.1),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.grid_view_outlined),
-            selectedIcon: Icon(Icons.grid_view, color: Color(0xFF3E6F58)),
-            label: 'Resumen',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart, color: Color(0xFF3E6F58)),
-            label: 'Análisis',
-          ),
-          // Placeholder for FAB spacing
-          NavigationDestination(
-            icon: SizedBox.shrink(),
-            label: '',
-            enabled: false,
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.help_outline),
-            selectedIcon: Icon(Icons.help, color: Color(0xFF3E6F58)),
-            label: 'Soporte',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person, color: Color(0xFF3E6F58)),
-            label: 'Perfil',
-          ),
-        ],
+      bottomNavigationBar: BottomAppBar(
+        height: 62,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        color: Colors.white,
+        elevation: 8,
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 6,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildNavItem(context, 0, Icons.grid_view_outlined, Icons.grid_view, 'Resumen'),
+            _buildNavItem(context, 1, Icons.bar_chart_outlined, Icons.bar_chart, 'Análisis'),
+            const SizedBox(width: 48), // Espacio para el FAB central con muesca
+            _buildNavItem(context, 3, Icons.help_outline, Icons.help, 'Soporte'),
+            _buildNavItem(context, 4, Icons.person_outline, Icons.person, 'Perfil'),
+          ],
+        ),
       ),
     );
   }

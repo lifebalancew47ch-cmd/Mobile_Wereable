@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.wear.widget.BoxInsetLayout 
+<!-- Dashboard Wear OS con el estilo visual LifeBalance:
+     logo circular, tarjetas redondeadas, píldora de estado y CTA primario,
+     coherente con el onboarding del móvil. -->
+<androidx.wear.widget.BoxInsetLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0B1220">
+    android:background="@drawable/bg_watch">
 
     <androidx.core.widget.NestedScrollView
         android:id="@+id/scrollView"
@@ -22,54 +25,76 @@
             android:paddingTop="12dp"
             android:paddingBottom="12dp">
 
+            <!-- Logo circular de la marca -->
+            <FrameLayout
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:background="@drawable/logo_circle"
+                android:layout_marginBottom="8dp">
+                <ImageView
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/logo_mark"
+                    android:contentDescription="Logo LifeBalance" />
+            </FrameLayout>
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="LIFEBALANCE"
-                android:textColor="#00C2FF"
+                android:textColor="#A8D8BB"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:fontFamily="sans-serif-medium"
-                android:letterSpacing="0.05"
-                android:layout_marginBottom="4dp" />
+                android:letterSpacing="0.08"
+                android:layout_marginBottom="8dp" />
 
+            <!-- Minutos grandes -->
             <TextView
                 android:id="@+id/minutesText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="0 min"
                 android:textColor="#FFFFFF"
-                android:textSize="42sp"
+                android:textSize="40sp"
                 android:textStyle="bold"
                 android:fontFamily="sans-serif-condensed"
-                android:layout_marginBottom="2dp" />
+                android:layout_marginBottom="4dp" />
 
+            <!-- Píldora de estado -->
             <TextView
                 android:id="@+id/statusText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Monitorizando..."
-                android:textColor="#34C759"
-                android:textSize="16sp"
+                android:textColor="#52C480"
+                android:textSize="14sp"
                 android:textStyle="bold"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="6dp"
+                android:background="@drawable/status_badge"
                 android:textAlignment="center"
-                android:layout_marginHorizontal="16dp"
-                android:layout_marginBottom="16dp" />
+                android:layout_marginBottom="14dp" />
 
-            <!-- NUEVO CONTENEDOR PARA PASOS Y FC -->
+            <!-- Tarjetas de métricas: pasos y ritmo cardíaco -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center"
-                android:layout_marginBottom="16dp">
+                android:paddingHorizontal="8dp"
+                android:layout_marginBottom="14dp">
 
                 <LinearLayout
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:gravity="center">
+                    android:gravity="center"
+                    android:paddingVertical="10dp"
+                    android:background="@drawable/metric_card"
+                    android:layout_marginEnd="6dp">
                     <TextView
                         android:id="@+id/stepsText"
                         android:layout_width="wrap_content"
@@ -83,7 +108,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="pasos"
-                        android:textColor="#888888"
+                        android:textColor="#8AA89A"
                         android:textSize="10sp" />
                 </LinearLayout>
 
@@ -92,7 +117,10 @@
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:gravity="center">
+                    android:gravity="center"
+                    android:paddingVertical="10dp"
+                    android:background="@drawable/metric_card"
+                    android:layout_marginStart="6dp">
                     <TextView
                         android:id="@+id/bpmText"
                         android:layout_width="wrap_content"
@@ -106,30 +134,30 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="lpm"
-                        android:textColor="#888888"
+                        android:textColor="#8AA89A"
                         android:textSize="10sp" />
                 </LinearLayout>
 
             </LinearLayout>
-            <!-- FIN NUEVO CONTENEDOR -->
 
+            <!-- CTA primario -->
             <Button
                 android:id="@+id/pauseButton"
                 android:layout_width="130dp"
-                android:layout_height="40dp"
+                android:layout_height="42dp"
                 android:background="@drawable/circle_bg"
                 android:text="Pausa Activa"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp"
                 android:textStyle="bold"
-                android:layout_marginBottom="16dp" />
+                android:layout_marginBottom="14dp" />
 
             <TextView
                 android:id="@+id/varianceText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="varianza: 0.0000"
-                android:textColor="#555555"
+                android:textColor="#6F8F80"
                 android:textSize="10sp" />
 
         </LinearLayout>

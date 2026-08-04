@@ -5,9 +5,9 @@ import 'package:lifebalance/core/security/token_service.dart';
 
 // Screens
 import 'package:lifebalance/features/auth/presentation/screens/login_screen.dart';
-import 'package:lifebalance/features/auth/presentation/screens/register_screen.dart';
 import 'package:lifebalance/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:lifebalance/features/authentication/presentation/splash_screen.dart';
+import 'package:lifebalance/features/authentication/presentation/landing_screen.dart';
 import 'package:lifebalance/features/dashboard/presentation/screens/executive_dashboard_screen.dart';
 import 'package:lifebalance/features/admin/presentation/screens/admin_summary_screen.dart';
 import 'package:lifebalance/features/analytics/presentation/screens/heatmap_screen.dart';
@@ -45,7 +45,7 @@ final GoRouter appRouter = GoRouter(
   refreshListenable: sessionChangeNotifier,
   redirect: (BuildContext context, GoRouterState state) async {
     // Rutas públicas (auth) no requieren sesión.
-    const publicRoutes = {'/splash', '/login', '/auth/register', '/auth/forgot-password'};
+    const publicRoutes = {'/splash', '/landing', '/login', '/auth/forgot-password'};
     if (publicRoutes.contains(state.matchedLocation)) return null;
 
     final tokenService = ProviderScope.containerOf(context).read(tokenServiceProvider);
@@ -60,12 +60,12 @@ final GoRouter appRouter = GoRouter(
       builder: (BuildContext context, GoRouterState state) => const SplashScreen(),
     ),
     GoRoute(
-      path: '/login',
-      builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+      path: '/landing',
+      builder: (BuildContext context, GoRouterState state) => const LandingScreen(),
     ),
     GoRoute(
-      path: '/auth/register',
-      builder: (BuildContext context, GoRouterState state) => const RegisterScreen(),
+      path: '/login',
+      builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
     ),
     GoRoute(
       path: '/auth/forgot-password',

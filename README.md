@@ -7,13 +7,25 @@ LifeBalance is a comprehensive health and activity tracking application built wi
 *   **Activity Monitoring (FogEngine):** Analyzes accelerometer magnitude variance in 30-second windows. Triggers alerts after 90 consecutive idle windows (45 minutes of inactivity). Includes a **clinical-state filter** that pauses/freezes the timer during verified rest and sleep.
 *   **Wear OS Integration:** A companion native Wear OS app (`android/wear/`) batches accelerometer readings every 5 seconds and streams them to the phone over the Wearable Data Layer.
 *   **Executive Dashboard:** KPI summaries from the live Dashboard service (activity sessions, vital signs, alerts) plus admin summary, analytics (performance analysis + heatmap), FAQ/video support, and profile screens.
-*   **Secure Authentication:** Live REST API (Render) for login, registration, password recovery, and profile management.
+*   **Secure Authentication:** Live REST API (Render) for login, password recovery, and profile management. Registration is handled on the web (`https://lifebalance-adv3.onrender.com/register`).
 *   **Background Execution:** Continues monitoring activity even when the app is closed using a persistent foreground service (`flutter_background_service`) with adaptive polling (5 min active / 30 min idle).
 *   **Biometric Authentication:** `local_auth` for profile-level security.
 *   **High Security:**
     *   **Encrypted Local Data:** `sqflite_sqlcipher` (AES-256, key stored in `flutter_secure_storage`).
     *   **Jailbreak/Root Detection:** The app refuses to run on compromised devices.
     *   **Certificate Pinning:** Fail-closed SSL/TLS pinning in production to prevent Man-in-the-Middle (MitM) attacks.
+
+## 🎨 UI/UX (Onboarding & Welcome)
+
+*   **Splash Screen with Video:** On launch the app plays `assets/videos/SplashScreenLB.mp4` (full-screen, `video_player`) and only then redirects: logged-in users go to `/dashboard`, others to the welcome screen.
+*   **Welcome Screen (`/landing`):** A mobile-first welcome (not a web page) shown before login, featuring:
+    *   **Time-aware greeting:** "Buenos días / Buenas tardes / Buenas noches" based on the device hour.
+    *   **Brand header:** App name centered at the top with the circular logo below, animated (fade + scale on entry).
+    *   **Value proposition card:** Short, direct message with a calm "wellness" gradient.
+    *   **Benefits carousel:** Horizontal swipeable cards (PageView with peek of the next card + animated dot indicator) so the user focuses on one benefit at a time. Each card uses a custom vector illustration (runner + timer, heart + watch, trend chart + alert) instead of generic icons.
+    *   **Organic background:** Soft blurred circles that break the flat background and reinforce the "LifeBalance" fluidity concept.
+    *   **Clear action hierarchy:** "Iniciar sesión" is the primary solid button; "Crear cuenta en la web" is a secondary outline button that opens the registration page in the browser (`url_launcher`).
+*   **Visual consistency on the watch:** the Wear OS dashboard (`android/wear`) mirrors the same palette and rounded-card language of the phone app.
 
 ## 🏗 Architecture
 

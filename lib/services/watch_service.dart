@@ -27,6 +27,7 @@ class WatchService implements IWatchService {
         isSedentaryRisk: false,
       );
     });
+    startPeriodicSync();
   }
 
   @override

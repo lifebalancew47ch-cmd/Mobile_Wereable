@@ -61,13 +61,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       if (hasToken) {
         context.go('/dashboard');
       } else {
-        context.go('/login');
+        context.go('/landing');
       }
     } catch (_) {
       // Security: silencio total ante fallos de lectura de token; nunca
       // loguear contenido de credenciales (PCI-DSS 10.5 / OWASP-API-9).
       if (!mounted) return;
-      context.go('/login');
+      context.go('/landing');
     }
   }
 

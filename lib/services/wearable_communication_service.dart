@@ -13,10 +13,10 @@ class AccelerometerData {
 
   factory AccelerometerData.fromJson(Map<String, dynamic> json) {
     return AccelerometerData(
-      (json['x'] as num).toDouble(),
-      (json['y'] as num).toDouble(),
-      (json['z'] as num).toDouble(),
-      json['timestamp'] as int,
+      (json['x'] as num? ?? 0).toDouble(),
+      (json['y'] as num? ?? 0).toDouble(),
+      (json['z'] as num? ?? 0).toDouble(),
+      (json['timestamp'] as num? ?? 0).toInt(),
     );
   }
 }
@@ -30,6 +30,7 @@ class WearableSensorSample {
   final double heartRate; // lpm
   final double hrv; // ms
   final double spo2; // %
+  final bool isOnBody; // detectado en muñeca
   final double? latitude, longitude; // GPS (solo en cambios drásticos)
   final int timestamp;
 
@@ -44,6 +45,7 @@ class WearableSensorSample {
     required this.heartRate,
     required this.hrv,
     required this.spo2,
+    this.isOnBody = true,
     this.latitude,
     this.longitude,
     required this.timestamp,
@@ -61,14 +63,22 @@ class WearableSensorSample {
       heartRate: (json['heartRate'] as num? ?? 0).toDouble(),
       hrv: (json['hrv'] as num? ?? 0).toDouble(),
       spo2: (json['spo2'] as num? ?? 0).toDouble(),
+      isOnBody: (json['isOnBody'] as bool? ?? true),
       latitude: (json['lat'] as num?)?.toDouble(),
       longitude: (json['lon'] as num?)?.toDouble(),
-      timestamp: json['timestamp'] as int,
+      timestamp: (json['timestamp'] as num? ?? 0).toInt(),
     );
   }
 }
 
 class WearableCommunicationService {
+  static final WearableCommunicationService _instance =
+      WearableCommunicationService._internal();
+
+  factory WearableCommunicationService() => _instance;
+
+  WearableCommunicationService._internal();
+
   static const EventChannel _wearableEventChannel =
       EventChannel('com.example.lifebalance/wearable_sensors');
 
@@ -95,6 +105,7 @@ class WearableCommunicationService {
   late final Stream<List<Map<String, dynamic>>> _batches =
       _wearableEventChannel.receiveBroadcastStream().map((event) {
     final String dataString = event as String;
+    debugPrint('[Wearable] Batch recibido en Dart (${dataString.length} chars)');
     final List<dynamic> batch = jsonDecode(dataString);
     return batch.map((item) => item as Map<String, dynamic>).toList();
   }).asBroadcastStream();
@@ -117,7 +128,14 @@ class WearableCommunicationService {
   Stream<WearableSensorSample> get sensorStreamThrottled {
     return _batches.map((batch) {
       if (batch.isEmpty) return null;
-      return WearableSensorSample.fromJson(batch.last);
+      try {
+        final sample = WearableSensorSample.fromJson(batch.last);
+        debugPrint('[Wearable] UI sample: steps=${sample.steps} hr=${sample.heartRate} hrv=${sample.hrv}');
+        return sample;
+      } catch (e) {
+        debugPrint('[Wearable] UI sample ERROR: $e last=${batch.last}');
+        return null;
+      }
     }).where((sample) => sample != null).cast<WearableSensorSample>();
   }
 
@@ -125,7 +143,12 @@ class WearableCommunicationService {
   Stream<AccelerometerData> get accelerometerStreamThrottled {
     return _batches.map((batch) {
       if (batch.isEmpty) return null;
-      return AccelerometerData.fromJson(batch.last);
+      try {
+        return AccelerometerData.fromJson(batch.last);
+      } catch (e) {
+        debugPrint('[Wearable] Accel throttled ERROR: $e last=${batch.last}');
+        return null;
+      }
     }).where((data) => data != null).cast<AccelerometerData>();
   }
 }

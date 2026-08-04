@@ -113,6 +113,25 @@ OfflineSyncService (lib/services/offline_sync_service.dart)
         ActivitySessions, Alerts) → marca synced_to_cloud=1
 ```
 
+## 4.5 Onboarding & UI/UX (Splash, Welcome, Wearable)
+
+### 4.5.1 Splash con video
+- Al abrir la app se reproduce `assets/videos/SplashScreenLB.mp4` a pantalla completa (`video_player`), con fondo negro y `FittedBox(BoxFit.cover)`.
+- `lib/features/authentication/presentation/splash_screen.dart`: al terminar el video (listener de `VideoPlayerController`) navega a `/dashboard` si hay token válido o a `/landing` si no. Fallback a navegación si el video falla (nunca bloquear al usuario).
+
+### 4.5.2 Pantalla de bienvenida (`/landing`, `features/authentication/presentation/landing_screen.dart`)
+Diseño mobile-first (NO página web) previa al login para usuarios sin sesión:
+- **Saludo según hora**: "Buenos días / Buenas tardes / Buenas noches" (según `DateTime.now().hour`).
+- **Cabecera de marca**: nombre "LifeBalance" centrado arriba y logo circular debajo, animados con `FadeTransition` + `ScaleTransition` (curva `easeOutBack`) al entrar.
+- **Propuesta de valor**: card corta y directa con gradiente verde y sensación de calma.
+- **Carrusel de beneficios**: `PageView.builder` con `viewportFraction: 0.82` (la tarjeta siguiente queda recortada como pista de que hay más contenido), indicador de puntos animado (`AnimatedContainer`) y texto conciso. Cada tarjeta tiene una **ilustración vectorial** propia (corredor+cronómetro, corazón+reloj, gráfica+alerta) en lugar de iconos genéricos.
+- **Fondo orgánico**: `_OrganicBackground` con círculos difuminados que rompen la monotonía del blanco (fluidez / bienestar).
+- **Jerarquía de acciones**: "Iniciar sesión" = botón primario sólido; "Crear cuenta en la web" = botón outline secundario que abre `https://lifebalance-adv3.onrender.com/register` con `url_launcher` (el registro ES SOLO WEB; no hay pantalla de registro en la app).
+- **Rutas públicas** en `app_router.dart`: `/splash`, `/landing`, `/login`, `/auth/forgot-password`. El login tiene flecha de regreso al landing.
+
+### 4.5.3 Estilo visual replicado en el reloj (`android/wear`)
+- El dashboard nativo Wear OS (`MainActivity.kt` + `activity_main.xml`) usa la misma paleta LifeBalance (verde `#3E6F58`, menta `#E9F1EC`, verde oscuro `#0F1512`) y tarjetas con bordes redondeados, en coherencia con el onboarding del móvil.
+
 ## 5. Key Components
 
 ### 5.1 Authentication Flow & Network (`features/auth`, `core/network`)
@@ -181,6 +200,12 @@ OfflineSyncService (lib/services/offline_sync_service.dart)
 - `lib/services/device_identity_service.dart`: stable per-install UUID. `lib/services/device_registration_service.dart`: `registerDevice` via notifications API + re-registro en `onTokenRefresh`. El token lo provee `FirebaseMessagingFcmTokenProvider` (firebase_messaging); sin `google-services.json` degrada a `null` → no-op seguro.
 - `lib/services/connectivity_monitor.dart`: connectivity status stream to gate sync. `lib/services/location_service.dart`: GPS ping on alert.
 - **Gamification**: `lib/features/gamification/data/gamification_api_service.dart` (profile/events/rewards) and `lib/features/gamification/data/active_break_service.dart` (rutinas Tipo A: 2 min → 50 pts; Tipo B: 200 pasos → 100 pts, persistidas como `active_breaks`).
+
+### 5.8 Wearable Telemetry, FogEngine & UI Polish (Recent Updates)
+- **Wearable Communication Singleton**: `WearableCommunicationService` uses a singleton pattern for `EventChannel` listening with safe JSON parsing and a 15-second disconnection watchdog timer in `WearableNotifier`.
+- **Table Off-Body Guard & Active Sessions**: `FogEngine` guards against false idle alerts when the watch is on a table (`variance < 0.0001` with no HR) and records active movement sessions (`type: 'active'`) into SQLite (`activity_sessions`), populating active movement stats on the dashboard.
+- **Render Cold-Start & Auth Handling**: Increased Dio `connectTimeout` & `receiveTimeout` to 45 seconds to accommodate Render free-tier cold starts. `SyncStatusScreen` validates session JWT before sync with clear UI feedback.
+- **Navigation & UI Polish**: `MainNavigationShell` redesigned using `BottomAppBar` with `CircularNotchedRectangle` for seamless FAB integration. Fixed card vertical overflow errors and removed mock avatar images.
 
 ## 6. Security
 1. **Jailbreak/Root Detection**: `main.dart` calls `FlutterJailbreakDetection.jailbroken`; if compromised → `exit(0)` immediately.

@@ -6,6 +6,8 @@ import '../../../fog/presentation/providers/fog_providers.dart';
 import '../../presentation/providers/dashboard_provider.dart';
 import '../../../../models/fog_state.dart';
 import '../../../wearable/presentation/wearable_provider.dart';
+import '../../../settings/domain/alert_settings.dart';
+import '../../../settings/presentation/providers/alert_settings_provider.dart';
 
 class ExecutiveDashboardScreen extends ConsumerStatefulWidget {
   const ExecutiveDashboardScreen({super.key});
@@ -29,6 +31,9 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
     final fogEngine = ref.watch(fogEngineProvider);
     final dashboardAsync = ref.watch(dashboardDataProvider);
     final liveSensor = ref.watch(sensorSampleProvider);
+    final wearableState = ref.watch(wearableProvider);
+    final alertSettings = ref.watch(alertSettingsProvider).value ??
+        const AlertSettings(intervalMinutes: 45);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F8F4),
@@ -68,6 +73,8 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
         child: Column(
           children: [
             const SizedBox(height: 32),
+            _buildWearableStatus(wearableState),
+            const SizedBox(height: 24),
             StreamBuilder<FogState>(
               stream: fogEngine.stateStream,
               builder: (context, snapshot) {
@@ -76,7 +83,8 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
                   inactiveMinutes: 0,
                   lastMovement: DateTime.now(),
                 );
-                final score = (state.inactiveMinutes / 90.0).clamp(0.0, 1.0);
+                final score = (state.inactiveMinutes / alertSettings.intervalMinutes)
+                    .clamp(0.0, 1.0);
                 final label = _riskLabel(state.inactiveMinutes);
 
                 return Column(
@@ -96,8 +104,8 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
                 final stats = statsSnapshot.data ?? {'active': 0, 'idle': 0, 'alerts': 0, 'todaySessions': 0, 'steps': 0, 'heartRate': 0.0};
                 
                 // Sobrescribir stats locales con datos EN VIVO del wearable si existen
-                if (liveSensor.value != null) {
-                  final live = liveSensor.value!;
+                final live = liveSensor.value ?? wearableState.lastSample;
+                if (live != null) {
                   if (live.steps > 0) stats['steps'] = live.steps;
                   if (live.heartRate > 0) stats['heartRate'] = live.heartRate;
                 }
@@ -147,6 +155,69 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
     }
 
     return {'active': active, 'idle': idle, 'alerts': alerts, 'todaySessions': todaySessions, 'steps': localSteps, 'heartRate': localHeartRate};
+  }
+
+  Widget _buildWearableStatus(WearableState state) {
+    final connected = state.isConnected;
+    final last = state.lastData;
+    final lastTime = last != null
+        ? DateTime.fromMillisecondsSinceEpoch(last.timestamp)
+        : null;
+    final timeLabel = lastTime != null
+        ? '${lastTime.hour.toString().padLeft(2, '0')}:${lastTime.minute.toString().padLeft(2, '0')}:${lastTime.second.toString().padLeft(2, '0')}'
+        : '--';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: connected ? const Color(0xFFE4F1EA) : const Color(0xFFF5EFE8),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              connected ? Icons.watch : Icons.watch_off,
+              color: connected ? const Color(0xFF3E6F58) : const Color(0xFFD68C5E),
+              size: 22,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    connected ? 'Reloj conectado' : 'Reloj desconectado',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: connected ? const Color(0xFF1E3A34) : const Color(0xFF8A6A4A),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    connected
+                        ? 'Datos en vivo · último lote $timeLabel'
+                        : 'Vincula tu reloj Wear OS para datos en vivo',
+                    style: const TextStyle(fontSize: 11, color: Colors.black45),
+                  ),
+                ],
+              ),
+            ),
+            if (connected)
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF52C480),
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildScoreGauge(double score, int minutes, String label) {
@@ -365,6 +436,9 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
 
   Widget _buildAnalysisCard() {
     final fogEngine = ref.watch(fogEngineProvider);
+    final alertSettings = ref.watch(alertSettingsProvider).value ??
+        const AlertSettings(intervalMinutes: 45);
+    final thresholdMinutes = alertSettings.intervalMinutes;
 
     return StreamBuilder<FogState>(
       stream: fogEngine.stateStream,
@@ -375,6 +449,7 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
           lastMovement: DateTime.now(),
         );
         final minutes = state.inactiveMinutes;
+        final isRisk = minutes >= thresholdMinutes;
 
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -399,15 +474,15 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
                       Row(
                         children: [
                           Icon(
-                            minutes >= 45 ? Icons.warning_amber_rounded : Icons.monitor_heart_outlined,
-                            color: minutes >= 45 ? const Color(0xFFD68C5E) : Colors.white70,
+                            isRisk ? Icons.warning_amber_rounded : Icons.monitor_heart_outlined,
+                            color: isRisk ? const Color(0xFFD68C5E) : Colors.white70,
                             size: 28,
                           ),
                           const SizedBox(width: 12),
                           Text(
-                            minutes >= 45 ? 'Riesgo de inactividad' : 'Estado saludable',
+                            isRisk ? 'Riesgo de inactividad' : 'Estado saludable',
                             style: TextStyle(
-                              color: minutes >= 45 ? const Color(0xFFD68C5E) : Colors.white,
+                              color: isRisk ? const Color(0xFFD68C5E) : Colors.white,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -416,9 +491,9 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        minutes >= 45
+                        isRisk
                             ? '$minutes minutos inactivo. Una pausa activa de 2 min restaura tu rendimiento.'
-                            : 'Monitorizando tu actividad en tiempo real. Pausas cada 45-50 min.',
+                            : 'Monitorizando tu actividad en tiempo real. Pausas cada $thresholdMinutes min.',
                         style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.5),
                       ),
                     ],
@@ -442,9 +517,9 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
               ),
               const SizedBox(height: 16),
               Text(
-                minutes >= 45
+                isRisk
                     ? 'Llevas $minutes minutos de inactividad continua. Tomar un descanso de movimiento de 2 minutos ahora aumentará tu rendimiento cognitivo durante la próxima hora.'
-                    : 'Tu actividad actual es saludable ($minutes min inactivo). Sigue con pausas activas cada 45-50 minutos para mantener tu nivel óptimo.',
+                    : 'Tu actividad actual es saludable ($minutes min inactivo). Sigue con pausas activas cada $thresholdMinutes minutos para mantener tu nivel óptimo.',
                 style: const TextStyle(color: Colors.black54, fontSize: 12, height: 1.5),
               ),
               const SizedBox(height: 24),
@@ -454,7 +529,6 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
                 },
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF3E6F58),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
                 child: const Text('Ver Análisis Individual', style: TextStyle(fontWeight: FontWeight.bold)),

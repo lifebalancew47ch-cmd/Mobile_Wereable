@@ -203,21 +203,27 @@ class OfflineSyncService {
       alerts: validAlerts.isNotEmpty ? validAlerts.map(_toAlertItem).toList() : null,
     );
 
-    final response = await _ingestionApi.sync(request);
+    try {
+      final response = await _ingestionApi.sync(request);
 
-    // Si no hay errores de rechazo, marcamos el lote como sincronizado.
-    if (response.status != 'CompletedWithErrors') {
-      for (final id in vitalIds) {
-        await _db.markVitalSignSynced(id);
+      // Si no hay errores de rechazo, marcamos el lote como sincronizado.
+      if (response.status != 'CompletedWithErrors') {
+        for (final id in vitalIds) {
+          await _db.markVitalSignSynced(id);
+        }
+        for (final id in sessionIds) {
+          await _db.markActivitySessionSynced(id);
+        }
+        for (final id in alertIds) {
+          await _db.markAlertSynced(id);
+        }
+        debugPrint('[OfflineSync] Ingestión exitosa del lote $clientBatchId');
+      } else {
+        debugPrint('[OfflineSync] Lote $clientBatchId con errores (se reintenta).');
       }
-      for (final id in sessionIds) {
-        await _db.markActivitySessionSynced(id);
-      }
-      for (final id in alertIds) {
-        await _db.markAlertSynced(id);
-      }
-    } else {
-      debugPrint('[OfflineSync] Lote $clientBatchId con errores (se reintenta).');
+    } catch (e) {
+      debugPrint('[OfflineSync] Error enviando lote de ingestión: $e');
+      rethrow;
     }
   }
 

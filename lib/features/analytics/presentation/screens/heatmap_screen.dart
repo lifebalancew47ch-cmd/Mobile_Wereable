@@ -237,8 +237,9 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
         Row(
           children: [
             const CircleAvatar(
-              radius: 20,
-              backgroundImage: NetworkImage('https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=150'),
+              radius: 18,
+              backgroundColor: Color(0xFF3E6F58),
+              child: Icon(Icons.person, color: Colors.white, size: 18),
             ),
             const SizedBox(width: 12),
             const Text(
@@ -515,7 +516,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.end,

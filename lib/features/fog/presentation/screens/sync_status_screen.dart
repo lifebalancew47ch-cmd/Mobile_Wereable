@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../data/datasources/secure_database_service.dart';
+import '../../../../core/security/token_service.dart';
 import '../providers/fog_providers.dart';
 
 class SyncStatusScreen extends ConsumerStatefulWidget {
@@ -37,6 +39,25 @@ class _SyncStatusScreenState extends ConsumerState<SyncStatusScreen> {
 
   Future<void> _syncNow() async {
     if (_syncing) return;
+
+    final tokenService = ref.read(tokenServiceProvider);
+    final hasToken = await tokenService.hasValidToken();
+    if (!hasToken) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Debes iniciar sesión para sincronizar tus datos con la nube.'),
+          backgroundColor: Colors.orange.shade700,
+          action: SnackBarAction(
+            label: 'INICIAR SESIÓN',
+            textColor: Colors.white,
+            onPressed: () => context.go('/login'),
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() => _syncing = true);
     final sync = ref.read(offlineSyncControllerProvider);
     final ok = await sync.syncNow();
@@ -44,7 +65,7 @@ class _SyncStatusScreenState extends ConsumerState<SyncStatusScreen> {
     setState(() => _syncing = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(ok ? 'Sincronización completada' : 'Sincronización finalizada (revisa conexión)'),
+        content: Text(ok ? 'Sincronización completada' : 'No se pudo sincronizar con la nube (verifica tu sesión o conexión)'),
         backgroundColor: ok ? const Color(0xFF3E6F58) : Colors.orange.shade700,
       ),
     );

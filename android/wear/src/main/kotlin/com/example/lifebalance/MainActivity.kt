@@ -80,9 +80,6 @@ class MainActivity : Activity(), SensorEventListener {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             permissions.add(Manifest.permission.ACTIVITY_RECOGNITION)
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.BODY_SENSORS_BACKGROUND)
-        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
             permissions.add(Manifest.permission.BLUETOOTH_SCAN)
@@ -94,7 +91,16 @@ class MainActivity : Activity(), SensorEventListener {
         if (missing.isNotEmpty()) {
             requestPermissions(missing.toTypedArray(), 100)
         } else {
+            requestBackgroundSensorPermissionIfNeeded()
             startSensors()
+        }
+    }
+
+    private fun requestBackgroundSensorPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(Manifest.permission.BODY_SENSORS_BACKGROUND) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(Manifest.permission.BODY_SENSORS_BACKGROUND), 101)
+            }
         }
     }
 
@@ -104,7 +110,12 @@ class MainActivity : Activity(), SensorEventListener {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 100) startSensors()
+        if (requestCode == 100) {
+            requestBackgroundSensorPermissionIfNeeded()
+            startSensors()
+        } else if (requestCode == 101) {
+            startSensors()
+        }
     }
 
     private fun startSensors() {
@@ -236,17 +247,17 @@ class MainActivity : Activity(), SensorEventListener {
             val minutes = idleWindows / 2
             minutesText.text = "$minutes min"
             statusText.text = "¡Alerta de sedentarismo!"
-            statusText.setTextColor(android.graphics.Color.parseColor("#FF3B30"))
+            statusText.setTextColor(android.graphics.Color.parseColor("#E0564C"))
         } else if (idleWindows > 0) {
             val minutes = idleWindows / 2
             minutesText.text = "$minutes min"
             statusText.text = "Inactivo"
-            statusText.setTextColor(android.graphics.Color.parseColor("#FF9500"))
+            statusText.setTextColor(android.graphics.Color.parseColor("#E8A24C"))
         } else {
             val minutes = activeWindows / 2
             minutesText.text = "$minutes min"
             statusText.text = "Activo"
-            statusText.setTextColor(android.graphics.Color.parseColor("#00C2FF"))
+            statusText.setTextColor(android.graphics.Color.parseColor("#52C480"))
         }
         varianceText.text = "varianza: %.4f".format(variance)
     }

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fondo orgánico del dashboard Wear OS: verde profundo con resplandores
+     difuminados que replican la sensación de fluidez del onboarding móvil. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:startColor="#0F1512"
+                android:endColor="#14231B"
+                android:type="linear" />
+        </shape>
+    </item>
+    <!-- Resplandor verde/mint superior (orgánico) -->
+    <item android:top="-120dp" android:left="-60dp">
+        <shape android:shape="oval">
+            <gradient
+                android:startColor="#333E6F58"
+                android:endColor="#003E6F58"
+                android:type="radial"
+                android:gradientRadius="180dp" />
+        </shape>
+    </item>
+    <!-- Resplandor mint inferior derecho -->
+    <item android:bottom="-140dp" android:right="-80dp" android:top="120dp">
+        <shape android:shape="oval">
+            <gradient
+                android:startColor="#22299A78"
+                android:endColor="#00299A78"
+                android:type="radial"
+                android:gradientRadius="160dp" />
+        </shape>
+    </item>
+</layer-list>
