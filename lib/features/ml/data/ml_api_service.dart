@@ -54,6 +54,31 @@ class RiskTrend {
       );
 }
 
+/// Recomendación generada por el modelo (GET /ml/recommendations/{userId}).
+class RecommendationDto {
+  final String id;
+  final String category;
+  final String title;
+  final String description;
+  final double priorityScore;
+
+  RecommendationDto({
+    required this.id,
+    required this.category,
+    required this.title,
+    required this.description,
+    required this.priorityScore,
+  });
+
+  factory RecommendationDto.fromJson(Map<String, dynamic> json) => RecommendationDto(
+        id: json['id']?.toString() ?? '',
+        category: json['category']?.toString() ?? '',
+        title: json['title']?.toString() ?? '',
+        description: json['description']?.toString() ?? '',
+        priorityScore: (json['priorityScore'] as num?)?.toDouble() ?? 0,
+      );
+}
+
 /// Cliente de la ML Prediction Service (riesgo de sedentarismo predictivo).
 class MlApiService {
   final Dio _dio;
@@ -84,6 +109,13 @@ class MlApiService {
     return RiskTrend.fromJson(_unwrap(response));
   }
 
+  Future<List<RecommendationDto>> getRecommendations(String userId) async {
+    final response = await _call(() => _dio.get('/ml/recommendations/$userId'));
+    return _unwrapList(response)
+        .map(RecommendationDto.fromJson)
+        .toList();
+  }
+
   Future<dynamic> _call(Future<dynamic> Function() call) async {
     try {
       return await call();
@@ -100,5 +132,15 @@ class MlApiService {
       return Map<String, dynamic>.from(data);
     }
     return const {};
+  }
+
+  List<Map<String, dynamic>> _unwrapList(dynamic data) {
+    if (data is List) {
+      return data.whereType<Map<String, dynamic>>().toList();
+    }
+    if (data is Map && data['data'] is List) {
+      return (data['data'] as List).whereType<Map<String, dynamic>>().toList();
+    }
+    return const [];
   }
 }

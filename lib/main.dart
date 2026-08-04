@@ -9,6 +9,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:lifebalance/core/routes/app_router.dart';
 import 'package:lifebalance/core/theme/app_theme.dart';
 import 'package:lifebalance/core/theme/theme_provider.dart';
+import 'package:lifebalance/features/fog/presentation/providers/fog_providers.dart';
 import 'package:lifebalance/services/background_service.dart';
 import 'package:lifebalance/services/watch_service.dart';
 import 'package:lifebalance/data/datasources/secure_database_service.dart';
@@ -80,6 +81,13 @@ class _MyAppState extends ConsumerState<MyApp> {
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
+
+    // El FogEngine y la sincronización se arrancan de forma eager en el
+    // aislado de la UI (donde el EventChannel del wearable SÍ existe y entrega
+    // datos). Antes solo corrían si la pantalla del Fog estaba abierta, por lo
+    // que estando quieto en cualquier otra pantalla no se detectaba nada.
+    ref.watch(fogEngineProvider);
+    ref.watch(offlineSyncControllerProvider);
 
     return MaterialApp.router(
       title: 'LifeBalance Watch',

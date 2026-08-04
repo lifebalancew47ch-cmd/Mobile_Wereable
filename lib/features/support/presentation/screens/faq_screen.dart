@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class FAQScreen extends StatelessWidget {
   const FAQScreen({super.key});
@@ -39,26 +40,88 @@ class FAQScreen extends StatelessWidget {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: Text('Centro de Ayuda', style: theme.textTheme.titleLarge)),
-      body: ListView.separated(
+      body: ListView(
         padding: const EdgeInsets.all(16),
-        itemCount: _faqs.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (context, index) {
-          final faq = _faqs[index];
-          return ExpansionTile(
-            shape: const Border(),
-            tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            title: Text(
-              faq.q,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-            ),
-            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Text(faq.a, style: TextStyle(color: Colors.black54, fontSize: 13, height: 1.4)),
+              Expanded(
+                child: _QuickAccessCard(
+                  icon: Icons.play_circle_outline,
+                  title: 'Ver explicación',
+                  onTap: () => context.push('/support/video'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _QuickAccessCard(
+                  icon: Icons.memory_outlined,
+                  title: 'Estado del Fog',
+                  onTap: () => context.push('/fog'),
+                ),
+              ),
             ],
-          );
-        },
+          ),
+          const SizedBox(height: 20),
+          ..._faqs.map(
+            (faq) => ExpansionTile(
+              shape: const Border(),
+              tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              title: Text(
+                faq.q,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              expandedCrossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(faq.a, style: TextStyle(color: Colors.black54, fontSize: 13, height: 1.4)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickAccessCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  const _QuickAccessCard({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFF3E6F58),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+          child: Column(
+            children: [
+              Icon(icon, color: Colors.white, size: 28),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

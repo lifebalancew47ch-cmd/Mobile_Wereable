@@ -15,6 +15,17 @@ object WearDataBus {
 
     fun setEventSink(sink: EventChannel.EventSink?) {
         eventSink = sink
+        if (sink != null) {
+            // Si el reloj ya envió datos mientras la app estaba en background
+            // (eventSink == null), reenviar el último lote para que la UI
+            // muestre "conectado" de inmediato al abrir la pantalla.
+            val pending = pendingData
+            if (pending != null) {
+                Handler(Looper.getMainLooper()).post {
+                    eventSink?.success(pending)
+                }
+            }
+        }
     }
 
     fun emit(data: String) {

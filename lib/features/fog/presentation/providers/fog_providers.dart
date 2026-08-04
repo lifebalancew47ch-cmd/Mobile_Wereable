@@ -1,12 +1,19 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/fog_engine.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../models/fog_state.dart';
 import '../../../../services/notification_service.dart';
 import '../../../../services/offline_sync_service.dart';
 import '../../../../services/connectivity_monitor.dart';
 import '../../../../services/device_registration_service.dart';
+import '../../../../services/device_identity_service.dart';
+import '../../../../services/location_service.dart';
 import '../../../../features/ingestion/data/ingestion_api_service.dart';
 import '../../../../features/gamification/data/gamification_api_service.dart';
+import '../../../../features/medical/data/medical_api_service.dart';
+import '../../../../features/sedentary/data/sedentary_api_service.dart';
 import '../../../../features/notifications/data/datasources/notifications_api_service.dart';
 import '../../../settings/domain/alert_settings.dart';
 import '../../../settings/presentation/providers/alert_settings_provider.dart';
@@ -33,11 +40,21 @@ final notificationsApiServiceProvider = Provider<NotificationsApiService>((ref) 
   return NotificationsApiService(ref.watch(notificationsApiClientProvider));
 });
 
+final medicalApiServiceProvider = Provider<MedicalApiService>((ref) {
+  return MedicalApiService(ref.watch(medicalApiClientProvider));
+});
+
+final sedentaryApiServiceProvider = Provider<SedentaryApiService>((ref) {
+  return SedentaryApiService(ref.watch(sedentaryApiClientProvider));
+});
+
 /// Sincronización Offline-First (colas locales -> Ingestion Service).
 final offlineSyncServiceProvider = Provider<OfflineSyncService>((ref) {
   return OfflineSyncService(
     ingestionApi: ref.watch(ingestionApiServiceProvider),
     gamificationApi: ref.watch(gamificationApiServiceProvider),
+    medicalApi: ref.watch(medicalApiServiceProvider),
+    sedentaryApi: ref.watch(sedentaryApiServiceProvider),
   );
 });
 
@@ -64,6 +81,14 @@ final fogEngineProvider = Provider((ref) {
     );
   });
   ref.onDispose(clinicalSub.cancel);
+
+  // GPS bajo demanda: en una alerta de sedentarismo se captura la ubicación
+  // una vez y se registra en el Ingestion Service (asíncrono, no bloqueante).
+  final alertSub = engine.stateStream.listen((state) {
+    if (state.status != ActivityStatus.alertTriggered) return;
+    unawaited(_captureGpsAndSend(ref));
+  });
+  ref.onDispose(alertSub.cancel);
 
   // Aplica el intervalo de alerta configurado por el usuario si ya está cargado.
   final settings = ref.watch(alertSettingsProvider).value;
@@ -103,3 +128,22 @@ final offlineSyncControllerProvider = Provider((ref) {
   });
   return sync;
 });
+
+/// Captura GPS bajo demanda (solo en alertas de sedentarismo) y registra el
+/// evento en el Ingestion Service. Nunca lanza: los fallos se loguean.
+Future<void> _captureGpsAndSend(Ref ref) async {
+  final gps = await LocationService().capture();
+  if (gps == null) return;
+  try {
+    await ref.read(ingestionApiServiceProvider).postEvent(
+          deviceId: await DeviceIdentityService().getDeviceId(),
+          eventType: 'GPS_COORDINATE',
+          source: 'Mobile',
+          occurredAtUtc: gps.capturedAt,
+          payload: {'latitude': gps.latitude, 'longitude': gps.longitude},
+          idempotencyKey: 'gps-${gps.capturedAt.millisecondsSinceEpoch}',
+        );
+  } catch (e) {
+    debugPrint('[GPS] Envío diferido (cola local): $e');
+  }
+}

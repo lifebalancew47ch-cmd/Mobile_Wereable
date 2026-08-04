@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:rxdart/rxdart.dart';
 
 /// Muestra de acelerómetro (compatibilidad heredada: solo X/Y/Z + timestamp).
 class AccelerometerData {
@@ -88,13 +87,17 @@ class WearableCommunicationService {
     }
   }
 
-  Stream<List<Map<String, dynamic>>> get _batches {
-    return _wearableEventChannel.receiveBroadcastStream().map((event) {
-      final String dataString = event as String;
-      final List<dynamic> batch = jsonDecode(dataString);
-      return batch.map((item) => item as Map<String, dynamic>).toList();
-    });
-  }
+  /// Stream "broadcast" compartido y cacheados: todos los getters derivan de
+  /// una única suscripción al EventChannel nativo. Esto es obligatorio porque
+  /// en Android un EventChannel admite UN solo sink: si cada getter llamara a
+  /// `receiveBroadcastStream()` por separado, el último listener se llevaría
+  /// todos los eventos y el resto vería "sin datos".
+  late final Stream<List<Map<String, dynamic>>> _batches =
+      _wearableEventChannel.receiveBroadcastStream().map((event) {
+    final String dataString = event as String;
+    final List<dynamic> batch = jsonDecode(dataString);
+    return batch.map((item) => item as Map<String, dynamic>).toList();
+  }).asBroadcastStream();
 
   /// Stream de datos de acelerómetro (compatibilidad heredada).
   Stream<AccelerometerData> get accelerometerStream {

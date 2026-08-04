@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../data/datasources/secure_database_service.dart';
+import '../providers/system_status_provider.dart';
 
 class AdminSummaryScreen extends ConsumerStatefulWidget {
   const AdminSummaryScreen({super.key});
@@ -208,6 +209,9 @@ class _AdminSummaryScreenState extends ConsumerState<AdminSummaryScreen> {
                   ),
                   const SizedBox(height: 24),
 
+                  _buildSystemStatusCard(),
+                  const SizedBox(height: 24),
+
                   const Text(
                     'Resultados de búsqueda',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF3E6F58)),
@@ -347,6 +351,114 @@ class _AdminSummaryScreenState extends ConsumerState<AdminSummaryScreen> {
               fontWeight: FontWeight.bold,
               color: valueColor ?? const Color(0xFF3E6F58),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSystemStatusCard() {
+    final statusAsync = ref.watch(systemStatusProvider);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.dns_outlined, color: Color(0xFF3E6F58), size: 22),
+              const SizedBox(width: 10),
+              const Text(
+                'Estado del Sistema',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF3E6F58)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          statusAsync.when(
+            loading: () => const SizedBox(
+              height: 60,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (e, _) => Text(
+              'No se pudo consultar el estado.\n$e',
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+            data: (status) {
+              if (!status.loaded) {
+                return const Text(
+                  'No hay información de servicios disponible.',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                );
+              }
+              final health = status.health;
+              final system = status.system;
+              final version = status.version;
+
+              final serviceName = system['serviceName']?.toString() ?? system['name']?.toString();
+              final statusValue = system['status']?.toString();
+              final healthy = health['status'].toString().toLowerCase() == 'healthy';
+              final versionValue = version['version']?.toString();
+
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        healthy ? Icons.check_circle : Icons.error_outline,
+                        color: healthy ? Colors.green : Colors.orange,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        healthy ? 'Servicios saludables' : 'Servicios con problemas',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  if (serviceName != null || statusValue != null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const SizedBox(width: 26),
+                        Expanded(
+                          child: Text(
+                            'Servicio: ${serviceName ?? '--'} · Estado: ${statusValue ?? '--'}',
+                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (versionValue != null) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const SizedBox(width: 26),
+                        Expanded(
+                          child: Text(
+                            'Versión: $versionValue',
+                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              );
+            },
           ),
         ],
       ),

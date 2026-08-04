@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/datasources/secure_database_service.dart';
+import 'providers/gamification_provider.dart';
+import '../data/gamification_api_service.dart';
 
-class GamificationScreen extends StatefulWidget {
+class GamificationScreen extends ConsumerStatefulWidget {
   const GamificationScreen({super.key});
 
   @override
-  State<GamificationScreen> createState() => _GamificationScreenState();
+  ConsumerState<GamificationScreen> createState() => _GamificationScreenState();
 }
 
-class _GamificationScreenState extends State<GamificationScreen> {
+class _GamificationScreenState extends ConsumerState<GamificationScreen> {
   final SecureDatabaseService _db = SecureDatabaseService.instance;
   bool _loading = true;
 
@@ -54,6 +57,158 @@ class _GamificationScreenState extends State<GamificationScreen> {
     });
   }
 
+  Future<void> _refresh() async {
+    ref.invalidate(gamificationProfileProvider);
+    ref.invalidate(gamificationLeaderboardProvider);
+    await _loadStats();
+  }
+
+  Widget _buildCloudProfileCard(ThemeData theme, ColorScheme colorScheme, AsyncValue<GamificationProfile> async) {
+    return Card(
+      elevation: 0,
+      color: colorScheme.primaryContainer.withAlpha(60),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: async.when(
+          loading: () => const SizedBox(
+            height: 80,
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (e, _) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'No se pudo cargar tu perfil de la nube.',
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () => ref.invalidate(gamificationProfileProvider),
+                child: const Text('Reintentar'),
+              ),
+            ],
+          ),
+          data: (profile) => Row(
+            children: [
+              CircleAvatar(
+                radius: 26,
+                backgroundColor: colorScheme.primary,
+                child: Icon(Icons.emoji_events, color: Colors.white, size: 28),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text('Nivel ${profile.level}',
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${profile.badgesUnlocked} medallas',
+                            style: TextStyle(fontSize: 11, color: colorScheme.onPrimary),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${profile.points} pts · racha de ${profile.currentStreakDays} días',
+                      style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLeaderboardCard(ThemeData theme, AsyncValue<List<LeaderboardItem>> async) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Ranking',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            async.when(
+              loading: () => const SizedBox(
+                height: 60,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (e, _) => Text(
+                'No se pudo cargar el ranking.',
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+              data: (items) {
+                if (items.isEmpty) {
+                  return const Text('Sin participantes aún.',
+                      style: TextStyle(color: Colors.grey));
+                }
+                return Column(
+                  children: [
+                    for (final item in items.take(10))
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 32,
+                              child: Text(
+                                '${item.position}',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: item.position <= 3
+                                      ? theme.colorScheme.primary
+                                      : Colors.grey,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                _shortUserId(item.userId),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              '${item.points} pts',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _shortUserId(String userId) {
+    if (userId.isEmpty) return 'Usuario';
+    if (userId.length <= 12) return userId;
+    return '${userId.substring(0, 8)}…';
+  }
+
   List<_Achievement> _computeAchievements() {
     return [
       _Achievement(
@@ -91,16 +246,23 @@ class _GamificationScreenState extends State<GamificationScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final profileAsync = ref.watch(gamificationProfileProvider);
+    final leaderboardAsync = ref.watch(gamificationLeaderboardProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Gamificación')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _loadStats,
+              onRefresh: _refresh,
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  // Perfil de gamificación desde la nube
+                  _buildCloudProfileCard(theme, colorScheme, profileAsync),
+                  const SizedBox(height: 16),
+                  _buildLeaderboardCard(theme, leaderboardAsync),
+                  const SizedBox(height: 16),
                   // Resumen de estadísticas
                   Row(
                     children: [

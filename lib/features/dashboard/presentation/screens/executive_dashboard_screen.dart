@@ -5,7 +5,6 @@ import '../../../../data/datasources/secure_database_service.dart';
 import '../../../fog/presentation/providers/fog_providers.dart';
 import '../../presentation/providers/dashboard_provider.dart';
 import '../../../../models/fog_state.dart';
-import '../../../../models/vital_sign.dart';
 import '../../../wearable/presentation/wearable_provider.dart';
 
 class ExecutiveDashboardScreen extends ConsumerStatefulWidget {
@@ -366,7 +365,6 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
 
   Widget _buildAnalysisCard() {
     final fogEngine = ref.watch(fogEngineProvider);
-    final notifications = ref.read(notificationServiceProvider);
 
     return StreamBuilder<FogState>(
       stream: fogEngine.stateStream,
@@ -451,28 +449,15 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
               ),
               const SizedBox(height: 24),
               FilledButton(
-                onPressed: () async {
-                  final now = DateTime.now().add(const Duration(minutes: 10));
-                  await notifications.scheduleReminder(
-                    hour: now.hour,
-                    minute: now.minute,
-                    title: 'Pausa Activa',
-                    body: 'Es momento de levantarte y moverte 2 minutos.',
-                  );
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Pausa activa programada en 10 minutos'),
-                      backgroundColor: Color(0xFF3E6F58),
-                    ),
-                  );
+                onPressed: () {
+                  context.push('/dashboard/individual');
                 },
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF3E6F58),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: const Text('Programar Pausa Activa', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text('Ver Análisis Individual', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ],
           ),

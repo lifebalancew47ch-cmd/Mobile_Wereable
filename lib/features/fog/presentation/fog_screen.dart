@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../data/datasources/secure_database_service.dart';
 import '../../../models/fog_state.dart';
 import 'providers/fog_providers.dart';
@@ -48,6 +49,13 @@ class _FogScreenState extends ConsumerState<FogScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Fog Computing Local', style: TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(
+            tooltip: 'Estado de sincronización en la nube',
+            onPressed: () => context.push('/fog/sync'),
+            icon: const Icon(Icons.cloud_upload_outlined),
+          ),
+        ],
       ),
       body: StreamBuilder<FogState>(
         stream: engine.stateStream,

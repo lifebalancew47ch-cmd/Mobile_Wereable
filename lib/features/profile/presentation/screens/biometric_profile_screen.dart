@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../auth/presentation/providers/profile_provider.dart';
+import '../../../medical/presentation/providers/medical_provider.dart';
+import '../../../medical/data/medical_api_service.dart';
 
 class BiometricProfileScreen extends ConsumerStatefulWidget {
   const BiometricProfileScreen({super.key});
@@ -20,6 +22,7 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
+  bool _syncing = false;
 
   @override
   void initState() {
@@ -48,16 +51,44 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
   }
 
   Future<void> _save() async {
+    if (_syncing) return;
+    setState(() => _syncing = true);
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kGender, _selectedGender ?? '');
     await prefs.setString(_kHeightCm, _heightController.text.trim());
     await prefs.setString(_kWeightKg, _weightController.text.trim());
     await prefs.setString(_kAge, _ageController.text.trim());
+
+    // Sincroniza peso y altura con el Medical Data Service (POST /medical/readings)
+    final height = double.tryParse(_heightController.text.trim().replaceAll(',', '.'));
+    final weight = double.tryParse(_weightController.text.trim().replaceAll(',', '.'));
+
+    var cloudMessage = '';
+    if (height != null && height > 0 && weight != null && weight > 0) {
+      try {
+        final api = ref.read(medicalApiServiceProvider);
+        await api.addReading(MedicalReading(
+          heartRate: 0,
+          hrv: 0,
+          spo2: 0,
+          steps: 0,
+          weight: weight,
+          height: height,
+          recordedAtUtc: DateTime.now(),
+        ));
+        cloudMessage = ' y sincronizados con la nube';
+      } catch (_) {
+        cloudMessage = ' (sin conexión: se guardó localmente)';
+      }
+    }
+
     if (!mounted) return;
+    setState(() => _syncing = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Datos biométricos guardados'),
-        backgroundColor: Color(0xFF3E6F58),
+      SnackBar(
+        content: Text('Datos biométricos guardados$cloudMessage'),
+        backgroundColor: const Color(0xFF3E6F58),
       ),
     );
   }
@@ -247,13 +278,19 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
                       ),
                       const SizedBox(height: 24),
                       FilledButton(
-                        onPressed: _save,
+                        onPressed: _syncing ? null : _save,
                         style: FilledButton.styleFrom(
                           backgroundColor: const Color(0xFF3E6F58),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text('Guardar cambios', style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: _syncing
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Text('Guardar cambios', style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),

@@ -13,6 +13,7 @@ import 'package:lifebalance/features/admin/presentation/screens/admin_summary_sc
 import 'package:lifebalance/features/analytics/presentation/screens/heatmap_screen.dart';
 import 'package:lifebalance/features/analytics/presentation/screens/performance_analysis_screen.dart';
 import 'package:lifebalance/features/settings/presentation/screens/alert_settings_screen.dart';
+import 'package:lifebalance/features/settings/presentation/settings_screen.dart';
 import 'package:lifebalance/features/support/presentation/screens/faq_screen.dart';
 import 'package:lifebalance/features/support/presentation/screens/video_explanation_screen.dart';
 import 'package:lifebalance/features/profile/presentation/profile_screen.dart';
@@ -20,9 +21,14 @@ import 'package:lifebalance/features/profile/presentation/screens/biometric_prof
 import 'package:lifebalance/features/profile/presentation/activity_history_screen.dart';
 import 'package:lifebalance/features/gamification/presentation/gamification_screen.dart';
 import 'package:lifebalance/features/fog/presentation/fog_screen.dart';
+import 'package:lifebalance/features/fog/presentation/screens/sync_status_screen.dart';
 import 'package:lifebalance/features/wearable/presentation/screens/device_scanning_screen.dart';
 import 'package:lifebalance/features/wearable/presentation/screens/device_management_screen.dart';
 import 'package:lifebalance/features/notifications/presentation/notifications_screen.dart';
+import 'package:lifebalance/features/sedentary/presentation/screens/sedentary_screen.dart';
+import 'package:lifebalance/features/ml/presentation/screens/ml_prediction_screen.dart';
+import 'package:lifebalance/features/medical/presentation/screens/medical_screen.dart';
+import 'package:lifebalance/features/dashboard/presentation/screens/individual_dashboard_screen.dart';
 
 // Navigation Shell
 import 'package:lifebalance/shared/widgets/main_navigation_shell.dart';
@@ -68,6 +74,12 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/fog',
       builder: (BuildContext context, GoRouterState state) => const FogScreen(),
+      routes: [
+        GoRoute(
+          path: 'sync',
+          builder: (BuildContext context, GoRouterState state) => const SyncStatusScreen(),
+        ),
+      ],
     ),
 
     // Stateful Shell Route for Bottom Navigation Tabs
@@ -89,6 +101,11 @@ final GoRouter appRouter = GoRouter(
                   parentNavigatorKey: _rootNavigatorKey, // Opens on top of bottom navigation bar
                   builder: (BuildContext context, GoRouterState state) => const NotificationsScreen(),
                 ),
+                GoRoute(
+                  path: 'individual',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (BuildContext context, GoRouterState state) => const IndividualDashboardScreen(),
+                ),
               ],
             ),
           ],
@@ -105,6 +122,21 @@ final GoRouter appRouter = GoRouter(
                 GoRoute(
                   path: 'heatmap',
                   builder: (context, state) => const HeatmapScreen(),
+                ),
+                GoRoute(
+                  path: 'sedentary',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) => const SedentaryScreen(),
+                ),
+                GoRoute(
+                  path: 'prediction',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) => const MlPredictionScreen(),
+                ),
+                GoRoute(
+                  path: 'medical',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) => const MedicalScreen(),
                 ),
               ],
             ),
@@ -156,7 +188,15 @@ final GoRouter appRouter = GoRouter(
                 GoRoute(
                   path: 'settings',
                   parentNavigatorKey: _rootNavigatorKey, // Opens on top of bottom navigation bar
-                  builder: (BuildContext context, GoRouterState state) => const AlertSettingsScreen(),
+                  builder: (BuildContext context, GoRouterState state) => const SettingsScreen(),
+                  routes: <RouteBase>[
+                    GoRoute(
+                      path: 'alerts',
+                      parentNavigatorKey: _rootNavigatorKey,
+                      builder: (BuildContext context, GoRouterState state) =>
+                          const AlertSettingsScreen(),
+                    ),
+                  ],
                 ),
                 GoRoute(
                   path: 'history',

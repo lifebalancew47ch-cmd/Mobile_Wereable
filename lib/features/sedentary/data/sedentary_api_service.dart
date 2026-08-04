@@ -50,6 +50,32 @@ class SedentaryProgress {
       );
 }
 
+/// Objetivo de actividad diaria configurable (GET/POST /sedentary/goals).
+class SedentaryGoal {
+  final String id;
+  final String userId;
+  final int dailyStepsTarget;
+  final int activeMinutesTarget;
+  final DateTime updatedAtUtc;
+
+  SedentaryGoal({
+    required this.id,
+    required this.userId,
+    required this.dailyStepsTarget,
+    required this.activeMinutesTarget,
+    required this.updatedAtUtc,
+  });
+
+  factory SedentaryGoal.fromJson(Map<String, dynamic> json) => SedentaryGoal(
+        id: json['id']?.toString() ?? '',
+        userId: json['userId']?.toString() ?? '',
+        dailyStepsTarget: (json['dailyStepsTarget'] as num?)?.toInt() ?? 8000,
+        activeMinutesTarget: (json['activeMinutesTarget'] as num?)?.toInt() ?? 30,
+        updatedAtUtc:
+            DateTime.tryParse(json['updatedAtUtc']?.toString() ?? '') ?? DateTime.now(),
+      );
+}
+
 /// Cliente del Sedentary Engine (score, progreso, registro de actividad).
 class SedentaryApiService {
   final Dio _dio;
@@ -64,6 +90,21 @@ class SedentaryApiService {
   Future<SedentaryProgress> getProgress() async {
     final response = await _call(() => _dio.get('/sedentary/progress'));
     return SedentaryProgress.fromJson(_unwrap(response));
+  }
+
+  Future<SedentaryGoal> getGoals() async {
+    final response = await _call(() => _dio.get('/sedentary/goals'));
+    return SedentaryGoal.fromJson(_unwrap(response));
+  }
+
+  Future<void> setGoals({
+    required int dailyStepsTarget,
+    required int activeMinutesTarget,
+  }) async {
+    await _call(() => _dio.post('/sedentary/goals', data: {
+          'dailyStepsTarget': dailyStepsTarget,
+          'activeMinutesTarget': activeMinutesTarget,
+        }));
   }
 
   /// Registra la actividad diaria del usuario en el motor.

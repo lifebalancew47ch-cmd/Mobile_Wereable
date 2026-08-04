@@ -2,19 +2,56 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../presentation/providers/notifications_provider.dart';
 import '../domain/entities/notification_item.dart';
+import 'alerts_screen.dart';
+import 'notification_preferences_screen.dart';
 
-class NotificationsScreen extends ConsumerWidget {
+class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Centro de notificaciones'),
+          actions: [
+            IconButton(
+              tooltip: 'Preferencias',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const NotificationPreferencesScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.settings_outlined),
+            ),
+          ],
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Notificaciones'),
+              Tab(text: 'Alertas'),
+            ],
+          ),
+        ),
+        body: const TabBarView(
+          children: [
+            _NotificationsList(),
+            AlertsScreen(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationsList extends ConsumerWidget {
+  const _NotificationsList();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notificationsAsync = ref.watch(notificationsProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Notificaciones'),
-      ),
-      body: notificationsAsync.when(
+    return notificationsAsync.when(
         data: (notifications) {
           if (notifications.isEmpty) {
             return const Center(
@@ -61,8 +98,7 @@ class NotificationsScreen extends ConsumerWidget {
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 }
 

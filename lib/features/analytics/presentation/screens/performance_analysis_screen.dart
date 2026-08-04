@@ -40,6 +40,8 @@ class _PerformanceAnalysisScreenState extends ConsumerState<PerformanceAnalysisS
                 children: [
                   _buildHeader(),
                   const SizedBox(height: 24),
+                  _buildCloudInsightsRow(context),
+                  const SizedBox(height: 24),
                   const Text(
                     'ANÁLISIS DEL SISTEMA',
                     style: TextStyle(
@@ -169,6 +171,85 @@ class _PerformanceAnalysisScreenState extends ConsumerState<PerformanceAnalysisS
           icon: const Icon(Icons.notifications_none, color: Color(0xFF3E6F58)),
         ),
       ],
+    );
+  }
+
+  Widget _buildCloudInsightsRow(BuildContext context) {
+    final chipWidth = (MediaQuery.of(context).size.width - 20 * 2 - 12 * 3) / 4;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            SizedBox(
+              width: chipWidth,
+              child: _buildCloudChip(
+                icon: Icons.grid_view,
+                label: 'Mapa de\ncalor',
+                onTap: () => context.push('/analytics/heatmap'),
+              ),
+            ),
+            SizedBox(
+              width: chipWidth,
+              child: _buildCloudChip(
+                icon: Icons.speed,
+                label: 'Riesgo\nsedentario',
+                onTap: () => context.push('/analytics/sedentary'),
+              ),
+            ),
+            SizedBox(
+              width: chipWidth,
+              child: _buildCloudChip(
+                icon: Icons.psychology_alt_outlined,
+                label: 'Predicción\nML',
+                onTap: () => context.push('/analytics/prediction'),
+              ),
+            ),
+            SizedBox(
+              width: chipWidth,
+              child: _buildCloudChip(
+                icon: Icons.monitor_heart_outlined,
+                label: 'Datos\nmédicos',
+                onTap: () => context.push('/analytics/medical'),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCloudChip({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: const Color(0xFF3E6F58),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+          child: Column(
+            children: [
+              Icon(icon, color: Colors.white, size: 26),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

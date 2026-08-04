@@ -169,6 +169,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   value: _sedentaryEnabled,
                   onChanged: _setSedentaryEnabled,
                 ),
+                ListTile(
+                  leading: const Icon(Icons.timer_outlined),
+                  title: const Text('Configuración de alertas'),
+                  subtitle: const Text(
+                      'Intervalo, horario y días de operación'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/profile/settings/alerts'),
+                ),
                 const Divider(),
                 const _SettingsHeader(title: 'Cuenta'),
                 ListTile(
@@ -189,6 +197,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const Divider(),
                 const _SettingsHeader(title: 'Aplicación'),
+                ListTile(
+                  leading: const Icon(Icons.cloud_upload_outlined),
+                  title: const Text('Sincronización en la nube'),
+                  subtitle: const Text('Estado y sincronización de datos'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/fog/sync'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.memory_outlined),
+                  title: const Text('Estado del Fog'),
+                  subtitle: const Text('Motor de análisis local'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/fog'),
+                ),
                 ListTile(
                   title: const Text('Versión'),
                   subtitle: Text(

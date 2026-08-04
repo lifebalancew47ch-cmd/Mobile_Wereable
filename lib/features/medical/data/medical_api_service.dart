@@ -128,6 +128,34 @@ class MedicalApiService {
     return MedicalReadingResponse.fromJson(_asMap(data));
   }
 
+  /// Historial de lecturas médicas (GET /medical/history).
+  Future<List<MedicalReadingResponse>> getHistory({
+    DateTime? from,
+    DateTime? to,
+    int page = 1,
+    int pageSize = 50,
+  }) async {
+    final response = await _call(() => _dio.get('/medical/history', queryParameters: {
+          if (from != null) 'from': from.toUtc().toIso8601String(),
+          if (to != null) 'to': to.toUtc().toIso8601String(),
+          'page': page,
+          'pageSize': pageSize,
+        }));
+    if (response is List) {
+      return response
+          .whereType<Map<String, dynamic>>()
+          .map(MedicalReadingResponse.fromJson)
+          .toList();
+    }
+    if (response is Map && response['data'] is List) {
+      return (response['data'] as List)
+          .whereType<Map<String, dynamic>>()
+          .map(MedicalReadingResponse.fromJson)
+          .toList();
+    }
+    return const [];
+  }
+
   Future<dynamic> _call(Future<dynamic> Function() call) async {
     try {
       return await call();

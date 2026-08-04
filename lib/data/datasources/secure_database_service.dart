@@ -162,6 +162,19 @@ CREATE TABLE active_breaks (
     return rows.first['total'] as int? ?? 0;
   }
 
+  /// Alertas de sedentarismo registradas hoy (fecha local).
+  Future<List<Map<String, Object?>>> getAlertsToday() async {
+    final db = await instance.database;
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day).toIso8601String();
+    return db.query(
+      'alerts_log',
+      where: 'timestamp >= ?',
+      whereArgs: [startOfDay],
+      orderBy: 'timestamp DESC',
+    );
+  }
+
   /// Última sesión de actividad registrada (o null si no hay datos).
   Future<Map<String, Object?>?> getLastActivitySession() async {
     final db = await instance.database;
@@ -241,6 +254,18 @@ CREATE TABLE active_breaks (
   Future<List<Map<String, Object?>>> getUnsyncedVitalSigns() async {
     final db = await instance.database;
     return db.query('vital_signs', where: 'synced_to_cloud = 0', orderBy: 'timestamp ASC');
+  }
+
+  /// Signos vitales registrados después de [from] (útil para la subida
+  /// médica incremental con cursor temporal).
+  Future<List<Map<String, Object?>>> getVitalSignsAfter(DateTime from) async {
+    final db = await instance.database;
+    return db.query(
+      'vital_signs',
+      where: 'timestamp > ?',
+      whereArgs: [from.toIso8601String()],
+      orderBy: 'timestamp ASC',
+    );
   }
 
   Future<List<Map<String, Object?>>> getUnsyncedActivitySessions() async {
