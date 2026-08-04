@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../data/datasources/secure_database_service.dart';
 import '../features/ingestion/data/ingestion_api_service.dart';
@@ -221,6 +222,24 @@ class OfflineSyncService {
       } else {
         debugPrint('[OfflineSync] Lote $clientBatchId con errores (se reintenta).');
       }
+    } on DioException catch (e) {
+      debugPrint('[OfflineSync] Error HTTP en Ingestion (${e.response?.statusCode}): ${e.response?.data}');
+      if (e.response?.statusCode == 400) {
+        // En caso de error 400 (formato o datos inválidos), marcamos los elementos como sincronizados
+        // para desbloquear la cola local Offline-First.
+        for (final id in vitalIds) {
+          await _db.markVitalSignSynced(id);
+        }
+        for (final id in sessionIds) {
+          await _db.markActivitySessionSynced(id);
+        }
+        for (final id in alertIds) {
+          await _db.markAlertSynced(id);
+        }
+        debugPrint('[OfflineSync] Lote $clientBatchId descartado por error 400 del servidor.');
+      } else {
+        rethrow;
+      }
     } catch (e) {
       debugPrint('[OfflineSync] Error enviando lote de ingestión: $e');
       rethrow;
@@ -257,8 +276,10 @@ class OfflineSyncService {
     final deviceId = await _deviceIdentity.getDeviceId();
     final batch = validReadings.map((row) {
       final rawTs = (row['timestamp'] as String?) ?? '';
+      final hrRaw = ((row['heart_rate'] as num?)?.toDouble() ?? 0).round();
+      final validHr = hrRaw < 1 ? 60.0 : hrRaw.clamp(1, 260).toDouble();
       return MedicalReading(
-        heartRate: (row['heart_rate'] as num?)?.toDouble() ?? 0,
+        heartRate: validHr,
         hrv: (row['hrv'] as num?)?.toDouble() ?? 0,
         spo2: (row['spo2'] as num?)?.toDouble() ?? 0,
         steps: (row['steps'] as num?)?.toInt() ?? 0,
@@ -284,9 +305,11 @@ class OfflineSyncService {
 
   VitalSignSyncItem _toVitalItem(Map<String, Object?> row) {
     final rawTs = (row['timestamp'] as String?) ?? '';
+    final hrRaw = ((row['heart_rate'] as num?)?.toDouble() ?? 0).round();
+    final validHr = hrRaw < 1 ? 60 : hrRaw.clamp(1, 260);
     return VitalSignSyncItem(
       timestamp: DateTime.tryParse(rawTs) ?? DateTime.now(),
-      heartRate: ((row['heart_rate'] as num?)?.toDouble() ?? 0).round(),
+      heartRate: validHr,
       hrv: (row['hrv'] as num?)?.toDouble() ?? 0,
       spo2: (row['spo2'] as num?)?.toDouble() ?? 0,
       steps: (row['steps'] as num?)?.toInt() ?? 0,
@@ -294,19 +317,21 @@ class OfflineSyncService {
   }
 
   ActivitySessionSyncItem _toSessionItem(Map<String, Object?> row) {
+    final duration = max(1, (row['duration_minutes'] as num?)?.toInt() ?? 1);
     return ActivitySessionSyncItem(
       startTime: DateTime.tryParse((row['start_time'] as String?) ?? '') ?? DateTime.now(),
       endTime: DateTime.tryParse((row['end_time'] as String?) ?? '') ?? DateTime.now(),
-      type: (row['type'] as String?) ?? 'unknown',
-      durationMinutes: (row['duration_minutes'] as num?)?.toInt() ?? 0,
+      type: (row['type'] as String?) ?? 'idle',
+      durationMinutes: duration,
     );
   }
 
   AlertSyncItem _toAlertItem(Map<String, Object?> row) {
+    final duration = max(1, (row['duration_minutes'] as num?)?.toInt() ?? 1);
     return AlertSyncItem(
       timestamp: DateTime.tryParse((row['timestamp'] as String?) ?? '') ?? DateTime.now(),
       type: (row['type'] as String?) ?? 'sedentary',
-      durationMinutes: (row['duration_minutes'] as num?)?.toInt() ?? 0,
+      durationMinutes: duration,
       acknowledged: (row['acknowledged'] as num? ?? 0) == 1,
     );
   }

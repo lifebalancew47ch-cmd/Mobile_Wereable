@@ -132,6 +132,11 @@ Diseño mobile-first (NO página web) previa al login para usuarios sin sesión:
 ### 4.5.3 Estilo visual replicado en el reloj (`android/wear`)
 - El dashboard nativo Wear OS (`MainActivity.kt` + `activity_main.xml`) usa la misma paleta LifeBalance (verde `#3E6F58`, menta `#E9F1EC`, verde oscuro `#0F1512`) y tarjetas con bordes redondeados, en coherencia con el onboarding del móvil.
 
+### 4.5.4 Onboarding Dinámico y Frases Horarias (`lib/core/services/dynamic_onboarding_service.dart`)
+- **Lógica de 5 Fases Horarias**: Segmentación del día según la hora local del dispositivo (Madrugada: 00:00-05:59, Mañana: 06:00-11:59, Mediodía: 12:00-14:59, Tarde: 15:00-19:59, Noche: 20:00-23:59).
+- **50 Frases Pre-Login**: Tarjeta visual en `LoginScreen` con frases aleatorias orientadas a convencer al usuario de ingresar según la hora, enfocadas en prevención de sedentarismo y salud corporal (sin usar nombre).
+- **50 Frases Post-Login (Bienvenida)**: Banner verde en `ExecutiveDashboardScreen` con inyección dinámica del nombre del usuario (`[Nombre]`) obtenido de `profileProvider`, recomendando movilidad o descanso según la fase.
+
 ## 5. Key Components
 
 ### 5.1 Authentication Flow & Network (`features/auth`, `core/network`)

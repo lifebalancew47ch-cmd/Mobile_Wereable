@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../../core/services/dynamic_onboarding_service.dart';
 import '../providers/login_provider.dart';
 import '../providers/login_state.dart';
 
@@ -17,14 +18,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _storage = const FlutterSecureStorage();
+  final _dynamicService = DynamicOnboardingService();
   
   bool _isPasswordVisible = false;
   bool _rememberMe = false;
 
+  late String _dynamicQuote;
+  late TimePhase _currentPhase;
+
   @override
   void initState() {
     super.initState();
+    _currentPhase = DynamicOnboardingService.getTimePhase();
+    _dynamicQuote = _dynamicService.getRandomLoginPhrase();
     _loadSavedCredentials();
+  }
+
+  IconData _getPhaseIcon(TimePhase phase) {
+    switch (phase) {
+      case TimePhase.madrugada:
+        return Icons.bedtime_outlined;
+      case TimePhase.manana:
+        return Icons.wb_sunny_outlined;
+      case TimePhase.mediodia:
+        return Icons.wb_twilight_outlined;
+      case TimePhase.tarde:
+        return Icons.nature_people_outlined;
+      case TimePhase.noche:
+        return Icons.nightlight_round_outlined;
+    }
   }
 
   Future<void> _loadSavedCredentials() async {
@@ -110,7 +132,57 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 48),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE9F1EC),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF3E6F58).withOpacity(0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3E6F58),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          _getPhaseIcon(_currentPhase),
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              DynamicOnboardingService.getPhaseTitle(_currentPhase),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF3E6F58),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _dynamicQuote,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF2C3E35),
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
                 TextField(
                   controller: _emailController,
                   decoration: const InputDecoration(

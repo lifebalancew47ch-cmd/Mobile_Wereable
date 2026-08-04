@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/services/dynamic_onboarding_service.dart';
 import '../../../../data/datasources/secure_database_service.dart';
+import '../../../auth/presentation/providers/profile_provider.dart';
 import '../../../fog/presentation/providers/fog_providers.dart';
 import '../../presentation/providers/dashboard_provider.dart';
 import '../../../../models/fog_state.dart';
@@ -34,6 +36,14 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
     final wearableState = ref.watch(wearableProvider);
     final alertSettings = ref.watch(alertSettingsProvider).value ??
         const AlertSettings(intervalMinutes: 45);
+    final profileAsync = ref.watch(profileProvider);
+
+    final userName = profileAsync.maybeWhen(
+      data: (user) => user.firstName.isNotEmpty
+          ? user.firstName
+          : (user.username.isNotEmpty ? user.username : 'Usuario'),
+      orElse: () => 'Usuario',
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F8F4),
@@ -72,7 +82,9 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
       body: SingleChildScrollView(
         child: Column(
           children: [
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
+            _buildDynamicWelcomeBanner(userName),
+            const SizedBox(height: 16),
             _buildWearableStatus(wearableState),
             const SizedBox(height: 24),
             StreamBuilder<FogState>(
@@ -600,6 +612,107 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
           Text(
             subtitle,
             style: const TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDynamicWelcomeBanner(String userName) {
+    final phase = DynamicOnboardingService.getTimePhase();
+    final service = DynamicOnboardingService();
+    final welcomePhrase = service.getRandomWelcomePhrase(userName);
+
+    IconData phaseIcon;
+    switch (phase) {
+      case TimePhase.madrugada:
+        phaseIcon = Icons.bedtime;
+        break;
+      case TimePhase.manana:
+        phaseIcon = Icons.wb_sunny;
+        break;
+      case TimePhase.mediodia:
+        phaseIcon = Icons.wb_twilight;
+        break;
+      case TimePhase.tarde:
+        phaseIcon = Icons.nature_people;
+        break;
+      case TimePhase.noche:
+        phaseIcon = Icons.nightlight_round;
+        break;
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF3E6F58), Color(0xFF2C5240)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF3E6F58).withOpacity(0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(phaseIcon, color: Colors.white, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      DynamicOnboardingService.getPhaseTitle(phase),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white.withOpacity(0.9),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'LifeBalance',
+                        style: TextStyle(fontSize: 10, color: Colors.white70, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  welcomePhrase,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
