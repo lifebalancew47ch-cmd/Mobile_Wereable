@@ -295,7 +295,6 @@ class SensorService : Service(), SensorEventListener2 {
         }
 
         try {
-            wakeLock?.acquire(3000L) // Retener CPU durante la transmisión
             Wearable.getMessageClient(this@SensorService).sendMessage(
                 nodeId,
                 "/lifebalance/sensors",
