@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 /// Respuesta de puntuación sedentaria diaria (Sedentary Score 0-100).
 class SedentaryScore {
@@ -133,8 +134,11 @@ class SedentaryApiService {
     try {
       return await call();
     } on DioException catch (e) {
-      final message = e.response?.data?['message'];
-      throw Exception(message?.toString() ?? 'Error del Sedentary Engine');
+      final status = e.response?.statusCode;
+      final body = e.response?.data;
+      debugPrint('[SedentaryApi Error] Status: $status, Data: $body, Err: ${e.message}');
+      final message = body is Map ? (body['message'] ?? body['error']) : body;
+      throw Exception(message?.toString() ?? 'Error del Sedentary Engine (HTTP $status)');
     }
   }
 

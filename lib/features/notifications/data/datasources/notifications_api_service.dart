@@ -30,8 +30,7 @@ class NotificationsApiService {
       return const [];
     } on DioException catch (e) {
       if (e.response != null) {
-        final message = e.response?.data['message'] ?? 'Error al cargar notificaciones';
-        throw Exception(message);
+        throw Exception(_extractErrorMessage(e.response?.data, 'Error al cargar notificaciones'));
       }
       throw Exception('Error de conexión');
     }
@@ -50,8 +49,7 @@ class NotificationsApiService {
         'platform': 'android',
       });
     } on DioException catch (e) {
-      final message = e.response?.data?['message'];
-      throw Exception(message?.toString() ?? 'Error al registrar el dispositivo');
+      throw Exception(_extractErrorMessage(e.response?.data, 'Error al registrar el dispositivo'));
     }
   }
 
@@ -63,8 +61,7 @@ class NotificationsApiService {
       return items.map(AlertItem.fromJson).toList();
     } on DioException catch (e) {
       if (e.response != null) {
-        final message = e.response?.data['message'] ?? 'Error al cargar alertas';
-        throw Exception(message);
+        throw Exception(_extractErrorMessage(e.response?.data, 'Error al cargar alertas'));
       }
       throw Exception('Error de conexión');
     }
@@ -90,8 +87,7 @@ class NotificationsApiService {
       return NotificationPreferences.fromJson(data);
     } on DioException catch (e) {
       if (e.response != null) {
-        final message = e.response?.data['message'] ?? 'Error al cargar preferencias';
-        throw Exception(message);
+        throw Exception(_extractErrorMessage(e.response?.data, 'Error al cargar preferencias'));
       }
       throw Exception('Error de conexión');
     }
@@ -110,8 +106,7 @@ class NotificationsApiService {
         'wearEnabled': wearEnabled,
       });
     } on DioException catch (e) {
-      final message = e.response?.data?['message'];
-      throw Exception(message?.toString() ?? 'Error al actualizar preferencias');
+      throw Exception(_extractErrorMessage(e.response?.data, 'Error al actualizar preferencias'));
     }
   }
 
@@ -119,9 +114,19 @@ class NotificationsApiService {
     try {
       await _dio.patch(path);
     } on DioException catch (e) {
-      final message = e.response?.data?['message'];
-      throw Exception(message?.toString() ?? 'Error del servidor');
+      throw Exception(_extractErrorMessage(e.response?.data, 'Error del servidor'));
     }
+  }
+
+  String _extractErrorMessage(dynamic data, String fallback) {
+    if (data is Map) {
+      final msg = data['message'] ?? data['error'];
+      if (msg != null) return msg.toString();
+    }
+    if (data is String && data.isNotEmpty && !data.contains('<!DOCTYPE')) {
+      return data;
+    }
+    return fallback;
   }
 
   List<Map<String, dynamic>> _extractList(dynamic data) {

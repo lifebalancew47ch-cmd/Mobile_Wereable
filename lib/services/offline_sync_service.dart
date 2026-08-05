@@ -303,11 +303,18 @@ class OfflineSyncService {
       final rawTs = (row['timestamp'] as String?) ?? '';
       final hrRaw = ((row['heart_rate'] as num?)?.toDouble() ?? 0).round();
       final validHr = hrRaw < 1 ? 60.0 : hrRaw.clamp(1, 260).toDouble();
+      final hrvRaw = (row['hrv'] as num?)?.toDouble() ?? 0;
+      final validHrv = hrvRaw < 1.0 ? 40.0 : hrvRaw.clamp(1.0, 300.0);
+      final spo2Raw = (row['spo2'] as num?)?.toDouble() ?? 0;
+      final validSpo2 = spo2Raw < 1.0 ? 98.0 : spo2Raw.clamp(1.0, 100.0);
+      final stepsRaw = (row['steps'] as num?)?.toInt() ?? 0;
+      final validSteps = max(0, stepsRaw);
+
       return MedicalReading(
         heartRate: validHr,
-        hrv: (row['hrv'] as num?)?.toDouble() ?? 0,
-        spo2: (row['spo2'] as num?)?.toDouble() ?? 0,
-        steps: (row['steps'] as num?)?.toInt() ?? 0,
+        hrv: validHrv,
+        spo2: validSpo2,
+        steps: validSteps,
         deviceId: deviceId,
         recordedAtUtc: DateTime.tryParse(rawTs) ?? DateTime.now(),
       );
@@ -315,7 +322,6 @@ class OfflineSyncService {
 
     try {
       await medicalApi.addReadingsBatch(batch);
-      // Avanzamos el cursor a la última lectura enviada.
       final last = DateTime.tryParse(
             (validReadings.last['timestamp'] as String?) ?? '',
           ) ??
@@ -323,8 +329,12 @@ class OfflineSyncService {
       _lastMedicalSync = last;
       debugPrint('[OfflineSync] Lecturas médicas enviadas: ${batch.length}');
     } catch (e) {
-      // Sin conexión: se reintentará en el siguiente ciclo.
-      debugPrint('[OfflineSync] Error enviando lecturas médicas: $e');
+      final last = DateTime.tryParse(
+            (validReadings.last['timestamp'] as String?) ?? '',
+          ) ??
+          DateTime.now();
+      _lastMedicalSync = last;
+      debugPrint('[OfflineSync] Error enviando lecturas médicas (lote avanzado): $e');
     }
   }
 
@@ -332,12 +342,19 @@ class OfflineSyncService {
     final rawTs = (row['timestamp'] as String?) ?? '';
     final hrRaw = ((row['heart_rate'] as num?)?.toDouble() ?? 0).round();
     final validHr = hrRaw < 1 ? 60 : hrRaw.clamp(1, 260);
+    final hrvRaw = (row['hrv'] as num?)?.toDouble() ?? 0;
+    final validHrv = hrvRaw < 1.0 ? 40.0 : hrvRaw.clamp(1.0, 300.0);
+    final spo2Raw = (row['spo2'] as num?)?.toDouble() ?? 0;
+    final validSpo2 = spo2Raw < 1.0 ? 98.0 : spo2Raw.clamp(1.0, 100.0);
+    final stepsRaw = (row['steps'] as num?)?.toInt() ?? 0;
+    final validSteps = max(0, stepsRaw);
+
     return VitalSignSyncItem(
       timestamp: DateTime.tryParse(rawTs) ?? DateTime.now(),
       heartRate: validHr,
-      hrv: (row['hrv'] as num?)?.toDouble() ?? 0,
-      spo2: (row['spo2'] as num?)?.toDouble() ?? 0,
-      steps: (row['steps'] as num?)?.toInt() ?? 0,
+      hrv: validHrv,
+      spo2: validSpo2,
+      steps: validSteps,
     );
   }
 
