@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import '../models/fog_state.dart';
 import '../services/notification_service.dart';
 import '../services/wearable_communication_service.dart';
@@ -59,6 +60,8 @@ class FogEngine {
   double? _latestHrv;
   bool _windowInFlight = false;
 
+  static const MethodChannel _nativeFogChannel = MethodChannel('com.example.lifebalance/native_fog_sync');
+
   // Métricas del motor real (expuestas a la UI).
   int _samplesProcessed = 0;
   int _windowsAnalyzed = 0;
@@ -96,8 +99,18 @@ class FogEngine {
   }
 
   /// Inicia el motor escuchando el acelerómetro del wearable.
-  void start() {
+  Future<void> start() async {
     if (_isRunning) return;
+
+    try {
+      final int idleCount = await _nativeFogChannel.invokeMethod('getIdleWindows') ?? 0;
+      if (idleCount > _inactiveWindows) {
+        _inactiveWindows = idleCount;
+      }
+      await _nativeFogChannel.invokeMethod('resetIdleWindows');
+    } catch (e) {
+      debugPrint('Error syncing with NativeFogEngine: $e');
+    }
 
     _accelSub = _wearableService.accelerometerStream.listen((AccelerometerData data) {
       final double mag = sqrt(data.x * data.x + data.y * data.y + data.z * data.z);

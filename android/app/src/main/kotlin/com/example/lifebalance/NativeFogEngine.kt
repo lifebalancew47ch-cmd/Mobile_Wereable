@@ -55,6 +55,16 @@ class NativeFogEngine private constructor(private val context: Context) {
         createNotificationChannel()
     }
 
+    fun readIdleWindows(): Long = idleWindows
+
+    fun readAlertShown(): Boolean = alertShown
+
+    fun resetIdleWindows() {
+        idleWindows = 0L
+        alertShown = false
+        Log.d("NativeFogEngine", "State reset by Flutter")
+    }
+
     /**
      * Procesa un lote de lecturas JSON recibido del Wearable.
      */

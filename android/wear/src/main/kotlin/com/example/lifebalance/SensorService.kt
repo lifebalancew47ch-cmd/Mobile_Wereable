@@ -108,7 +108,7 @@ class SensorService : Service(), SensorEventListener2 {
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "LifeBalance:SensorServiceWakeLock").apply {
             setReferenceCounted(false)
-            acquire() // Mantiene la CPU despierta para que los sensores no se congelen en Doze
+            acquire(4 * 60 * 60 * 1000L) // Timeout de 4 horas para evitar drenaje si crashea
         }
 
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -150,6 +150,11 @@ class SensorService : Service(), SensorEventListener2 {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        wakeLock?.let {
+            if (!it.isHeld) {
+                it.acquire(4 * 60 * 60 * 1000L)
+            }
+        }
         return START_STICKY
     }
 
@@ -172,6 +177,7 @@ class SensorService : Service(), SensorEventListener2 {
         when (event.sensor.type) {
             Sensor.TYPE_LOW_LATENCY_OFFBODY_DETECT -> {
                 isOnBody = event.values[0] == 1.0f
+                WearSensorState.isOnBody = isOnBody
                 if (!isOnBody) {
                     Log.d("SensorService", "Watch is off-body. Pausing collection.")
                     // Flush immediately when taken off body
@@ -187,6 +193,7 @@ class SensorService : Service(), SensorEventListener2 {
             }
             Sensor.TYPE_STEP_COUNTER -> {
                 totalSteps = TodaySteps.of(this, event.values[0].toInt())
+                WearSensorState.steps = totalSteps
                 Log.d("SensorService", "Step counter event: totalSteps=$totalSteps (raw=${event.values[0]})")
             }
             Sensor.TYPE_HEART_RATE -> {
@@ -195,6 +202,7 @@ class SensorService : Service(), SensorEventListener2 {
                 if (hr > 0) {
                     lastHeartRate = hr
                     lastHeartRateTime = System.currentTimeMillis()
+                    WearSensorState.heartRate = hr
                     Log.d("SensorService", "Heart rate event: $lastHeartRate bpm")
                 }
             }
@@ -388,6 +396,14 @@ class SensorService : Service(), SensorEventListener2 {
             alertShown = true
             triggerWearAlert()
         }
+
+        WearSensorState.variance = variance
+        WearSensorState.idleWindows = idleWindows
+        WearSensorState.activeWindows = activeWindows
+        WearSensorState.alertWindows = alertWindows
+        WearSensorState.alertShown = alertShown
+        
+        Log.d("SensorService", "SensorService alive, idle=$idleWindows/$alertWindows, active=$activeWindows, var=$variance")
     }
 
     private fun triggerWearAlert() {

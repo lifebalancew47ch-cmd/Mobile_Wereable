@@ -5,32 +5,24 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.widget.Button
 import android.widget.TextView
-import kotlin.math.pow
-import kotlin.math.sqrt
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
- * Dashboard nativo del wearable: analiza localmente la varianza del
- * acelerómetro en ventanas de 30s (misma lógica que el FogEngine del móvil)
- * y muestra el estado de actividad, minutos inactivos y alertas.
+ * Dashboard nativo del wearable: muestra el estado de actividad, 
+ * minutos inactivos y alertas leyendo los datos procesados por el
+ * SensorService en background, evitando registrar sus propios listeners
+ * para no interferir con el ciclo de vida de los sensores del sistema.
  */
-class MainActivity : Activity(), SensorEventListener {
-
-    companion object {
-        private const val WINDOW_MS = 30_000L
-        private const val VARIANCE_THRESHOLD = 0.05 // Alineado con la app móvil (0.05)
-        private const val DEFAULT_ALERT_WINDOWS = 90L // 90 ventanas x 30s = 45 min
-    }
-
-    private var alertWindows = DEFAULT_ALERT_WINDOWS // Se actualiza desde SharedPreferences
+class MainActivity : Activity() {
 
     private lateinit var statusText: TextView
     private lateinit var minutesText: TextView
@@ -38,23 +30,12 @@ class MainActivity : Activity(), SensorEventListener {
     private lateinit var stepsText: TextView
     private lateinit var bpmText: TextView
 
-    private lateinit var sensorManager: SensorManager
-    private var accelerometer: Sensor? = null
-    private var stepCounter: Sensor? = null
-    private var heartRateSensor: Sensor? = null
-
-    private val magnitudes = ArrayList<Double>(200)
-    private var windowStartTime = 0L
-    private var idleWindows = 0L
-    private var activeWindows = 0L
-    private var consecutiveActiveWindows = 0
-    private var alertShown = false
+    private var uiUpdateJob: Job? = null
+    private val scope = CoroutineScope(Dispatchers.Main)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
-        loadAlertThreshold()
 
         statusText = findViewById(R.id.statusText)
         minutesText = findViewById(R.id.minutesText)
@@ -63,9 +44,11 @@ class MainActivity : Activity(), SensorEventListener {
         bpmText = findViewById(R.id.bpmText)
 
         findViewById<Button>(R.id.pauseButton).setOnClickListener {
-            idleWindows = 0
-            activeWindows = 0
-            updateUi(0.0)
+            // Reinicia el estado compartido al pausar (pausa activa)
+            WearSensorState.idleWindows = 0
+            WearSensorState.activeWindows = 0
+            WearSensorState.alertShown = false
+            updateUi()
         }
 
         // Habilitar el scroll nativo con el bisel rotatorio de Samsung
@@ -93,7 +76,7 @@ class MainActivity : Activity(), SensorEventListener {
             requestPermissions(missing.toTypedArray(), 100)
         } else {
             requestBackgroundSensorPermissionIfNeeded()
-            startSensors()
+            startSensorService()
         }
     }
 
@@ -113,31 +96,9 @@ class MainActivity : Activity(), SensorEventListener {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 100) {
             requestBackgroundSensorPermissionIfNeeded()
-            startSensors()
-        } else if (requestCode == 101) {
-            startSensors()
-        }
-    }
-
-    private fun startSensors() {
-        sensorManager = getSystemService(SensorManager::class.java)
-        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        stepCounter = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
-        heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
-
-        accelerometer?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
-            statusText.text = "Monitorizando..."
             startSensorService()
-        } ?: run {
-            statusText.text = "Sin acelerómetro disponible."
-        }
-        
-        stepCounter?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
-        }
-        heartRateSensor?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+        } else if (requestCode == 101) {
+            startSensorService()
         }
     }
 
@@ -145,110 +106,40 @@ class MainActivity : Activity(), SensorEventListener {
         startForegroundService(Intent(this, SensorService::class.java))
     }
 
-    /**
-     * Lee el umbral de alerta (en minutos) persistido por
-     * WearSettingsListenerService y lo traduce a ventanas de 30s.
-     */
-    private fun loadAlertThreshold() {
-        val prefs = getSharedPreferences("wear_settings", Context.MODE_PRIVATE)
-        val minutes = prefs.getLong("alert_threshold_minutes", 45L)
-        alertWindows = minutes * 2 // 2 ventanas de 30s por minuto
-        Log.d("MainActivity", "Alert threshold: $minutes min ($alertWindows windows)")
+    private fun startUiUpdates() {
+        uiUpdateJob?.cancel()
+        uiUpdateJob = scope.launch {
+            while (isActive) {
+                updateUi()
+                delay(1000L) // Actualizar UI cada segundo
+            }
+        }
+    }
+
+    private fun stopUiUpdates() {
+        uiUpdateJob?.cancel()
+        uiUpdateJob = null
     }
 
     override fun onResume() {
         super.onResume()
-        loadAlertThreshold() // NUEVO: captar cambios mientras la app estaba en background
-        if (::sensorManager.isInitialized) {
-            accelerometer?.let {
-                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
-            }
-            stepCounter?.let {
-                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
-            }
-            heartRateSensor?.let {
-                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
-            }
-        }
+        startUiUpdates()
     }
 
     override fun onPause() {
+        stopUiUpdates()
         super.onPause()
-        if (::sensorManager.isInitialized) {
-            sensorManager.unregisterListener(this)
-        }
     }
 
-    override fun onDestroy() {
-        if (::sensorManager.isInitialized) {
-            sensorManager.unregisterListener(this)
-        }
-        super.onDestroy()
-    }
+    private fun updateUi() {
+        stepsText.text = WearSensorState.steps.toString()
+        bpmText.text = WearSensorState.heartRate.toInt().toString()
+        varianceText.text = "varianza: %.4f".format(WearSensorState.variance)
 
-    override fun onSensorChanged(event: SensorEvent?) {
-        event ?: return
-        
-        when (event.sensor.type) {
-            Sensor.TYPE_STEP_COUNTER -> {
-                stepsText.text = TodaySteps.of(this, event.values[0].toInt()).toString()
-            }
-            Sensor.TYPE_HEART_RATE -> {
-                bpmText.text = event.values[0].toInt().toString()
-            }
-            Sensor.TYPE_ACCELEROMETER -> {
-                val mag = sqrt(
-                    event.values[0].toDouble().pow(2) +
-                            event.values[1].toDouble().pow(2) +
-                            event.values[2].toDouble().pow(2)
-                )
-                if (!mag.isFinite()) return
+        val idleWindows = WearSensorState.idleWindows
+        val alertWindows = WearSensorState.alertWindows
+        val activeWindows = WearSensorState.activeWindows
 
-                val now = System.currentTimeMillis()
-                if (windowStartTime == 0L) windowStartTime = now
-
-                magnitudes.add(mag)
-                if (now - windowStartTime >= WINDOW_MS) {
-                    analyzeWindow(now)
-                }
-            }
-        }
-    }
-
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-
-    private fun analyzeWindow(now: Long) {
-        val variance = computeVariance()
-        magnitudes.clear()
-        windowStartTime = now
-
-        if (variance < VARIANCE_THRESHOLD) {
-            consecutiveActiveWindows = 0
-            idleWindows++
-        } else {
-            consecutiveActiveWindows++
-            if (consecutiveActiveWindows >= 2) {
-                // Movimiento activo sostenido (caminata real >= 1 min)
-                idleWindows = 0L
-                activeWindows++
-                alertShown = false
-            }
-            // Si consecutiveActiveWindows == 1, se interpreta como gesto aislado de brazo y no resetea idleWindows
-        }
-
-        if (idleWindows >= alertWindows && !alertShown) {
-            alertShown = true
-        }
-        updateUi(variance)
-    }
-
-    private fun computeVariance(): Double {
-        if (magnitudes.isEmpty()) return 0.0
-        val mean = magnitudes.sum() / magnitudes.size
-        return magnitudes.map { (it - mean).pow(2) }.sum() / magnitudes.size
-    }
-
-    private fun updateUi(variance: Double) {
         if (idleWindows >= alertWindows) {
             val minutes = idleWindows / 2
             minutesText.text = "$minutes min"
@@ -265,6 +156,5 @@ class MainActivity : Activity(), SensorEventListener {
             statusText.text = "Activo"
             statusText.setTextColor(android.graphics.Color.parseColor("#52C480"))
         }
-        varianceText.text = "varianza: %.4f".format(variance)
     }
 }

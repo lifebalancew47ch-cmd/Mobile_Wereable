@@ -12,6 +12,7 @@ class MainActivity : FlutterActivity() {
 
     private val WEARABLE_EVENT_CHANNEL = "com.example.lifebalance/wearable_sensors"
     private val WEARABLE_SETTINGS_CHANNEL = "com.example.lifebalance/wearable_settings"
+    private val NATIVE_FOG_CHANNEL = "com.example.lifebalance/native_fog_sync"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -33,6 +34,24 @@ class MainActivity : FlutterActivity() {
                     "syncAlertInterval" -> {
                         val minutes = (call.argument<Number>("minutes"))?.toLong() ?: 45L
                         syncAlertInterval(minutes)
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NATIVE_FOG_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                val engine = NativeFogEngine.getInstance(applicationContext)
+                when (call.method) {
+                    "getIdleWindows" -> {
+                        result.success(engine.readIdleWindows())
+                    }
+                    "getAlertShown" -> {
+                        result.success(engine.readAlertShown())
+                    }
+                    "resetIdleWindows" -> {
+                        engine.resetIdleWindows()
                         result.success(null)
                     }
                     else -> result.notImplemented()

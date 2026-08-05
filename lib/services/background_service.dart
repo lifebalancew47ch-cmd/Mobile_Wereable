@@ -78,12 +78,10 @@ class BackgroundService {
     final notificationService = NotificationService();
     await notificationService.init();
 
-    // NOTA: el FogEngine NO se instancia aquí. El aislado de segundo plano usa
-    // un FlutterEngine propio (flutter_background_service) y el EventChannel
-    // del wearable solo está registrado en el engine de la MainActivity, por lo
-    // que un FogEngine aquí NUNCA recibiría datos del reloj. El motor real
-    // corre en el aislado de la UI (arrancado de forma eager en main.dart),
-    // que sigue vivo mientras este servicio mantiene el proceso en foreground.
+    // NOTA: El análisis de sedentarismo en background lo maneja NativeFogEngine.kt
+    // (en Kotlin) ya que el EventChannel del wearable está registrado en la MainActivity
+    // y este aislado de background no tiene acceso a él. Cuando la UI de Flutter está
+    // activa, el FogEngine de Dart toma el control y sincroniza el conteo con el nativo.
 
     // Sincronización Offline-First hacia la nube (Ingestion + Gamification).
     final ingestionApi = IngestionApiService(
