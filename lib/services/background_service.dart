@@ -108,9 +108,9 @@ class BackgroundService {
       sedentaryApi: sedentaryApi,
     );
     final connectivity = ConnectivityMonitor();
-    // Sincroniza cada 15 minutos y de inmediato al recuperar conexión.
+    // Sincroniza cada 5 minutos y de inmediato al recuperar conexión.
     offlineSync.startPeriodicSync(
-      interval: const Duration(minutes: 15),
+      interval: const Duration(minutes: 5),
       connectivityStream: connectivity.onlineStream,
     );
 

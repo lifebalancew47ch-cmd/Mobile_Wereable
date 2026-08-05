@@ -119,7 +119,7 @@ final offlineSyncControllerProvider = Provider((ref) {
   final connectivity = ConnectivityMonitor();
   final stream = connectivity.onlineStream;
   sync.startPeriodicSync(
-    interval: const Duration(minutes: 15),
+    interval: const Duration(minutes: 5),
     connectivityStream: stream,
   );
   ref.onDispose(() {

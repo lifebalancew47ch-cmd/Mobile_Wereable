@@ -77,6 +77,7 @@ class OfflineSyncService {
     _loadLastReportedDay(); // Restaura el estado persistido al iniciar.
     _timer?.cancel();
     _timer = Timer.periodic(interval, (_) => flush());
+    flush(); // Sync inmediato al arrancar la app
     _connectivitySub?.cancel();
     if (connectivityStream != null) {
       _connectivitySub = connectivityStream
@@ -439,6 +440,7 @@ class OfflineSyncService {
         dailySteps: dailySteps,
         activeMinutes: activeMinutes.toDouble(),
         sedentaryHours: sedentaryMinutes / 60.0,
+        recordedAtUtc: now,
       );
       _lastReportedActivityDay = dayKey;
       // Persistir para que el próximo inicio de app/isolate no duplique.
