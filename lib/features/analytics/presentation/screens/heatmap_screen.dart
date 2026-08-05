@@ -355,8 +355,6 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
   }
 
   Widget _buildHeatmapCard(ThemeData theme) {
-    final hours = _hourlyActivity();
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -377,7 +375,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
                 child: Center(child: CircularProgressIndicator()),
               )
             else
-              _buildHeatmapGrid(hours),
+              _buildHeatmapGrid(),
             const SizedBox(height: 24),
             const Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -394,49 +392,141 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
     );
   }
 
-  Widget _buildHeatmapGrid(List<int> hours) {
-    return Column(
-      children: [
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _TimeLabel(label: '12 AM'),
-            _TimeLabel(label: '6 AM'),
-            _TimeLabel(label: '12 PM'),
-            _TimeLabel(label: '6 PM'),
-            _TimeLabel(label: '11 PM'),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: hours.indexed.map((entry) {
-            final hour = entry.$1;
-            final intensity = entry.$2;
-            final session = _todaySessions.firstWhere(
-              (s) {
-                final start = DateTime.tryParse((s['start_time'] as String?) ?? '');
-                return start?.hour == hour;
-              },
-              orElse: () => <String, Object?>{},
-            );
-            final type = (session['type'] as String?) ?? '';
-
-            return Tooltip(
-              message: '${_formatHour(hour)}: ${_typeLabel(type)}',
-              child: Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: _intensityColor(intensity),
-                  borderRadius: BorderRadius.circular(2),
+  Widget _buildHeatmapGrid() {
+    if (_isDayView) {
+      final hours = _hourlyActivity();
+      return Column(
+        children: [
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _TimeLabel(label: '12 AM'),
+              _TimeLabel(label: '6 AM'),
+              _TimeLabel(label: '12 PM'),
+              _TimeLabel(label: '6 PM'),
+              _TimeLabel(label: '11 PM'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: hours.indexed.map((entry) {
+              final hour = entry.$1;
+              final intensity = entry.$2;
+              return Tooltip(
+                message: '${_formatHour(hour)}: ${_intensityToLabel(intensity)}',
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: _intensityColor(intensity),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
+              );
+            }).toList(),
+          ),
+        ],
+      );
+    } else {
+      final grid = _weeklyActivityMap();
+      final weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+      final nowWeekday = DateTime.now().weekday; // 1 (Mon) to 7 (Sun)
+      
+      return Column(
+        children: [
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              SizedBox(width: 16),
+              _TimeLabel(label: '12 AM'),
+              _TimeLabel(label: '6 AM'),
+              _TimeLabel(label: '12 PM'),
+              _TimeLabel(label: '6 PM'),
+              _TimeLabel(label: '11 PM'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...grid.indexed.map((rowEntry) {
+            final rowIndex = rowEntry.$1;
+            final hoursRow = rowEntry.$2;
+            
+            final daysAgo = 6 - rowIndex;
+            final wdIndex = (nowWeekday - 1 - daysAgo) % 7;
+            final wdLabel = weekDays[wdIndex < 0 ? wdIndex + 7 : wdIndex];
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 4.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  SizedBox(
+                    width: 16,
+                    child: Text(wdLabel, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+                  ),
+                  ...hoursRow.indexed.map((hourEntry) {
+                    final hour = hourEntry.$1;
+                    final intensity = hourEntry.$2;
+                    return Tooltip(
+                      message: '$wdLabel, ${_formatHour(hour)}: ${_intensityToLabel(intensity)}',
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: _intensityColor(intensity),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ],
               ),
             );
-          }).toList(),
-        ),
-      ],
-    );
+          }),
+        ],
+      );
+    }
+  }
+
+  List<List<int>> _weeklyActivityMap() {
+    final now = DateTime.now();
+    final List<List<int>> grid = List.generate(7, (_) => List.filled(24, 0));
+    
+    for (final s in _weekSessions) {
+      final start = DateTime.tryParse((s['start_time'] as String?) ?? '');
+      if (start == null) continue;
+      
+      final startDay = DateTime(start.year, start.month, start.day);
+      final nowDay = DateTime(now.year, now.month, now.day);
+      final daysAgo = nowDay.difference(startDay).inDays;
+      
+      if (daysAgo >= 0 && daysAgo < 7) {
+        final rowIndex = 6 - daysAgo; // 6 is today
+        final type = (s['type'] as String?) ?? '';
+        
+        int intensity = 0;
+        switch (type) {
+          case 'idle': intensity = 1; break;
+          case 'alert': intensity = 2; break;
+          case 'active': intensity = 4; break;
+        }
+        
+        if (intensity > grid[rowIndex][start.hour]) {
+          grid[rowIndex][start.hour] = intensity;
+        }
+      }
+    }
+    return grid;
+  }
+
+  String _intensityToLabel(int intensity) {
+    switch (intensity) {
+      case 1: return 'Sentado';
+      case 2: return 'De Pie';
+      case 3: return 'Moderado';
+      case 4: return 'Activo';
+      default: return 'Sin registro';
+    }
   }
 
   String _typeLabel(String type) {
