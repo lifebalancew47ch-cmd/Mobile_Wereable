@@ -257,7 +257,7 @@ class _BenefitsCarousel extends StatelessWidget {
     _BenefitData(
       title: 'Menos sedentarismo',
       description:
-          'Alertas suaves si llevas 45 min en reposo, para que hagas una pausa activa.',
+          'Alertas suaves al cumplir tu tiempo personalizado de inactividad, para que hagas una pausa activa.',
       illustration: _WalkIllustration(),
       tint: Color(0xFFE3F0E8),
     ),

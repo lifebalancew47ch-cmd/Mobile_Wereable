@@ -93,7 +93,7 @@ class _FogScreenState extends ConsumerState<FogScreen> {
                         const SizedBox(height: 8),
                         Text(
                           isActive
-                              ? _statusDescription(state?.status)
+                              ? _statusDescription(state?.status, state?.alertThresholdMinutes ?? 45)
                               : 'El procesamiento en segundo plano está en pausa.',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: isActive
@@ -239,12 +239,12 @@ class _FogScreenState extends ConsumerState<FogScreen> {
     }
   }
 
-  String _statusDescription(ActivityStatus? status) {
+  String _statusDescription(ActivityStatus? status, int threshold) {
     switch (status) {
       case ActivityStatus.idle:
         return 'Detectado sin movimiento: procesando ventanas de análisis local.';
       case ActivityStatus.alertTriggered:
-        return 'Se superó el umbral de 45 minutos de inactividad. Se ha notificado al usuario.';
+        return 'Se superó el umbral de $threshold minutos de inactividad. Se ha notificado al usuario.';
       case ActivityStatus.active:
       case null:
         return 'Analizando datos de sensores en tiempo real de manera local.';

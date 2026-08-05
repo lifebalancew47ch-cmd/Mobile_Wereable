@@ -167,7 +167,7 @@ class DynamicOnboardingService {
       '¡Bienvenido, [Nombre]! Revisa cuántas alertas de sedentarismo has evitado esta tarde.',
       'Hola [Nombre], libera la tensión acumulada en el cuello con nuestra guía de estiramientos.',
       '[Nombre], mantente activo para cerrar tu jornada laboral sintiéndote ligero y con energía.',
-      '¡Hola, [Nombre]! Recuerda levantarte cada 45 minutos para cuidar tu circulación.',
+      '¡Hola, [Nombre]! Recuerda levantarte al cumplir tu tiempo personalizado para cuidar tu circulación.',
       'Buenas tardes, [Nombre]. Cada pausa activa que cumples suma puntos para tu bienestar.',
       '[Nombre], estás a muy poco de completar tus metas de movilidad de este día.',
     ],

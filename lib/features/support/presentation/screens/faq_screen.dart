@@ -7,7 +7,7 @@ class FAQScreen extends StatelessWidget {
   static const List<({String q, String a})> _faqs = [
     (
       q: '¿Cómo detecta LifeBalance el sedentarismo?',
-      a: 'Tu reloj Wear OS manda muestras de acelerómetro al teléfono cada 5 segundos. El motor Fog (FogEngine) agrupa las muestras en ventanas de 30 segundos y calcula su varianza: si la varianza es menor a 0.05, la ventana se marca como inactiva. Tras 90 ventanas consecutivas (unos 45 minutos, configurable) se dispara la alerta.',
+      a: 'Tu reloj Wear OS manda muestras de acelerómetro al teléfono cada 5 segundos. El motor Fog (FogEngine) agrupa las muestras en ventanas de 30 segundos y calcula su varianza: si la varianza es menor a 0.05, la ventana se marca como inactiva. Tras acumular las ventanas según tu tiempo personalizado (30s por ventana, configurable de 1 a 120 min) se dispara la alerta.',
     ),
     (
       q: '¿Por qué se me notifica una alerta de inactividad?',

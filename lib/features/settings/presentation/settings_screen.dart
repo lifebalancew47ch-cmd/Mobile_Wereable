@@ -165,7 +165,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 SwitchListTile(
                   title: const Text('Alertas de sedentarismo'),
                   subtitle: const Text(
-                      'Notificación al superar 45 min de inactividad'),
+                      'Notificación al superar tu tiempo inactivo configurado'),
                   value: _sedentaryEnabled,
                   onChanged: _setSedentaryEnabled,
                 ),

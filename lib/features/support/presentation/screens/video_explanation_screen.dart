@@ -23,7 +23,7 @@ class VideoExplanationScreen extends StatelessWidget {
     ),
     (
       title: 'Alerta de sedentarismo',
-      desc: 'Tras el umbral configurado (por defecto 45 min) recibe una notificación para hacer una pausa activa.',
+      desc: 'Tras tu tiempo personalizado de inactividad (configurable de 1 a 120 min) recibes una notificación para hacer una pausa activa.',
       icon: Icons.notifications_active_outlined,
     ),
   ];
