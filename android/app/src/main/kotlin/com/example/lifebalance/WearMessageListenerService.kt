@@ -14,6 +14,10 @@ class WearMessageListenerService : WearableListenerService() {
             // Enviar a la UI de Flutter si está activa
             WearDataBus.emit(jsonString)
 
+            // Guardar para el background isolate (OfflineSyncService)
+            val prefs = applicationContext.getSharedPreferences("FlutterSharedPreferences", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putString("flutter.latest_wear_json", jsonString).apply()
+
             // Procesar en el motor nativo de Kotlin para garantizar monitoreo continuo
             // en segundo plano aunque la UI de Flutter esté cerrada o destruida.
             NativeFogEngine.getInstance(applicationContext).processBatchJson(jsonString)

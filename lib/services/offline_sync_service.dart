@@ -342,13 +342,20 @@ class OfflineSyncService {
           DateTime.now();
       _lastMedicalSync = last;
       debugPrint('[OfflineSync] Lecturas médicas enviadas: ${batch.length}');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 400) {
+        // Validation error, advance cursor to not block queue
+        final last = DateTime.tryParse(
+              (validReadings.last['timestamp'] as String?) ?? '',
+            ) ??
+            DateTime.now();
+        _lastMedicalSync = last;
+        debugPrint('[OfflineSync] Lote médico descartado por HTTP 400.');
+      } else {
+        debugPrint('[OfflineSync] Error HTTP enviando lecturas médicas: $e (se reintenta luego)');
+      }
     } catch (e) {
-      final last = DateTime.tryParse(
-            (validReadings.last['timestamp'] as String?) ?? '',
-          ) ??
-          DateTime.now();
-      _lastMedicalSync = last;
-      debugPrint('[OfflineSync] Error enviando lecturas médicas (lote avanzado): $e');
+      debugPrint('[OfflineSync] Error inesperado enviando lecturas médicas: $e (se reintenta luego)');
     }
   }
 

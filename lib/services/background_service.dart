@@ -10,6 +10,11 @@ import '../features/notifications/data/datasources/notifications_api_service.dar
 import 'notification_service.dart';
 import 'offline_sync_service.dart';
 import 'connectivity_monitor.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/vital_sign.dart';
+import '../data/datasources/secure_database_service.dart';
 import 'device_registration_service.dart';
 import 'dart:ui';
 
@@ -108,6 +113,37 @@ class BackgroundService {
       interval: const Duration(minutes: 15),
       connectivityStream: connectivity.onlineStream,
     );
+
+    // Poll SharedPreferences for wearable data from Native Android
+    Timer.periodic(const Duration(minutes: 5), (timer) async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final jsonString = prefs.getString('flutter.latest_wear_json');
+        if (jsonString != null && jsonString.isNotEmpty) {
+          final List<dynamic> batch = jsonDecode(jsonString);
+          if (batch.isNotEmpty) {
+            final lastData = batch.last as Map<String, dynamic>;
+            final metrics = VitalSign(
+              timestamp: DateTime.fromMillisecondsSinceEpoch((lastData['timestamp'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch),
+              heartRate: (lastData['heartRate'] as num?)?.toDouble() ?? 0,
+              hrv: (lastData['hrv'] as num?)?.toDouble() ?? 0,
+              spo2: (lastData['spo2'] as num?)?.toDouble() ?? 0,
+              steps: (lastData['steps'] as num?)?.toInt() ?? 0,
+              isSedentaryRisk: false,
+            );
+            
+            // Avoid persisting empty placeholders
+            if (metrics.heartRate > 0 || metrics.hrv > 0 || metrics.spo2 > 0 || metrics.steps > 0) {
+              await SecureDatabaseService.instance.insertVitalSign(metrics);
+              debugPrint('[BackgroundService] VitalSign persistido en DB desde background');
+            }
+          }
+          await prefs.remove('flutter.latest_wear_json');
+        }
+      } catch (e) {
+        debugPrint('[BackgroundService] Error polling wear data: $e');
+      }
+    });
 
     // Registro del dispositivo (push remoto FCM), no-bloqueante.
     final notificationsApi = NotificationsApiService(
