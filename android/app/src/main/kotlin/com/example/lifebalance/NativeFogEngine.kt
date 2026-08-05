@@ -146,7 +146,7 @@ class NativeFogEngine private constructor(private val context: Context) {
         )
 
         val builder = NotificationCompat.Builder(context, "inactivity_alert_channel")
-            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("LifeBalance · ¡Hora de moverse!")
             .setContentText("Llevas $minutes minutos inactivo. Tómate una pausa activa.")
             .setPriority(NotificationCompat.PRIORITY_HIGH)

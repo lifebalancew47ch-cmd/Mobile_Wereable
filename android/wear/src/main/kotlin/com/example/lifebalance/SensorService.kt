@@ -423,7 +423,7 @@ class SensorService : Service(), SensorEventListener2 {
         val alertNotification = Notification.Builder(this, "wear_alert_channel")
             .setContentTitle("¡Hora de moverse!")
             .setContentText("Llevas $minutes min inactivo. ¡Tómate una pausa activa!")
-            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setAutoCancel(true)
             .build()
         manager.notify(999, alertNotification)

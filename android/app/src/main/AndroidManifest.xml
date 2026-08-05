@@ -57,6 +57,7 @@
             android:name="id.flutter.flutter_background_service.BackgroundService"
             android:foregroundServiceType="health"
             android:exported="true"
+            android:stopWithTask="false"
             tools:replace="android:foregroundServiceType" />
             
         <service
