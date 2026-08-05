@@ -138,7 +138,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   decoration: BoxDecoration(
                     color: const Color(0xFFE9F1EC),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFF3E6F58).withOpacity(0.2)),
+                    border: Border.all(color: const Color(0xFF3E6F58).withValues(alpha: 0.2)),
                   ),
                   child: Row(
                     children: [

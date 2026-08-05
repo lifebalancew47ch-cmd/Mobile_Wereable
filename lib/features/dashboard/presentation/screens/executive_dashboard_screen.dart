@@ -654,7 +654,7 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF3E6F58).withOpacity(0.25),
+            color: const Color(0xFF3E6F58).withValues(alpha: 0.25),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -666,7 +666,7 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
             child: Icon(phaseIcon, color: Colors.white, size: 24),
@@ -684,14 +684,14 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                         letterSpacing: 0.5,
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
+                        color: Colors.white.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Text(

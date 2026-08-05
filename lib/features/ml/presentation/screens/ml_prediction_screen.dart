@@ -19,6 +19,13 @@ class MlPredictionScreen extends ConsumerWidget {
           ref.invalidate(mlPredictionProvider);
           ref.invalidate(mlRiskTrendProvider);
           ref.invalidate(mlRecommendationsProvider);
+          try {
+            await Future.wait([
+              ref.read(mlPredictionProvider.future),
+              ref.read(mlRiskTrendProvider.future),
+              ref.read(mlRecommendationsProvider.future),
+            ]);
+          } catch (_) {}
         },
         child: ListView(
           padding: const EdgeInsets.all(16),

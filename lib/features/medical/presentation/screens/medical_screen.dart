@@ -17,6 +17,12 @@ class MedicalScreen extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(medicalLatestProvider);
           ref.invalidate(medicalHistoryProvider);
+          try {
+            await Future.wait([
+              ref.read(medicalLatestProvider.future),
+              ref.read(medicalHistoryProvider.future),
+            ]);
+          } catch (_) {}
         },
         child: ListView(
           padding: const EdgeInsets.all(16),

@@ -74,52 +74,32 @@ class IndividualDashboardData {
 
 /// Datos extendidos del dashboard individual (progreso, recomendaciones,
 /// biometría, estadísticas, heatmap, actividad, metas y recompensas).
+/// Todas las llamadas se ejecutan en paralelo para minimizar el tiempo de carga.
 final individualDashboardDataProvider = FutureProvider<IndividualDashboardData>((ref) async {
   final api = ref.watch(dashboardApiServiceProvider);
 
-  DashboardProgress? progress;
-  DashboardBiometrics? biometrics;
-  DashboardStatistics? statistics;
-  var recommendations = <DashboardRecommendation>[];
-  var heatmap = <Map<String, dynamic>>[];
-  var activity = <Map<String, dynamic>>[];
-  var goals = <String, dynamic>{};
-  var rewards = <String, dynamic>{};
-
-  try {
-    progress = await api.getIndividualProgress();
-  } catch (_) {}
-  try {
-    biometrics = await api.getIndividualBiometrics();
-  } catch (_) {}
-  try {
-    statistics = await api.getIndividualStatistics();
-  } catch (_) {}
-  try {
-    recommendations = await api.getIndividualRecommendations();
-  } catch (_) {}
-  try {
-    heatmap = await api.getIndividualHeatmap();
-  } catch (_) {}
-  try {
-    activity = await api.getIndividualActivity();
-  } catch (_) {}
-  try {
-    goals = await api.getIndividualGoals();
-  } catch (_) {}
-  try {
-    rewards = await api.getIndividualRewards();
-  } catch (_) {}
+  // Ejecutar todas las llamadas en paralelo — el tiempo total queda acotado
+  // al de la llamada más lenta, en lugar de la suma de las 8.
+  final results = await Future.wait([
+    api.getIndividualProgress().then<Object?>((v) => v).catchError((_) => null),
+    api.getIndividualBiometrics().then<Object?>((v) => v).catchError((_) => null),
+    api.getIndividualStatistics().then<Object?>((v) => v).catchError((_) => null),
+    api.getIndividualRecommendations().then<Object?>((v) => v).catchError((_) => <DashboardRecommendation>[]),
+    api.getIndividualHeatmap().then<Object?>((v) => v).catchError((_) => <Map<String, dynamic>>[]),
+    api.getIndividualActivity().then<Object?>((v) => v).catchError((_) => <Map<String, dynamic>>[]),
+    api.getIndividualGoals().then<Object?>((v) => v).catchError((_) => <String, dynamic>{}),
+    api.getIndividualRewards().then<Object?>((v) => v).catchError((_) => <String, dynamic>{}),
+  ]);
 
   return IndividualDashboardData(
-    progress: progress,
-    recommendations: recommendations,
-    biometrics: biometrics,
-    statistics: statistics,
-    heatmap: heatmap,
-    activity: activity,
-    goals: goals,
-    rewards: rewards,
+    progress: results[0] as DashboardProgress?,
+    biometrics: results[1] as DashboardBiometrics?,
+    statistics: results[2] as DashboardStatistics?,
+    recommendations: (results[3] as List?)?.cast<DashboardRecommendation>() ?? [],
+    heatmap: (results[4] as List?)?.cast<Map<String, dynamic>>() ?? [],
+    activity: (results[5] as List?)?.cast<Map<String, dynamic>>() ?? [],
+    goals: (results[6] as Map?)?.cast<String, dynamic>() ?? {},
+    rewards: (results[7] as Map?)?.cast<String, dynamic>() ?? {},
   );
 });
 

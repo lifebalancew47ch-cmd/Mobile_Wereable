@@ -88,6 +88,10 @@ class _MyAppState extends ConsumerState<MyApp> {
     // que estando quieto en cualquier otra pantalla no se detectaba nada.
     ref.watch(fogEngineProvider);
     ref.watch(offlineSyncControllerProvider);
+    // Registro FCM: fuerza la ejecución del provider lazy para que el
+    // dispositivo quede registrado para push notifications y el token se
+    // renueve automáticamente ante cambios de FCM token.
+    ref.watch(deviceRegistrationServiceProvider);
 
     return MaterialApp.router(
       title: 'LifeBalance Watch',

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../data/datasources/secure_database_service.dart';
 import '../features/ingestion/data/ingestion_api_service.dart';
 import '../features/gamification/data/gamification_api_service.dart';
@@ -39,7 +40,19 @@ class OfflineSyncService {
   DateTime _lastMedicalSync = DateTime.fromMillisecondsSinceEpoch(0);
 
   /// Día para el que ya se reportó actividad al motor sedentario.
+  /// Persistido en SharedPreferences para sobrevivir reinicios del app/isolate.
   String? _lastReportedActivityDay;
+  static const _kLastReportedDayKey = 'offline_sync_last_reported_day';
+
+  /// Carga el día persistido desde SharedPreferences al iniciar el servicio.
+  Future<void> _loadLastReportedDay() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _lastReportedActivityDay = prefs.getString(_kLastReportedDayKey);
+    } catch (_) {
+      // Si falla, se re-reportará el día actual (sin consecuencias graves).
+    }
+  }
 
   OfflineSyncService({
     required IngestionApiService ingestionApi,
@@ -61,6 +74,7 @@ class OfflineSyncService {
     Duration interval = const Duration(minutes: 15),
     Stream<bool>? connectivityStream,
   }) {
+    _loadLastReportedDay(); // Restaura el estado persistido al iniciar.
     _timer?.cancel();
     _timer = Timer.periodic(interval, (_) => flush());
     _connectivitySub?.cancel();
@@ -420,6 +434,11 @@ class OfflineSyncService {
         sedentaryHours: sedentaryMinutes / 60.0,
       );
       _lastReportedActivityDay = dayKey;
+      // Persistir para que el próximo inicio de app/isolate no duplique.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_kLastReportedDayKey, dayKey);
+      } catch (_) {}
       debugPrint(
           '[OfflineSync] Actividad diaria reportada: ${activeMinutes}min activos / ${sedentaryMinutes}min inactivo / $dailySteps pasos.');
     } catch (e) {

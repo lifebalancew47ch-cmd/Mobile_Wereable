@@ -1,5 +1,6 @@
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/widgets.dart';
 import '../core/network/api_client.dart';
 import '../features/gamification/data/gamification_api_service.dart';
 import '../features/ingestion/data/ingestion_api_service.dart';
@@ -59,6 +60,7 @@ class BackgroundService {
 
   @pragma('vm:entry-point')
   static void onStart(ServiceInstance service) async {
+    WidgetsFlutterBinding.ensureInitialized();
     DartPluginRegistrant.ensureInitialized();
 
     if (service is AndroidServiceInstance) {

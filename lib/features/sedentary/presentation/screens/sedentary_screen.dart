@@ -26,6 +26,13 @@ class _SedentaryScreenState extends ConsumerState<SedentaryScreen> {
     ref.invalidate(sedentaryScoreProvider);
     ref.invalidate(sedentaryProgressProvider);
     ref.invalidate(sedentaryGoalsProvider);
+    try {
+      await Future.wait([
+        ref.read(sedentaryScoreProvider.future),
+        ref.read(sedentaryProgressProvider.future),
+        ref.read(sedentaryGoalsProvider.future),
+      ]);
+    } catch (_) {}
   }
 
   Future<void> _saveGoals() async {

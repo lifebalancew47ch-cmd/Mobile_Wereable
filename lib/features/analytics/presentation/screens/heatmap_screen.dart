@@ -62,11 +62,21 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
     );
     if (picked == null) return;
 
-    await _notifications.requestPermissions();
-    await _notifications.scheduleReminder(
-      hour: picked.hour,
-      minute: picked.minute,
-    );
+    try {
+      await _notifications.requestPermissions();
+      await _notifications.scheduleReminder(
+        hour: picked.hour,
+        minute: picked.minute,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo programar el recordatorio. Verifica los permisos de notificaciones.'),
+        ),
+      );
+      return;
+    }
 
     if (!mounted) return;
     setState(() {
