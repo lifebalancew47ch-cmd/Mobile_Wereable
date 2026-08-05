@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener2
@@ -92,10 +93,23 @@ class SensorService : Service(), SensorEventListener2 {
             .setContentText("Monitoreando actividad...")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .build()
-        startForeground(1, notification)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val fgsType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+            } else {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+            }
+            startForeground(1, notification, fgsType)
+        } else {
+            startForeground(1, notification)
+        }
 
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "LifeBalance:SensorServiceWakeLock")
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "LifeBalance:SensorServiceWakeLock").apply {
+            setReferenceCounted(false)
+            acquire() // Mantiene la CPU despierta para que los sensores no se congelen en Doze
+        }
 
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         
