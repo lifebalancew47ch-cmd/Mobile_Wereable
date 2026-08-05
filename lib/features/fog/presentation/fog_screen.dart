@@ -93,7 +93,7 @@ class _FogScreenState extends ConsumerState<FogScreen> {
                         const SizedBox(height: 8),
                         Text(
                           isActive
-                              ? _statusDescription(state?.status, state?.alertThresholdMinutes ?? 45)
+                              ? _statusDescription(state?.status, engine.alertThresholdMinutes)
                               : 'El procesamiento en segundo plano está en pausa.',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: isActive
