@@ -10,8 +10,11 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener2
 import android.hardware.SensorManager
+import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.util.Log
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +25,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.abs
+import kotlin.math.pow
+import kotlin.math.sqrt
 
 class SensorService : Service(), SensorEventListener2 {
 
@@ -57,6 +63,26 @@ class SensorService : Service(), SensorEventListener2 {
     private val MAX_RETRY_INTERVAL_MS = 60_000L
 
     private var isOnBody = true // Default to true initially
+
+    // Análisis de inactividad local en segundo plano (Wear OS background detection)
+    private val magnitudes = ArrayList<Double>(200)
+    private var windowStartTime = 0L
+    private var idleWindows = 0L
+    private var activeWindows = 0L
+    private var consecutiveActiveWindows = 0
+    private var alertShown = false
+    private var restWindows = 0L
+    private var sleepWindows = 0L
+    private var reposoVerificado = false
+    private val WINDOW_MS = 30_000L
+    private val VARIANCE_THRESHOLD = 0.05 // Alineado con el teléfono (0.05)
+    private var alertWindows = 90L // 90 ventanas de 30s = 45 min por defecto
+
+    private fun loadAlertThreshold() {
+        val prefs = getSharedPreferences("wear_settings", Context.MODE_PRIVATE)
+        val minutes = prefs.getLong("alert_threshold_minutes", 45L)
+        alertWindows = minutes * 2
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -161,9 +187,22 @@ class SensorService : Service(), SensorEventListener2 {
             Sensor.TYPE_ACCELEROMETER -> {
                 if (!isOnBody) return // Don't collect if not on wrist
 
-                val timestamp = System.currentTimeMillis()
+                val x = event.values[0].toDouble()
+                val y = event.values[1].toDouble()
+                val z = event.values[2].toDouble()
+                val mag = sqrt(x * x + y * y + z * z)
+                
+                val now = System.currentTimeMillis()
+                if (mag.isFinite()) {
+                    if (windowStartTime == 0L) windowStartTime = now
+                    magnitudes.add(mag)
+                    if (now - windowStartTime >= WINDOW_MS) {
+                        analyzeWindowLocal(now)
+                    }
+                }
+
                 // Caducidad de frecuencia cardíaca: si pasaron > 15s sin lectura fresca, enviar 0f
-                val finalHR = if (timestamp - lastHeartRateTime < 15_000L) lastHeartRate else 0f
+                val finalHR = if (now - lastHeartRateTime < 15_000L) lastHeartRate else 0f
 
                 val reading = JSONObject().apply {
                     put("x", event.values[0])
@@ -175,12 +214,11 @@ class SensorService : Service(), SensorEventListener2 {
                     put("steps", totalSteps)
                     put("heartRate", finalHR)
                     put("isOnBody", isOnBody)
-                    put("timestamp", timestamp)
+                    put("timestamp", now)
                 }
 
                 readingsBuffer.add(reading)
 
-                val now = System.currentTimeMillis()
                 if (now - lastBatchSendTime >= BATCH_INTERVAL_MS) {
                     lastBatchSendTime = now
                     flushBuffer()
@@ -260,13 +298,126 @@ class SensorService : Service(), SensorEventListener2 {
         retryIntervalMs = 5_000L // Reset backoff
     }
 
+    private fun analyzeWindowLocal(now: Long) {
+        if (magnitudes.isEmpty()) return
+        val mean = magnitudes.sum() / magnitudes.size
+        val variance = magnitudes.map { (it - mean).pow(2) }.sum() / magnitudes.size
+        magnitudes.clear()
+        windowStartTime = now
+
+        // 1. Protección Off-Body (reloj quitado de la muñeca o reposando sobre una mesa):
+        val isOffBodyTable = (variance < 0.0001) && (lastHeartRate <= 0f)
+        if (!isOnBody || isOffBodyTable) {
+            // Reloj fuera del cuerpo: congelar temporizadores (no suma inactividad ni declara caminata activa)
+            Log.d("SensorService", "Watch off-body or resting on table. Detection frozen.")
+            consecutiveActiveWindows = 0
+            return
+        }
+
+        val immobile = variance < VARIANCE_THRESHOLD
+
+        if (immobile) {
+            consecutiveActiveWindows = 0
+
+            // 2. Filtro Clínico de Falsos Positivos:
+            val hrKnown = lastHeartRate > 0f
+            val hr = lastHeartRate
+
+            // Heurística de orientación por giroscopio: recostado si hay inclinación espacial dominada por X/Y
+            val isReclined = (abs(lastGyroX) > 0.5f || abs(lastGyroY) > 0.5f)
+
+            // Sueño / Siesta: FC < 60 lpm + recostado durante >= 20 min (40 ventanas de 30s)
+            if (hrKnown && hr < 60f && isReclined) {
+                sleepWindows++
+                restWindows = 0L
+                reposoVerificado = false
+                Log.d("SensorService", "Clinical Filter: Sleep state active ($sleepWindows windows). Alert paused.")
+                return
+            }
+
+            // Reposo Clínico Verificado (Descanso Legítimo): FC estrictamente 60-100 lpm en steady-state
+            if (hrKnown && hr >= 60f && hr <= 100f) {
+                sleepWindows = 0L
+                restWindows++
+                val requiredWindows = if (isReclined) 40L else 10L // 20 min recostado (40w), 5 min sentado (10w)
+                if (restWindows >= requiredWindows) {
+                    reposoVerificado = true
+                    Log.d("SensorService", "Clinical Filter: Clinical Rest Verified ($restWindows windows). Alert paused.")
+                    return
+                }
+            } else {
+                restWindows = 0L
+                sleepWindows = 0L
+                reposoVerificado = false
+            }
+
+            // Trabajo Sedentario (Vigilia): Inmóvil sin reposo verificado -> SÍ suma inactividad para la alerta
+            idleWindows++
+
+        } else {
+            // Movimiento detectado:
+            consecutiveActiveWindows++
+            if (consecutiveActiveWindows >= 2) {
+                // Movimiento activo sostenido (caminata real >= 1 min)
+                idleWindows = 0L
+                activeWindows++
+                restWindows = 0L
+                sleepWindows = 0L
+                reposoVerificado = false
+                alertShown = false
+            }
+            // Si consecutiveActiveWindows == 1, es un gesto de brazo aislado; se ignora sin borrar el estado previo
+        }
+
+        loadAlertThreshold()
+        if (idleWindows >= alertWindows && !alertShown) {
+            alertShown = true
+            triggerWearAlert()
+        }
+    }
+
+    private fun triggerWearAlert() {
+        val minutes = idleWindows / 2
+        Log.w("SensorService", "¡Alerta de sedentarismo en Wear OS! $minutes min inactivo.")
+        
+        // Vibración háptica en el reloj
+        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 500, 200, 500, 200, 500), -1))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator?.vibrate(longArrayOf(0, 500, 200, 500, 200, 500), -1)
+        }
+
+        // Notificación nativa de Wear OS de alta prioridad
+        val manager = getSystemService(NotificationManager::class.java)
+        val alertNotification = Notification.Builder(this, "wear_alert_channel")
+            .setContentTitle("¡Hora de moverse!")
+            .setContentText("Llevas $minutes min inactivo. ¡Tómate una pausa activa!")
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setAutoCancel(true)
+            .build()
+        manager.notify(999, alertNotification)
+    }
+
     private fun createNotificationChannel() {
+        val manager = getSystemService(NotificationManager::class.java)
+
         val channel = NotificationChannel(
             "wear_sensor_channel",
             "Sensor Service",
             NotificationManager.IMPORTANCE_LOW
         )
-        val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
+
+        val alertChannel = NotificationChannel(
+            "wear_alert_channel",
+            "Inactivity Alerts",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Alertas de sedentarismo en el reloj"
+            enableVibration(true)
+        }
+        manager.createNotificationChannel(alertChannel)
     }
 }

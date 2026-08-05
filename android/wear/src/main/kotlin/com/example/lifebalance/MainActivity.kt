@@ -26,7 +26,7 @@ class MainActivity : Activity(), SensorEventListener {
 
     companion object {
         private const val WINDOW_MS = 30_000L
-        private const val VARIANCE_THRESHOLD = 0.8 // Aumentado para ignorar movimientos leves de brazo
+        private const val VARIANCE_THRESHOLD = 0.05 // Alineado con la app móvil (0.05)
         private const val DEFAULT_ALERT_WINDOWS = 90L // 90 ventanas x 30s = 45 min
     }
 
@@ -47,6 +47,7 @@ class MainActivity : Activity(), SensorEventListener {
     private var windowStartTime = 0L
     private var idleWindows = 0L
     private var activeWindows = 0L
+    private var consecutiveActiveWindows = 0
     private var alertShown = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -222,12 +223,17 @@ class MainActivity : Activity(), SensorEventListener {
         windowStartTime = now
 
         if (variance < VARIANCE_THRESHOLD) {
+            consecutiveActiveWindows = 0
             idleWindows++
-            activeWindows = 0L
         } else {
-            idleWindows = 0L
-            activeWindows++
-            alertShown = false
+            consecutiveActiveWindows++
+            if (consecutiveActiveWindows >= 2) {
+                // Movimiento activo sostenido (caminata real >= 1 min)
+                idleWindows = 0L
+                activeWindows++
+                alertShown = false
+            }
+            // Si consecutiveActiveWindows == 1, se interpreta como gesto aislado de brazo y no resetea idleWindows
         }
 
         if (idleWindows >= alertWindows && !alertShown) {

@@ -21,11 +21,14 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class CertificatePinning {
   CertificatePinning._();
 
-  static List<String> _pins = _loadPins();
+  static List<String>? _overridePins;
+
+  static List<String> get _pins {
+    if (_overridePins != null) return _overridePins!;
+    return _loadPins();
+  }
 
   static List<String> _loadPins() {
-    // dotenv puede no estar cargado (tests); en ese caso no hay pins
-    // configurados y se conserva el comportamiento fail-closed.
     final raw =
         dotenv.isInitialized ? (dotenv.env['PINNED_CERT_SHA256'] ?? '') : '';
     return raw
@@ -78,11 +81,11 @@ class CertificatePinning {
 
   @visibleForTesting
   static void configureForTesting(List<String> pins) {
-    _pins = pins.map((p) => p.replaceAll(':', '').toUpperCase()).toList();
+    _overridePins = pins.map((p) => p.replaceAll(':', '').toUpperCase()).toList();
   }
 
   @visibleForTesting
   static void resetForTesting() {
-    _pins = _loadPins();
+    _overridePins = null;
   }
 }

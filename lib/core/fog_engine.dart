@@ -47,6 +47,8 @@ class FogEngine {
   static const double _varianceThreshold = 0.05;
   static const int _minutesPerWindow = 2; // 2 ventanas por minuto (30s c/u)
 
+  int _consecutiveActiveWindows = 0;
+
   DateTime _lastMovement = DateTime.now();
   String _sessionStartTime = DateTime.now().toIso8601String();
   String _activeStartTime = DateTime.now().toIso8601String();
@@ -178,11 +180,20 @@ class FogEngine {
       final insufficientSamples = samples.length < 5;
 
       final immobile = variance < _varianceThreshold && !isOffBodyTable && !insufficientSamples;
+      if (immobile) {
+        _consecutiveActiveWindows = 0;
+      } else {
+        _consecutiveActiveWindows++;
+      }
+
+      final isSustainedActive = _consecutiveActiveWindows >= 2;
+
       _clinicalClassifier.feed(
         immobile: immobile,
         orientation: orientation,
         heartRate: _latestHeartRate,
         hrv: _latestHrv,
+        sustainedActive: isSustainedActive,
       );
 
       final suppressed = _clinicalClassifier.state == SedentaryState.clinicalRest ||
@@ -215,8 +226,12 @@ class FogEngine {
         }
         _inactiveWindows = 0;
         status = ActivityStatus.idle;
+      } else if (!isSustainedActive) {
+        // Movimiento aislado de 30s (gesto de brazo mientras está sentado):
+        // NO resetea _inactiveWindows ni destruye la sesión inactiva previa.
+        status = ActivityStatus.idle;
       } else {
-        // Activo: se cierra y registra la sesión de inactividad previa.
+        // Movimiento activo sostenido (>= 1 min): se cierra la sesión inactiva previa.
         if (_inactiveWindows > 0) {
           final idleMins = max(1, _inactiveWindows ~/ 2);
           SecureDatabaseService.instance.insertActivitySession(
@@ -265,6 +280,8 @@ class FogEngine {
         reposoVerificado: reposoVerificado,
         restMinutes: restMinutes,
       ));
+    } catch (e, st) {
+      debugPrint('[FogEngine] Error analizando ventana: $e\n$st');
     } finally {
       _windowInFlight = false;
     }

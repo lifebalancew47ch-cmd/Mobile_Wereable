@@ -93,22 +93,47 @@ class OfflineSyncService {
   /// Fuerza una sincronización inmediata (desde la UI, "Sincronizar ahora").
   /// Devuelve true si terminó sin errores; false si quedó algo pendiente.
   Future<bool> syncNow() async {
-    var ok = true;
     if (_syncing) return false;
     _syncing = true;
+    var anySuccess = false;
+    var hasErrors = false;
+
     try {
-      await _flushActiveBreaks();
-      await _flushIngestionBatch();
-      await _flushMedicalReadings();
-      await _flushDailyActivity();
+      try {
+        await _flushActiveBreaks();
+      } catch (e) {
+        debugPrint('[OfflineSync] Error en _flushActiveBreaks: $e');
+        hasErrors = true;
+      }
+
+      try {
+        await _flushIngestionBatch();
+        anySuccess = true;
+      } catch (e) {
+        debugPrint('[OfflineSync] Error en _flushIngestionBatch: $e');
+        hasErrors = true;
+      }
+
+      try {
+        await _flushMedicalReadings();
+      } catch (e) {
+        debugPrint('[OfflineSync] Error en _flushMedicalReadings: $e');
+        hasErrors = true;
+      }
+
+      try {
+        await _flushDailyActivity();
+      } catch (e) {
+        debugPrint('[OfflineSync] Error en _flushDailyActivity: $e');
+        hasErrors = true;
+      }
+
       lastSync = DateTime.now();
-    } catch (e) {
-      debugPrint('[OfflineSync] Error en syncNow: $e');
-      ok = false;
     } finally {
       _syncing = false;
     }
-    return ok;
+
+    return !hasErrors || anySuccess;
   }
 
   /// Envía todo lo pendiente. Nunca lanza a la UI: un fallo de red mantiene

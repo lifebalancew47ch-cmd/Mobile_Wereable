@@ -103,17 +103,25 @@ CREATE TABLE active_breaks (
 
   Future<void> insertActivitySession(String start, String end, String type, int duration) async {
     final db = await instance.database;
-    await db.insert('activity_sessions', {
-      'start_time': start,
-      'end_time': end,
-      'type': type,
-      'duration_minutes': duration,
-    });
+    await db.insert(
+      'activity_sessions',
+      {
+        'start_time': start,
+        'end_time': end,
+        'type': type,
+        'duration_minutes': duration,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<void> insertVitalSign(VitalSign vitalSign) async {
     final db = await instance.database;
-    await db.insert('vital_signs', vitalSign.toMap());
+    await db.insert(
+      'vital_signs',
+      vitalSign.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<void> logAlert(String timestamp, int duration, bool acknowledged) async {

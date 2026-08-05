@@ -21,12 +21,21 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
   bool _criticalNotifications = false;
   bool _alertSound = true;
 
+  late final TextEditingController _customMinutesController;
+
   static const List<String> _dayLetters = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
   @override
   void initState() {
     super.initState();
+    _customMinutesController = TextEditingController(text: _intervalMinutes.toString());
     _hydrateFromProvider();
+  }
+
+  @override
+  void dispose() {
+    _customMinutesController.dispose();
+    super.dispose();
   }
 
   void _hydrateFromProvider() {
@@ -39,6 +48,7 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
   void _apply(AlertSettings s) {
     setState(() {
       _intervalMinutes = s.intervalMinutes;
+      _customMinutesController.text = s.intervalMinutes.toString();
       _start = TimeOfDay(hour: s.startHour, minute: s.startMinute);
       _end = TimeOfDay(hour: s.endHour, minute: s.endMinute);
       _activeDays = Set<int>.from(s.activeDays);
@@ -55,6 +65,20 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
   }
 
   Future<void> _confirm() async {
+    final customMins = int.tryParse(_customMinutesController.text.trim());
+    if (customMins == null || customMins < 1 || customMins > 120) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Por favor, ingresa una duración entre 1 y 120 minutos (máximo 2 horas).'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+    _intervalMinutes = customMins;
+
     final settings = AlertSettings(
       intervalMinutes: _intervalMinutes,
       startHour: _start.hour,
@@ -129,17 +153,52 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
             ),
             const SizedBox(height: 24),
 
-            _buildSectionTitle(Icons.timer_outlined, 'DURACIÓN DE INACTIVIDAD PARA ALERTAR'),
+            _buildSectionTitle(Icons.timer_outlined, 'DURACIÓN DE INACTIVIDAD (1 - 120 MINUTOS)'),
             Row(
               children: [
-                _buildChoiceChip('30 min', 30),
-                const SizedBox(width: 10),
-                _buildChoiceChip('45 min', 45),
-                const SizedBox(width: 10),
-                _buildChoiceChip('60 min', 60),
-                const SizedBox(width: 10),
-                _buildChoiceChip('90 min', 90),
+                _buildChoiceChip('15m', 15),
+                const SizedBox(width: 6),
+                _buildChoiceChip('30m', 30),
+                const SizedBox(width: 6),
+                _buildChoiceChip('45m', 45),
+                const SizedBox(width: 6),
+                _buildChoiceChip('60m', 60),
+                const SizedBox(width: 6),
+                _buildChoiceChip('90m', 90),
+                const SizedBox(width: 6),
+                _buildChoiceChip('120m', 120),
               ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _customMinutesController,
+              keyboardType: TextInputType.number,
+              onChanged: (text) {
+                final v = int.tryParse(text.trim());
+                if (v != null && v >= 1 && v <= 120) {
+                  setState(() => _intervalMinutes = v);
+                }
+              },
+              decoration: InputDecoration(
+                labelText: 'Minutos personalizados (1 a 120 min)',
+                hintText: 'Ej: 15, 25, 40, 75, 100...',
+                suffixText: 'min',
+                prefixIcon: const Icon(Icons.edit_calendar, color: Color(0xFF3E6F58)),
+                filled: true,
+                fillColor: isDark ? const Color(0xFF162032) : const Color(0xFFF4F8F5),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF3E6F58), width: 2),
+                ),
+              ),
             ),
             const SizedBox(height: 24),
 
@@ -277,7 +336,12 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
     final isSelected = _intervalMinutes == minutes;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _intervalMinutes = minutes),
+        onTap: () {
+          setState(() {
+            _intervalMinutes = minutes;
+            _customMinutesController.text = minutes.toString();
+          });
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(

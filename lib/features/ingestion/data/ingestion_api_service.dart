@@ -139,9 +139,11 @@ class IngestionApiService {
     try {
       final response = await _dio.post('/ingestion/sync', data: request.toJson());
       final data = response.data;
-      if (data is Map<String, dynamic>) return SyncBatchResponse.fromJson(data);
       if (data is Map && data['data'] is Map<String, dynamic>) {
         return SyncBatchResponse.fromJson(data['data'] as Map<String, dynamic>);
+      }
+      if (data is Map<String, dynamic>) {
+        return SyncBatchResponse.fromJson(data);
       }
       throw Exception('Respuesta inesperada del Ingestion Service.');
     } on DioException catch (e) {

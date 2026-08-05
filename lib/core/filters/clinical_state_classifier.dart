@@ -115,8 +115,13 @@ class ClinicalStateClassifier {
     required BodyOrientation orientation,
     required double? heartRate,
     required double? hrv,
+    bool sustainedActive = true,
   }) {
     if (!immobile) {
+      if (!sustainedActive) {
+        // Movimiento aislado (gesto de brazo / artefacto): no borra el estado de reposo verificado ni el steady-state
+        return;
+      }
       _restWindows = 0;
       _sleepWindows = 0;
       _reposoVerificado = false;

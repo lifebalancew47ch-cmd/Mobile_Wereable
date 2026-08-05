@@ -3,6 +3,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'dart:io';
+import 'dart:typed_data';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -27,8 +28,12 @@ class NotificationService {
     }
   }
 
-  Future<void> showInactivityAlert(int minutes) async {
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+  Future<void> showInactivityAlert(
+    int minutes, {
+    bool enableSound = true,
+    bool critical = false,
+  }) async {
+    final AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
       'inactivity_alert_channel',
       'Inactivity Alerts',
@@ -36,8 +41,11 @@ class NotificationService {
       importance: Importance.max,
       priority: Priority.high,
       ticker: 'LifeBalance Alert',
+      enableVibration: true,
+      vibrationPattern: Int64List.fromList([0, 500, 200, 500, 200, 500]),
+      playSound: enableSound,
     );
-    const NotificationDetails platformChannelSpecifics =
+    final NotificationDetails platformChannelSpecifics =
         NotificationDetails(android: androidPlatformChannelSpecifics);
     await flutterLocalNotificationsPlugin.show(
       0,
