@@ -31,7 +31,7 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "syncAlertInterval" -> {
-                        val minutes = call.argument<Long>("minutes") ?: 45L
+                        val minutes = (call.argument<Number>("minutes"))?.toLong() ?: 45L
                         syncAlertInterval(minutes)
                         result.success(null)
                     }

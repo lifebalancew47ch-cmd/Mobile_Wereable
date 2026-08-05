@@ -306,6 +306,9 @@ class FogEngine {
     _sessionStartTime = DateTime.now().toIso8601String();
   }
 
+  /// Umbral de alerta actual en minutos.
+  int get alertThresholdMinutes => _alertThresholdWindows ~/ _minutesPerWindow;
+
   /// Configura el umbral de alerta en minutos (recalcula las ventanas de 30s).
   void setAlertThreshold(int minutes) {
     _alertThresholdWindows = (minutes * _minutesPerWindow).clamp(1, 10000);

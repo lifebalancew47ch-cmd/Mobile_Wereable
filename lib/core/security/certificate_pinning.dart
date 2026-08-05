@@ -53,8 +53,8 @@ class CertificatePinning {
     String host,
     int port,
   ) {
-    // En debug/profile: permitir conexiones sin pinning para desarrollo.
-    if (kDebugMode || kProfileMode) return true;
+    // En debug/profile o si no hay pins configurados en .env: permitir CA raíz del SO.
+    if (kDebugMode || kProfileMode || !isConfigured) return true;
 
     if (certificate == null) return false;
     // Huella SHA-256 calculada localmente sobre el DER (sin depender de

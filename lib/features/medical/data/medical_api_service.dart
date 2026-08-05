@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 /// Lectura médica/fisiológica enviada a `POST /api/v1/medical/readings`.
 class MedicalReading {
@@ -160,8 +161,11 @@ class MedicalApiService {
     try {
       return await call();
     } on DioException catch (e) {
-      final message = e.response?.data?['message'];
-      throw Exception(message?.toString() ?? 'Error del Medical Data Service');
+      final status = e.response?.statusCode;
+      final body = e.response?.data;
+      debugPrint('[MedicalApi Error] Status: $status, Data: $body, Err: ${e.message}');
+      final message = e.response?.data?['message'] ?? e.response?.data?['error'];
+      throw Exception(message?.toString() ?? 'Error del Medical Data Service (HTTP $status)');
     }
   }
 

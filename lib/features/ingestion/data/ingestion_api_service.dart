@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 /// Elemento de signo vital del lote de sincronización (contrato Ingestion).
 class VitalSignSyncItem {
@@ -175,10 +176,13 @@ class IngestionApiService {
   }
 
   Exception _mapError(DioException e, String fallback) {
+    final status = e.response?.statusCode;
+    final body = e.response?.data;
+    debugPrint('[IngestionApi Error] Status: $status, Data: $body, Err: ${e.message}');
     if (e.response != null) {
-      final message = e.response?.data?['message'];
-      return Exception(message?.toString() ?? fallback);
+      final message = e.response?.data?['message'] ?? e.response?.data?['error'] ?? body?.toString();
+      return Exception(message?.toString() ?? '$fallback (HTTP $status)');
     }
-    return Exception(fallback);
+    return Exception('$fallback: ${e.message ?? e.type.name}');
   }
 }
