@@ -13,6 +13,7 @@ import 'package:lifebalance/features/fog/presentation/providers/fog_providers.da
 import 'package:lifebalance/services/background_service.dart';
 import 'package:lifebalance/services/watch_service.dart';
 import 'package:lifebalance/data/datasources/secure_database_service.dart';
+import 'package:lifebalance/services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,6 +33,9 @@ void main() async {
 
   // Inicializar Base de Datos Segura
   await SecureDatabaseService.instance.database;
+  
+  // Inicializar Notificaciones (requerido para recordatorios)
+  await NotificationService().init();
 
   runApp(
     const ProviderScope(
