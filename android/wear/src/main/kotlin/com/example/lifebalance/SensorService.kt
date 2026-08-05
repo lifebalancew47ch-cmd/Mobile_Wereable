@@ -223,8 +223,8 @@ class SensorService : Service(), SensorEventListener2 {
                     }
                 }
 
-                // Caducidad de frecuencia cardíaca: si pasaron > 15s sin lectura fresca, enviar 0f
-                val finalHR = if (now - lastHeartRateTime < 15_000L) lastHeartRate else 0f
+                // Caducidad de frecuencia cardíaca: si pasaron > 10 min sin lectura fresca, enviar 0f
+                val finalHR = if (now - lastHeartRateTime < 600_000L) lastHeartRate else 0f
 
                 val reading = JSONObject().apply {
                     put("x", event.values[0])
