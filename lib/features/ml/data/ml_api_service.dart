@@ -126,20 +126,22 @@ class MlApiService {
   }
 
   Map<String, dynamic> _unwrap(dynamic data) {
-    if (data is Map) {
-      final nested = data['data'];
+    final payload = data is Response ? data.data : data;
+    if (payload is Map) {
+      final nested = payload['data'];
       if (nested is Map<String, dynamic>) return nested;
-      return Map<String, dynamic>.from(data);
+      return Map<String, dynamic>.from(payload);
     }
     return const {};
   }
 
   List<Map<String, dynamic>> _unwrapList(dynamic data) {
-    if (data is List) {
-      return data.whereType<Map<String, dynamic>>().toList();
+    final payload = data is Response ? data.data : data;
+    if (payload is List) {
+      return payload.whereType<Map<String, dynamic>>().toList();
     }
-    if (data is Map && data['data'] is List) {
-      return (data['data'] as List).whereType<Map<String, dynamic>>().toList();
+    if (payload is Map && payload['data'] is List) {
+      return (payload['data'] as List).whereType<Map<String, dynamic>>().toList();
     }
     return const [];
   }

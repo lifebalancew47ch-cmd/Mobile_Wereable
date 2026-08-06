@@ -323,6 +323,16 @@ class SensorService : Service(), SensorEventListener2 {
     }
 
     private fun analyzeWindowLocal(now: Long) {
+        if (WearSensorState.resetRequested) {
+            WearSensorState.resetRequested = false
+            idleWindows = 0L
+            activeWindows = 0L
+            restWindows = 0L
+            sleepWindows = 0L
+            consecutiveActiveWindows = 0
+            alertShown = false
+        }
+        
         if (magnitudes.isEmpty()) return
         val mean = magnitudes.sum() / magnitudes.size
         val variance = magnitudes.map { (it - mean).pow(2) }.sum() / magnitudes.size
@@ -335,6 +345,12 @@ class SensorService : Service(), SensorEventListener2 {
             // Reloj fuera del cuerpo: congelar temporizadores (no suma inactividad ni declara caminata activa)
             Log.d("SensorService", "Watch off-body or resting on table. Detection frozen.")
             consecutiveActiveWindows = 0
+            
+            WearSensorState.variance = variance
+            WearSensorState.idleWindows = idleWindows
+            WearSensorState.activeWindows = activeWindows
+            WearSensorState.alertWindows = alertWindows
+            WearSensorState.alertShown = alertShown
             return
         }
 
@@ -356,6 +372,12 @@ class SensorService : Service(), SensorEventListener2 {
                 restWindows = 0L
                 reposoVerificado = false
                 Log.d("SensorService", "Clinical Filter: Sleep state active ($sleepWindows windows). Alert paused.")
+                
+                WearSensorState.variance = variance
+                WearSensorState.idleWindows = idleWindows
+                WearSensorState.activeWindows = activeWindows
+                WearSensorState.alertWindows = alertWindows
+                WearSensorState.alertShown = alertShown
                 return
             }
 
@@ -367,6 +389,12 @@ class SensorService : Service(), SensorEventListener2 {
                 if (restWindows >= requiredWindows) {
                     reposoVerificado = true
                     Log.d("SensorService", "Clinical Filter: Clinical Rest Verified ($restWindows windows). Alert paused.")
+                    
+                    WearSensorState.variance = variance
+                    WearSensorState.idleWindows = idleWindows
+                    WearSensorState.activeWindows = activeWindows
+                    WearSensorState.alertWindows = alertWindows
+                    WearSensorState.alertShown = alertShown
                     return
                 }
             } else {

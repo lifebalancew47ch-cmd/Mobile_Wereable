@@ -85,10 +85,11 @@ class GamificationApiService {
     final response = await _request(
       () => _dio.get('/gamification/leaderboard', queryParameters: {'take': take}),
     );
-    final items = response is List
-        ? response.whereType<Map<String, dynamic>>().toList()
-        : (response is Map && response['data'] is List)
-            ? (response['data'] as List).whereType<Map<String, dynamic>>().toList()
+    final payload = response is Response ? response.data : response;
+    final items = payload is List
+        ? payload.whereType<Map<String, dynamic>>().toList()
+        : (payload is Map && payload['data'] is List)
+            ? (payload['data'] as List).whereType<Map<String, dynamic>>().toList()
             : <Map<String, dynamic>>[];
     return items.map(LeaderboardItem.fromJson).toList();
   }
@@ -111,14 +112,15 @@ class GamificationApiService {
 
   /// Extrae el objeto útil cuando la respuesta llega envuelta o directa.
   Map<String, dynamic> _unwrap(dynamic data) {
-    if (data is Map<String, dynamic>) {
-      if (data['data'] is Map<String, dynamic>) {
-        return data['data'] as Map<String, dynamic>;
+    final payload = data is Response ? data.data : data;
+    if (payload is Map<String, dynamic>) {
+      if (payload['data'] is Map<String, dynamic>) {
+        return payload['data'] as Map<String, dynamic>;
       }
-      return data;
+      return payload;
     }
-    if (data is Map && data['data'] is Map<String, dynamic>) {
-      return data['data'] as Map<String, dynamic>;
+    if (payload is Map && payload['data'] is Map<String, dynamic>) {
+      return payload['data'] as Map<String, dynamic>;
     }
     return const {};
   }

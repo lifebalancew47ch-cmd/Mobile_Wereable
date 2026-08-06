@@ -143,10 +143,11 @@ class SedentaryApiService {
   }
 
   Map<String, dynamic> _unwrap(dynamic data) {
-    if (data is Map) {
-      final nested = data['data'];
+    final payload = data is Response ? data.data : data;
+    if (payload is Map) {
+      final nested = payload['data'];
       if (nested is Map<String, dynamic>) return nested;
-      return Map<String, dynamic>.from(data);
+      return Map<String, dynamic>.from(payload);
     }
     return const {};
   }

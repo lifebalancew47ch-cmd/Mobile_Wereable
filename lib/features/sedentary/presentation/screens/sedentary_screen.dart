@@ -14,6 +14,7 @@ class _SedentaryScreenState extends ConsumerState<SedentaryScreen> {
   late int _stepsTarget;
   late int _activeTarget;
   bool _saving = false;
+  bool _goalsInitialized = false;
 
   @override
   void initState() {
@@ -23,6 +24,7 @@ class _SedentaryScreenState extends ConsumerState<SedentaryScreen> {
   }
 
   Future<void> _refresh(WidgetRef ref) async {
+    setState(() => _goalsInitialized = false);
     ref.invalidate(sedentaryScoreProvider);
     ref.invalidate(sedentaryProgressProvider);
     ref.invalidate(sedentaryGoalsProvider);
@@ -260,8 +262,17 @@ class _SedentaryScreenState extends ConsumerState<SedentaryScreen> {
                 onRetry: () => ref.invalidate(sedentaryGoalsProvider),
               ),
               data: (goal) {
-                _stepsTarget = goal.dailyStepsTarget;
-                _activeTarget = goal.activeMinutesTarget;
+                if (!_goalsInitialized) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() {
+                        _stepsTarget = goal.dailyStepsTarget;
+                        _activeTarget = goal.activeMinutesTarget;
+                        _goalsInitialized = true;
+                      });
+                    }
+                  });
+                }
                 return Column(
                   children: [
                     _buildStepper(

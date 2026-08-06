@@ -49,6 +49,7 @@ class MainActivity : Activity() {
 
         findViewById<Button>(R.id.pauseButton).setOnClickListener {
             // Reinicia el estado compartido al pausar (pausa activa)
+            WearSensorState.resetRequested = true
             WearSensorState.idleWindows = 0
             WearSensorState.activeWindows = 0
             WearSensorState.alertShown = false

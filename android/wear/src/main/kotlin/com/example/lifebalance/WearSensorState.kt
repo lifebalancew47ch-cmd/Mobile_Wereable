@@ -17,4 +17,5 @@ object WearSensorState {
     @Volatile var gyroX: Float = 0f
     @Volatile var gyroY: Float = 0f
     @Volatile var gyroZ: Float = 0f
+    @Volatile var resetRequested: Boolean = false
 }
