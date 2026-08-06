@@ -9,6 +9,7 @@ import '../features/gamification/data/gamification_api_service.dart';
 import '../features/medical/data/medical_api_service.dart';
 import '../features/sedentary/data/sedentary_api_service.dart';
 import 'device_identity_service.dart';
+import 'location_service.dart';
 
 /// Sincronización Offline-First hacia la nube.
 ///
@@ -161,6 +162,7 @@ class OfflineSyncService {
       await _flushIngestionBatch();
       await _flushMedicalReadings();
       await _flushDailyActivity();
+      await _db.purgeSyncedData(); // Purga automática de registros antiguos sincronizados
       lastSync = DateTime.now();
     } catch (e) {
       debugPrint('[OfflineSync] Error en flush: $e');
@@ -232,7 +234,13 @@ class OfflineSyncService {
     final alertIds = validAlerts.map((e) => e['id'] as int).toList();
 
     final deviceId = await _deviceIdentity.getDeviceId();
-    final clientBatchId = _newBatchId();
+    // Determinista: el mismo conjunto de filas pendientes produce el mismo
+    // ClientBatchId en cada reintento (ver `_stableBatchId`). Antes era
+    // aleatorio en cada llamada, así que si el servidor procesaba el lote
+    // pero la respuesta se perdía (timeout, desconexión post-envío), el
+    // siguiente flush lo reenviaba con un ID distinto y el servidor no tenía
+    // forma de deduplicarlo -> datos médicos duplicados.
+    final clientBatchId = _stableBatchId(deviceId, vitalIds, sessionIds, alertIds);
     final request = SyncBatchRequest(
       clientBatchId: clientBatchId,
       deviceId: deviceId,
@@ -247,36 +255,28 @@ class OfflineSyncService {
     try {
       final response = await _ingestionApi.sync(request);
 
-      // Si no hay errores de rechazo, marcamos el lote como sincronizado.
+      // Si no hay errores de rechazo, marcamos el lote como sincronizado en una sola transacción atómica.
       if (response.status != 'CompletedWithErrors') {
-        for (final id in vitalIds) {
-          await _db.markVitalSignSynced(id);
-        }
-        for (final id in sessionIds) {
-          await _db.markActivitySessionSynced(id);
-        }
-        for (final id in alertIds) {
-          await _db.markAlertSynced(id);
-        }
+        await _db.markBatchAsSynced(
+          vitalIds: vitalIds,
+          sessionIds: sessionIds,
+          alertIds: alertIds,
+        );
         debugPrint('[OfflineSync] Ingestión exitosa del lote $clientBatchId');
       } else {
         debugPrint('[OfflineSync] Lote $clientBatchId con errores (se reintenta).');
       }
     } on DioException catch (e) {
       debugPrint('[OfflineSync] Error HTTP en Ingestion (${e.response?.statusCode}): ${e.response?.data}');
-      if (e.response?.statusCode == 400) {
-        // En caso de error 400 (formato o datos inválidos), marcamos los elementos como sincronizados
-        // para desbloquear la cola local Offline-First.
-        for (final id in vitalIds) {
-          await _db.markVitalSignSynced(id);
-        }
-        for (final id in sessionIds) {
-          await _db.markActivitySessionSynced(id);
-        }
-        for (final id in alertIds) {
-          await _db.markAlertSynced(id);
-        }
-        debugPrint('[OfflineSync] Lote $clientBatchId descartado por error 400 del servidor.');
+      if (e.response?.statusCode == 400 || e.response?.statusCode == 409) {
+        // En caso de error 400 (inválido) o 409 (Conflicto por BatchId idempotente previamente procesado),
+        // marcamos los elementos como sincronizados en una transacción atómica para desahogar la cola local.
+        await _db.markBatchAsSynced(
+          vitalIds: vitalIds,
+          sessionIds: sessionIds,
+          alertIds: alertIds,
+        );
+        debugPrint('[OfflineSync] Lote $clientBatchId resuelto (Código ${e.response?.statusCode}).');
       } else {
         rethrow;
       }
@@ -314,26 +314,58 @@ class OfflineSyncService {
     }
 
     final deviceId = await _deviceIdentity.getDeviceId();
-    final batch = validReadings.map((row) {
+
+    // GPS bajo demanda (Sección: solo se captura en alertas de sedentarismo,
+    // nunca en streaming continuo). Se adjunta la última coordenada conocida
+    // si sigue siendo razonablemente reciente; si no hay ninguna o ya expiró,
+    // la lectura médica viaja sin geolocalización.
+    final lastGps = LocationService.lastKnown;
+    final gpsFresh = lastGps != null &&
+        DateTime.now().difference(lastGps.capturedAt) < const Duration(minutes: 60);
+
+    final batch = <MedicalReading>[];
+    for (final row in validReadings) {
       final rawTs = (row['timestamp'] as String?) ?? '';
       final hrRaw = ((row['heart_rate'] as num?)?.toDouble() ?? 0).round();
-      final validHr = hrRaw < 1 ? 60.0 : hrRaw.clamp(1, 260).toDouble();
+      final validHr = (hrRaw >= 1 && hrRaw <= 260) ? hrRaw.toDouble() : null;
       final hrvRaw = (row['hrv'] as num?)?.toDouble() ?? 0;
-      final validHrv = hrvRaw < 1.0 ? 40.0 : hrvRaw.clamp(1.0, 300.0);
+      final validHrv = (hrvRaw >= 1.0 && hrvRaw <= 300.0) ? hrvRaw : null;
       final spo2Raw = (row['spo2'] as num?)?.toDouble() ?? 0;
-      final validSpo2 = spo2Raw < 1.0 ? 98.0 : spo2Raw.clamp(1.0, 100.0);
+      final validSpo2 = (spo2Raw >= 1.0 && spo2Raw <= 100.0) ? spo2Raw : null;
       final stepsRaw = (row['steps'] as num?)?.toInt() ?? 0;
       final validSteps = max(0, stepsRaw);
 
-      return MedicalReading(
+      // Descartar registros completamente vacíos (sin signos vitales y 0 pasos)
+      if (validHr == null && validHrv == null && validSpo2 == null && validSteps == 0) {
+        continue;
+      }
+
+      batch.add(MedicalReading(
         heartRate: validHr,
         hrv: validHrv,
         spo2: validSpo2,
         steps: validSteps,
         deviceId: deviceId,
         recordedAtUtc: DateTime.tryParse(rawTs) ?? DateTime.now(),
-      );
-    }).toList();
+        accelerometerX: (row['accel_x'] as num?)?.toDouble(),
+        accelerometerY: (row['accel_y'] as num?)?.toDouble(),
+        accelerometerZ: (row['accel_z'] as num?)?.toDouble(),
+        gyroscopeX: (row['gyro_x'] as num?)?.toDouble(),
+        gyroscopeY: (row['gyro_y'] as num?)?.toDouble(),
+        gyroscopeZ: (row['gyro_z'] as num?)?.toDouble(),
+        latitude: gpsFresh ? lastGps.latitude : null,
+        longitude: gpsFresh ? lastGps.longitude : null,
+      ));
+    }
+
+    if (batch.isEmpty) {
+      final last = DateTime.tryParse(
+            (validReadings.last['timestamp'] as String?) ?? '',
+          ) ??
+          DateTime.now();
+      _lastMedicalSync = last;
+      return;
+    }
 
     try {
       await medicalApi.addReadingsBatch(batch);
@@ -363,11 +395,11 @@ class OfflineSyncService {
   VitalSignSyncItem _toVitalItem(Map<String, Object?> row) {
     final rawTs = (row['timestamp'] as String?) ?? '';
     final hrRaw = ((row['heart_rate'] as num?)?.toDouble() ?? 0).round();
-    final validHr = hrRaw < 1 ? 60 : hrRaw.clamp(1, 260);
+    final validHr = (hrRaw >= 1 && hrRaw <= 260) ? hrRaw : null;
     final hrvRaw = (row['hrv'] as num?)?.toDouble() ?? 0;
-    final validHrv = hrvRaw < 1.0 ? 40.0 : hrvRaw.clamp(1.0, 300.0);
+    final validHrv = (hrvRaw >= 1.0 && hrvRaw <= 300.0) ? hrvRaw : null;
     final spo2Raw = (row['spo2'] as num?)?.toDouble() ?? 0;
-    final validSpo2 = spo2Raw < 1.0 ? 98.0 : spo2Raw.clamp(1.0, 100.0);
+    final validSpo2 = (spo2Raw >= 1.0 && spo2Raw <= 100.0) ? spo2Raw : null;
     final stepsRaw = (row['steps'] as num?)?.toInt() ?? 0;
     final validSteps = max(0, stepsRaw);
 
@@ -455,10 +487,38 @@ class OfflineSyncService {
     }
   }
 
-  String _newBatchId() {
-    final rnd = Random.secure();
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final rand = rnd.nextInt(0x7FFFFFFF).toRadixString(16);
-    return '${now.toRadixString(16).padLeft(8, '0')}-$rand';
+  /// ClientBatchId determinista: función pura del dispositivo + IDs locales
+  /// que componen el lote. Reintentar el envío del mismo conjunto de filas
+  /// no sincronizadas (porque la respuesta anterior se perdió, no porque el
+  /// servidor haya rechazado los datos) produce siempre el mismo ID, dándole
+  /// al backend una clave de idempotencia real para deduplicar.
+  ///
+  /// Si el conjunto de filas cambia (llegaron datos nuevos, o algunas ya se
+  /// marcaron `synced_to_cloud=1`), el ID cambia también -- es, por diseño,
+  /// un lote distinto.
+  String _stableBatchId(
+    String deviceId,
+    List<int> vitalIds,
+    List<int> sessionIds,
+    List<int> alertIds,
+  ) {
+    final v = (List<int>.from(vitalIds)..sort()).join('.');
+    final s = (List<int>.from(sessionIds)..sort()).join('.');
+    final a = (List<int>.from(alertIds)..sort()).join('.');
+    return _fnv1a64('$deviceId|v:$v|s:$s|a:$a');
+  }
+
+  /// FNV-1a de 64 bits. Determinista y sin dependencias externas (no se
+  /// añade el paquete `crypto` solo para esto); no necesita ser criptográfico,
+  /// solo estable para la misma entrada entre reintentos.
+  String _fnv1a64(String input) {
+    const int mask64 = 0xFFFFFFFFFFFFFFFF;
+    const int prime = 0x100000001b3;
+    int hash = 0xcbf29ce484222325;
+    for (final codeUnit in input.codeUnits) {
+      hash = (hash ^ codeUnit) & mask64;
+      hash = (hash * prime) & mask64;
+    }
+    return hash.toRadixString(16).padLeft(16, '0');
   }
 }

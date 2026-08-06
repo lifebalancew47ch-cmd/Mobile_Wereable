@@ -34,7 +34,15 @@ object WearDataBus {
     fun emit(data: String) {
         pendingData = data
         Handler(Looper.getMainLooper()).post {
-            eventSink?.success(data)
+            try {
+                eventSink?.success(data)
+            } catch (e: Exception) {
+                // El FlutterEngine que tenía este sink ya fue destruido
+                // (hot restart / actividad recreada) y quedó una referencia
+                // obsoleta — la descartamos para dejar de intentar enviarle
+                // datos y de inundar el log con warnings de FlutterJNI.
+                eventSink = null
+            }
         }
     }
 }

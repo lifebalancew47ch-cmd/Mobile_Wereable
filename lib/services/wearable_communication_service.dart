@@ -104,23 +104,40 @@ class WearableCommunicationService {
   /// todos los eventos y el resto vería "sin datos".
   late final Stream<List<Map<String, dynamic>>> _batches =
       _wearableEventChannel.receiveBroadcastStream().map((event) {
-    final String dataString = event as String;
-    debugPrint('[Wearable] Batch recibido en Dart (${dataString.length} chars)');
-    final List<dynamic> batch = jsonDecode(dataString);
-    return batch.map((item) => item as Map<String, dynamic>).toList();
+    try {
+      final String dataString = event as String;
+      debugPrint('[Wearable] Batch recibido en Dart (${dataString.length} chars)');
+      final List<dynamic> batch = jsonDecode(dataString);
+      return batch.map((item) => item as Map<String, dynamic>).toList();
+    } catch (e) {
+      debugPrint('[Wearable] Error parseando lote nativo: $e');
+      return <Map<String, dynamic>>[];
+    }
   }).asBroadcastStream();
 
   /// Stream de datos de acelerómetro (compatibilidad heredada).
   Stream<AccelerometerData> get accelerometerStream {
     return _batches.expand(
-      (batch) => batch.map(AccelerometerData.fromJson),
+      (batch) => batch.map((item) {
+        try {
+          return AccelerometerData.fromJson(item);
+        } catch (e) {
+          return null;
+        }
+      }).where((s) => s != null).cast<AccelerometerData>(),
     );
   }
 
   /// Stream de muestras fisiológicas completas (acel + giro + salud + pasos).
   Stream<WearableSensorSample> get sensorStream {
     return _batches.expand(
-      (batch) => batch.map(WearableSensorSample.fromJson),
+      (batch) => batch.map((item) {
+        try {
+          return WearableSensorSample.fromJson(item);
+        } catch (e) {
+          return null;
+        }
+      }).where((s) => s != null).cast<WearableSensorSample>(),
     );
   }
 

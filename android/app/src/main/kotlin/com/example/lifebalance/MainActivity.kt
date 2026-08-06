@@ -73,4 +73,12 @@ class MainActivity : FlutterActivity() {
 
         Wearable.getDataClient(this).putDataItem(request)
     }
+
+    // Se llama cuando este FlutterEngine se destruye (hot restart, actividad
+    // recreada, etc). Sin esto, WearDataBus podía quedarse con un EventSink
+    // apuntando a un engine ya muerto y seguir intentando emitir hacia él.
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        WearDataBus.setEventSink(null)
+        super.cleanUpFlutterEngine(flutterEngine)
+    }
 }

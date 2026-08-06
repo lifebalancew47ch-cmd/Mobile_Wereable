@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lifebalance/core/security/token_service.dart';
+import 'package:lifebalance/core/security/auth_gate.dart';
+import 'package:lifebalance/core/security/app_lock_preferences.dart';
 
 // Screens
 import 'package:lifebalance/features/auth/presentation/screens/login_screen.dart';
@@ -51,6 +53,17 @@ final GoRouter appRouter = GoRouter(
     final tokenService = ProviderScope.containerOf(context).read(tokenServiceProvider);
     final hasValidSession = await tokenService.hasValidToken();
     if (!hasValidSession) return '/login';
+
+    // AuthGate (bloqueo biométrico al reabrir la app): existía completo pero
+    // nunca se instanciaba en ningún flujo de navegación real (M-04 del
+    // audit). Si el usuario lo activó desde Ajustes y aún no desbloqueó esta
+    // sesión de proceso, cualquier ruta protegida redirige a /auth-gate.
+    if (state.matchedLocation == '/auth-gate') return null;
+    if (!appUnlockedThisSession) {
+      final lockEnabled = await AppLockPreferences.isBiometricLockEnabled();
+      if (lockEnabled) return '/auth-gate';
+    }
+
     return null;
   },
   routes: <RouteBase>[
@@ -70,6 +83,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/auth/forgot-password',
       builder: (BuildContext context, GoRouterState state) => const ForgotPasswordScreen(),
+    ),
+    GoRoute(
+      path: '/auth-gate',
+      builder: (BuildContext context, GoRouterState state) => const AuthGate(),
     ),
     GoRoute(
       path: '/fog',

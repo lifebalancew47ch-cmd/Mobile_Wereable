@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../../auth/presentation/providers/profile_provider.dart';
 import '../../../medical/presentation/providers/medical_provider.dart';
 import '../../../medical/data/medical_api_service.dart';
+import '../../../../core/security/secure_storage.dart';
 
 class BiometricProfileScreen extends ConsumerStatefulWidget {
   const BiometricProfileScreen({super.key});
@@ -17,6 +17,7 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
   static const _kHeightCm = 'biometric_height_cm';
   static const _kWeightKg = 'biometric_weight_kg';
   static const _kAge = 'biometric_age';
+  static const _storage = secureStorage;
 
   String? _selectedGender;
   final TextEditingController _heightController = TextEditingController();
@@ -31,13 +32,17 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
   }
 
   Future<void> _loadSaved() async {
-    final prefs = await SharedPreferences.getInstance();
+    final gender = await _storage.read(key: _kGender);
+    final height = await _storage.read(key: _kHeightCm);
+    final weight = await _storage.read(key: _kWeightKg);
+    final age = await _storage.read(key: _kAge);
+
     if (!mounted) return;
     setState(() {
-      _selectedGender = prefs.getString(_kGender);
-      _heightController.text = prefs.getString(_kHeightCm) ?? '';
-      _weightController.text = prefs.getString(_kWeightKg) ?? '';
-      _ageController.text = prefs.getString(_kAge) ?? '';
+      _selectedGender = gender;
+      _heightController.text = height ?? '';
+      _weightController.text = weight ?? '';
+      _ageController.text = age ?? '';
     });
   }
 
@@ -54,11 +59,10 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
     if (_syncing) return;
     setState(() => _syncing = true);
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kGender, _selectedGender ?? '');
-    await prefs.setString(_kHeightCm, _heightController.text.trim());
-    await prefs.setString(_kWeightKg, _weightController.text.trim());
-    await prefs.setString(_kAge, _ageController.text.trim());
+    await _storage.write(key: _kGender, value: _selectedGender ?? '');
+    await _storage.write(key: _kHeightCm, value: _heightController.text.trim());
+    await _storage.write(key: _kWeightKg, value: _weightController.text.trim());
+    await _storage.write(key: _kAge, value: _ageController.text.trim());
 
     // Sincroniza peso y altura con el Medical Data Service (POST /medical/readings)
     final height = double.tryParse(_heightController.text.trim().replaceAll(',', '.'));
@@ -71,12 +75,11 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
       try {
         final api = ref.read(medicalApiServiceProvider);
         await api.addReading(MedicalReading(
-          heartRate: 0,
-          hrv: 0,
-          spo2: 0,
           steps: 0,
           weight: hasWeight ? weight : 0,
           height: hasHeight ? height : 0,
+          heartRate: 60, // Dummy requerido por validación del backend (30-250)
+          spo2: 95,      // Dummy requerido por validación del backend (50-100)
           recordedAtUtc: DateTime.now(),
         ));
         cloudMessage = ' y sincronizados con la nube';

@@ -4,6 +4,8 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import 'spki_extractor.dart';
+
 /// Validación estricta de certificados TLS (SSL/TLS Pinning) con
 /// comportamiento fail-closed:
 ///  - Si el certificado es nulo            -> rechazar.
@@ -46,20 +48,48 @@ class CertificatePinning {
   /// devolver false aquí mantiene la conexión bloqueada (fail-closed).
   ///
   /// En debug/profile mode se omite el pinning para permitir conexiones
-  /// durante desarrollo sin necesidad de configurar pins. En release mode
-  /// se mantiene el comportamiento fail-closed original.
+  /// durante desarrollo sin necesidad de configurar pins (proxies locales,
+  /// certificados autofirmados).
+  ///
+  /// Auditoria 6/08/2026 (C-01): en release mode, si no había pines
+  /// configurados (p. ej. `.env.production` vacío o no cargado), la función
+  /// devolvía `true` — es decir, aceptaba CUALQUIER certificado que ya había
+  /// fallado la validación estándar de la CA (fail-open, vulnerable a MITM).
+  /// Ahora, fuera de debug/profile, la ausencia de pines rechaza la conexión
+  /// (fail-closed) en vez de degradar silenciosamente la seguridad.
   static bool validateCertificate(
     X509Certificate? certificate,
     String host,
     int port,
   ) {
-    // En debug/profile o si no hay pins configurados en .env: permitir CA raíz del SO.
-    if (kDebugMode || kProfileMode || !isConfigured) return true;
+    // Solo en debug/profile se permite la CA raíz del SO sin pines.
+    if (kDebugMode || kProfileMode) return true;
 
     if (certificate == null) return false;
-    // Huella SHA-256 calculada localmente sobre el DER (sin depender de
-    // getters de plataforma que varían por SDK/OS).
-    final digest = sha256.convert(certificate.der).toString();
+
+    if (!isConfigured) {
+      // Producción sin pines configurados: nunca degradar a aceptar un
+      // certificado que ya falló la validación estándar. Fail-closed.
+      return false;
+    }
+
+    // Huella SHA-256 sobre el SPKI (SubjectPublicKeyInfo, la clave pública),
+    // no sobre el certificado completo.
+    //
+    // Auditoria 6/08/2026 (C-01): antes se calculaba
+    // `sha256.convert(certificate.der)` — el hash del certificado entero.
+    // Las instrucciones del propio archivo (líneas 17-20, con openssl)
+    // generan el pin sobre el SPKI, así que ese pin nunca coincidía con el
+    // hash aquí calculado. Además, pinear el certificado completo rompe la
+    // app en cada renovación (Let's Encrypt/Render cada 90 días); pinear el
+    // SPKI sobrevive mientras se conserve la misma clave.
+    final spkiDer = SpkiExtractor.extractSubjectPublicKeyInfo(certificate.der);
+    if (spkiDer == null) {
+      // Certificado con forma inesperada / no se pudo aislar el SPKI:
+      // fail-closed, nunca se cae a aceptar por defecto.
+      return false;
+    }
+    final digest = sha256.convert(spkiDer).toString();
     return validatePinnedCertificate(
       sha256Hex: digest,
       host: host,

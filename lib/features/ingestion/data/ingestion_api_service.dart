@@ -4,24 +4,24 @@ import 'package:flutter/foundation.dart';
 /// Elemento de signo vital del lote de sincronización (contrato Ingestion).
 class VitalSignSyncItem {
   final DateTime timestamp;
-  final int heartRate;
-  final double hrv;
-  final double spo2;
+  final int? heartRate;
+  final double? hrv;
+  final double? spo2;
   final int steps;
 
   VitalSignSyncItem({
     required this.timestamp,
-    required this.heartRate,
-    required this.hrv,
-    required this.spo2,
+    this.heartRate,
+    this.hrv,
+    this.spo2,
     required this.steps,
   });
 
   Map<String, dynamic> toJson() => {
         'timestamp': timestamp.toUtc().toIso8601String(),
-        'heartRate': heartRate,
-        'hrv': hrv,
-        'spo2': spo2,
+        if (heartRate != null) 'heartRate': heartRate,
+        if (hrv != null) 'hrv': hrv,
+        if (spo2 != null) 'spo2': spo2,
         'steps': steps,
       };
 }

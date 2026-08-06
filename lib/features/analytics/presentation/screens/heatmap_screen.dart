@@ -478,7 +478,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
                         ),
                       ),
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             );
@@ -526,19 +526,6 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
       case 3: return 'Moderado';
       case 4: return 'Activo';
       default: return 'Sin registro';
-    }
-  }
-
-  String _typeLabel(String type) {
-    switch (type) {
-      case 'active':
-        return 'Activo';
-      case 'alert':
-        return 'Alerta';
-      case 'idle':
-        return 'Inactivo';
-      default:
-        return 'Sin registro';
     }
   }
 

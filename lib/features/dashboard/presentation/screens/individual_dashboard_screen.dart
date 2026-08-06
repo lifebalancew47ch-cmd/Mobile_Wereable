@@ -42,8 +42,8 @@ class IndividualDashboardScreen extends ConsumerWidget {
                     _buildHeatmapCard(theme, data.heatmap),
                     const SizedBox(height: 16),
                   ],
-                  if (data.activity.isNotEmpty) ...[
-                    _buildActivityCard(theme, data.activity),
+                  if (data.activity != null) ...[
+                    _buildActivityCard(theme, data.activity!),
                     const SizedBox(height: 16),
                   ],
                   if (data.statistics != null) ...[
@@ -62,9 +62,7 @@ class IndividualDashboardScreen extends ConsumerWidget {
                     _buildRewardsCard(theme, data.rewards),
                     const SizedBox(height: 16),
                   ],
-                  if (!data.hasAnyData &&
-                      data.goals.isEmpty &&
-                      data.rewards.isEmpty)
+                  if (!data.hasAnyData)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 40),
                       child: Column(
@@ -86,47 +84,41 @@ class IndividualDashboardScreen extends ConsumerWidget {
   }
 
   Widget _buildProgressCard(ThemeData theme, DashboardProgress progress) {
+    // Contrato real del backend: progreso semanal de metas + días activos,
+    // no barras de pasos/minutos (esas viven ahora en "Metas").
+    final pct = (progress.weeklyGoalCompletionPercentage / 100).clamp(0.0, 1.0);
     return _sectionCard(
       theme,
-      title: 'Progreso diario',
+      title: 'Progreso semanal',
       icon: Icons.track_changes,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildBar(theme, 'Pasos', progress.dailySteps,
-              progress.dailyStepsTarget, progress.stepsProgress, Colors.green),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Metas completadas', style: TextStyle(fontWeight: FontWeight.w600)),
+              Text('${progress.weeklyGoalCompletionPercentage.toStringAsFixed(0)}%'),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: pct,
+              minHeight: 9,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: const AlwaysStoppedAnimation(Colors.green),
+            ),
+          ),
           const SizedBox(height: 12),
-          _buildBar(theme, 'Activos', progress.activeMinutes.round(),
-              progress.activeMinutesTarget, progress.activeProgress, Colors.blue),
+          Text('Días activo esta semana: ${progress.daysActive}',
+              style: const TextStyle(fontSize: 13)),
         ],
       ),
     );
   }
 
-  Widget _buildBar(ThemeData theme, String label, int value, int target,
-      double progress, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-            Text('$value / $target'),
-          ],
-        ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: LinearProgressIndicator(
-            value: (progress).clamp(0.0, 1.0),
-            minHeight: 9,
-            backgroundColor: Colors.grey.shade200,
-            valueColor: AlwaysStoppedAnimation(color),
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildBiometricsCard(ThemeData theme, DashboardBiometrics biometrics) {
     return _sectionCard(
@@ -166,23 +158,23 @@ class IndividualDashboardScreen extends ConsumerWidget {
   Widget _buildStatisticsCard(ThemeData theme, DashboardStatistics statistics) {
     return _sectionCard(
       theme,
-      title: 'Estadísticas',
+      title: 'Estadísticas de la semana',
       icon: Icons.bar_chart,
       child: Row(
         children: [
-          _metric(theme, '${statistics.totalSessions}', '', 'Sesiones'),
-          _metric(theme, '${statistics.activeSessions}', '', 'Activas'),
-          _metric(theme, '${statistics.alertCount}', '', 'Alertas'),
-          _metric(theme, statistics.averageDurationMinutes.toStringAsFixed(0),
-              'min', 'Promedio'),
+          _metric(theme, statistics.activeHoursThisWeek.toStringAsFixed(1),
+              'h', 'Activo'),
+          _metric(theme, statistics.sedentaryHoursThisWeek.toStringAsFixed(1),
+              'h', 'Sedentario'),
+          _metric(theme, statistics.averageHeartRate.toStringAsFixed(0),
+              'lpm', 'FC promedio'),
         ],
       ),
     );
   }
 
-  Widget _buildHeatmapCard(
-      ThemeData theme, List<Map<String, dynamic>> heatmap) {
-    final intensities = _parseHourlyHeatmap(heatmap);
+  Widget _buildHeatmapCard(ThemeData theme, List<int> heatmap) {
+    final intensities = heatmap.length == 24 ? heatmap : null;
     return _sectionCard(
       theme,
       title: 'Mapa de calor',
@@ -212,30 +204,6 @@ class IndividualDashboardScreen extends ConsumerWidget {
     );
   }
 
-  List<int>? _parseHourlyHeatmap(List<Map<String, dynamic>> heatmap) {
-    if (heatmap.isEmpty) return null;
-    // Formato A: lista de objetos {hour, intensity}
-    if (heatmap.first.containsKey('intensity') ||
-        heatmap.first.containsKey('hour')) {
-      final hours = List<int>.filled(24, 0);
-      for (final item in heatmap) {
-        final hour = (item['hour'] as num?)?.toInt() ?? 0;
-        final intensity = (item['intensity'] as num?)?.toInt() ?? 0;
-        if (hour >= 0 && hour < 24) hours[hour] = intensity;
-      }
-      return hours;
-    }
-    // Formato B: lista de 24 valores {value} o {intensity}
-    if (heatmap.length == 24) {
-      return heatmap
-          .map((e) {
-            final raw = e['value'] ?? e['intensity'];
-            return (raw as num?)?.toInt() ?? 0;
-          })
-          .toList();
-    }
-    return null;
-  }
 
   Widget _buildHourlyHeatmapGrid(List<int> intensities) {
     final max = intensities.reduce((a, b) => a > b ? a : b);
@@ -269,86 +237,22 @@ class IndividualDashboardScreen extends ConsumerWidget {
     return const Color(0xFF3E6F58);
   }
 
-  Widget _buildActivityCard(
-      ThemeData theme, List<Map<String, dynamic>> activity) {
+  // El backend devuelve un único snapshot agregado del día (no un feed de
+  // eventos individuales), así que se muestra como métricas, no como lista.
+  Widget _buildActivityCard(ThemeData theme, DashboardActivitySnapshot activity) {
     return _sectionCard(
       theme,
-      title: 'Actividad reciente',
+      title: 'Actividad de hoy',
       icon: Icons.history,
-      child: Column(
-        children: [
-          for (final item in activity.take(8))
-            _buildActivityItem(item),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActivityItem(Map<String, dynamic> item) {
-    final type = item['type']?.toString() ?? item['activityType']?.toString() ?? '';
-    final title = item['title']?.toString() ?? _activityTitle(type);
-    final duration = (item['durationMinutes'] ?? item['duration']) as num?;
-    final steps = (item['steps'] as num?)?.toInt();
-    final startRaw = item['startTime']?.toString() ?? item['timestamp']?.toString() ?? '';
-    final start = DateTime.tryParse(startRaw);
-
-    final durationLabel = duration != null
-        ? '${duration.round()} min'
-        : (steps != null && steps > 0 ? '$steps pasos' : '');
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(_activityIcon(type), color: _activityColor(type), size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                if (start != null)
-                  Text(
-                    '${start.day}/${start.month} ${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                  ),
-              ],
-            ),
-          ),
-          if (durationLabel.isNotEmpty)
-            Text(
-              durationLabel,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-            ),
+          _metric(theme, '${activity.dailySteps}', '', 'Pasos'),
+          _metric(theme, activity.activeMinutes.round().toString(), 'min', 'Activo'),
+          _metric(theme, activity.sedentaryHours.toStringAsFixed(1), 'h', 'Sedentario'),
+          _metric(theme, activity.caloriesBurned.toStringAsFixed(0), 'kcal', 'Calorías'),
         ],
       ),
     );
-  }
-
-  String _activityTitle(String type) {
-    return switch (type) {
-      'active' => 'Sesión activa',
-      'alert' => 'Alerta de sedentarismo',
-      'idle' => 'Período sedentario',
-      _ => 'Actividad',
-    };
-  }
-
-  IconData _activityIcon(String type) {
-    return switch (type) {
-      'active' => Icons.directions_run,
-      'alert' => Icons.warning_amber_rounded,
-      _ => Icons.chair_alt,
-    };
-  }
-
-  Color _activityColor(String type) {
-    return switch (type) {
-      'active' => Colors.green.shade600,
-      'alert' => Colors.orange.shade700,
-      _ => Colors.blueGrey,
-    };
   }
 
   Widget _buildRecommendationsCard(ThemeData theme,
@@ -390,9 +294,9 @@ class IndividualDashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildGoalsCard(ThemeData theme, Map<String, dynamic> goals) {
-    final stepsTarget = goals['dailyStepsTarget'] ?? goals['stepsTarget'];
-    final activeTarget = goals['activeMinutesTarget'] ?? goals['minutesTarget'];
+  // El backend devuelve una lista de retos de gamificación (challengeId,
+  // title, progressPercentage, completed), no un target fijo de pasos/minutos.
+  Widget _buildGoalsCard(ThemeData theme, List<DashboardChallenge> goals) {
     return _sectionCard(
       theme,
       title: 'Metas',
@@ -400,21 +304,51 @@ class IndividualDashboardScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (stepsTarget != null)
-            Text('Pasos diarios objetivo: $stepsTarget',
-                style: const TextStyle(fontSize: 14)),
-          if (activeTarget != null)
-            Text('Minutos activos objetivo: $activeTarget',
-                style: const TextStyle(fontSize: 14)),
+          for (final challenge in goals.take(6))
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(challenge.title,
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                      if (challenge.completed)
+                        const Icon(Icons.check_circle, color: Colors.green, size: 18)
+                      else
+                        Text('${challenge.progressPercentage.toStringAsFixed(0)}%'),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: (challenge.progressPercentage / 100).clamp(0.0, 1.0),
+                      minHeight: 6,
+                      backgroundColor: Colors.grey.shade200,
+                      valueColor: AlwaysStoppedAnimation(
+                        challenge.completed ? Colors.green : theme.colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
   }
 
+  // Campos reales de UserRewardsResponseDto: points, badgesUnlocked,
+  // currentStreakDays, recentRewards (no "level"/"totalPoints"/"badges").
   Widget _buildRewardsCard(ThemeData theme, Map<String, dynamic> rewards) {
-    final points = rewards['points'] ?? rewards['totalPoints'];
-    final level = rewards['level'];
-    final badges = rewards['badgesUnlocked'] ?? rewards['badges'];
+    final points = rewards['points'];
+    final badges = rewards['badgesUnlocked'];
+    final streak = rewards['currentStreakDays'];
     return _sectionCard(
       theme,
       title: 'Recompensas',
@@ -423,8 +357,8 @@ class IndividualDashboardScreen extends ConsumerWidget {
         children: [
           if (points != null)
             _metric(theme, '$points', 'pts', 'Puntos'),
-          if (level != null) _metric(theme, '$level', '', 'Nivel'),
           if (badges != null) _metric(theme, '$badges', '', 'Medallas'),
+          if (streak != null) _metric(theme, '$streak', 'días', 'Racha'),
         ],
       ),
     );

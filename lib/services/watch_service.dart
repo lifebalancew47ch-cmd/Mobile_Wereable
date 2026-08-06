@@ -25,6 +25,13 @@ class WatchService implements IWatchService {
         spo2: data.spo2,
         steps: data.steps,
         isSedentaryRisk: false,
+        // Antes se descartaban aquí: ahora se persisten para llegar al backend.
+        accelX: data.x,
+        accelY: data.y,
+        accelZ: data.z,
+        gyroX: data.gyroX,
+        gyroY: data.gyroY,
+        gyroZ: data.gyroZ,
       );
     });
     startPeriodicSync();

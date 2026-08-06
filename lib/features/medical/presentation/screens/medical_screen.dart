@@ -43,6 +43,8 @@ class MedicalScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             _buildLatestCard(context, ref, latestAsync),
+            const SizedBox(height: 8),
+            _buildHrvDisclaimer(context),
             const SizedBox(height: 16),
             _buildHistoryCard(context, ref, historyAsync),
           ],
@@ -68,10 +70,10 @@ class MedicalScreen extends ConsumerWidget {
 
     return Card(
       elevation: 0,
-      color: color.withOpacity(0.1),
+      color: color.withValues(alpha: 0.1),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: color.withOpacity(0.3), width: 1),
+        side: BorderSide(color: color.withValues(alpha: 0.3), width: 1),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -167,6 +169,37 @@ class MedicalScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Aviso de que el HRV mostrado es un proxy estimado (variabilidad de FC
+  /// entre muestras), no rMSSD clínico real. El rMSSD verdadero requiere
+  /// intervalos R-R latido a latido desde ECG/PPG crudo, que el sensor
+  /// estándar de Android no expone. Este dato es orientativo, no diagnóstico.
+  Widget _buildHrvDisclaimer(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, size: 18, color: Colors.amber),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'El HRV mostrado es un indicador estimado a partir de la variabilidad '
+              'de la frecuencia cardíaca, no una medición clínica de rMSSD. No debe '
+              'usarse como consulta médica real ni para tomar decisiones de salud: '
+              'consulta a un profesional para una evaluación diagnóstica.',
+              style: TextStyle(fontSize: 11.5, color: Colors.black87, height: 1.3),
+            ),
+          ),
+        ],
       ),
     );
   }

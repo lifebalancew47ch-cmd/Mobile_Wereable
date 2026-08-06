@@ -102,7 +102,7 @@ class _NotificationsList extends ConsumerWidget {
   }
 }
 
-class _NotificationCard extends StatelessWidget {
+class _NotificationCard extends ConsumerWidget {
   final NotificationItem notification;
 
   const _NotificationCard({required this.notification});
@@ -140,8 +140,25 @@ class _NotificationCard extends StatelessWidget {
     return 'Hace ${diff.inDays} d';
   }
 
+  Future<void> _handleAction(BuildContext context, WidgetRef ref, String value) async {
+    final api = ref.read(notificationsApiServiceProvider);
+    try {
+      if (value == 'read') {
+        await api.markNotificationRead(notification.id);
+      } else if (value == 'dismiss') {
+        await api.archiveNotification(notification.id);
+      }
+      ref.invalidate(notificationsProvider);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo actualizar la notificación: $e')),
+      );
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Card(
       child: ListTile(
         leading: Icon(_icon, color: _iconColor),
@@ -152,9 +169,21 @@ class _NotificationCard extends StatelessWidget {
           ),
         ),
         subtitle: Text(notification.message),
-        trailing: Text(
-          _relativeTime(notification.createdAtUtc),
-          style: Theme.of(context).textTheme.bodySmall,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _relativeTime(notification.createdAtUtc),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            PopupMenuButton<String>(
+              onSelected: (value) => _handleAction(context, ref, value),
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'read', child: Text('Marcar como leída')),
+                PopupMenuItem(value: 'dismiss', child: Text('Descartar')),
+              ],
+            ),
+          ],
         ),
       ),
     );

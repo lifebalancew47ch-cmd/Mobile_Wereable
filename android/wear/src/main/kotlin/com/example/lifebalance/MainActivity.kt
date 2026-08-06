@@ -12,6 +12,7 @@ import android.widget.TextView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -101,7 +102,11 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 100) {
             requestBackgroundSensorPermissionIfNeeded()
-            startSensorService()
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                checkSelfPermission(Manifest.permission.BODY_SENSORS_BACKGROUND) == PackageManager.PERMISSION_GRANTED
+            ) {
+                startSensorService()
+            }
         } else if (requestCode == 101) {
             startSensorService()
         }
@@ -134,6 +139,12 @@ class MainActivity : Activity() {
     override fun onPause() {
         stopUiUpdates()
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        stopUiUpdates()
+        scope.cancel()
+        super.onDestroy()
     }
 
     private fun updateUi() {

@@ -71,7 +71,9 @@ class RecommendationDto {
   });
 
   factory RecommendationDto.fromJson(Map<String, dynamic> json) => RecommendationDto(
-        id: json['id']?.toString() ?? '',
+        // El backend serializa el campo del record como "recommendationId"
+        // (record RecommendationDto(RecommendationId, ...)), no "id".
+        id: json['recommendationId']?.toString() ?? json['id']?.toString() ?? '',
         category: json['category']?.toString() ?? '',
         title: json['title']?.toString() ?? '',
         description: json['description']?.toString() ?? '',

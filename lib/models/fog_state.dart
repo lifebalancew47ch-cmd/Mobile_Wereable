@@ -17,6 +17,11 @@ class FogState {
   /// Minutos acumulados de reposo clínico (si aplica).
   final int restMinutes;
 
+  /// `true` si el motor tiene escrituras a SQLite pendientes de reintentar
+  /// (p. ej. el almacenamiento local está lleno o hubo un error de I/O). La
+  /// UI puede usar esto para avisar al usuario en vez de fallar en silencio.
+  final bool hasPendingWrites;
+
   FogState({
     required this.status,
     required this.inactiveMinutes,
@@ -24,6 +29,7 @@ class FogState {
     this.clinicalState = ClinicalState.sedentaryWork,
     this.reposoVerificado = false,
     this.restMinutes = 0,
+    this.hasPendingWrites = false,
   });
 
   FogState copyWith({
@@ -33,6 +39,7 @@ class FogState {
     ClinicalState? clinicalState,
     bool? reposoVerificado,
     int? restMinutes,
+    bool? hasPendingWrites,
   }) {
     return FogState(
       status: status ?? this.status,
@@ -41,6 +48,7 @@ class FogState {
       clinicalState: clinicalState ?? this.clinicalState,
       reposoVerificado: reposoVerificado ?? this.reposoVerificado,
       restMinutes: restMinutes ?? this.restMinutes,
+      hasPendingWrites: hasPendingWrites ?? this.hasPendingWrites,
     );
   }
 }

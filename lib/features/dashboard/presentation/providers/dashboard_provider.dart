@@ -49,9 +49,9 @@ class IndividualDashboardData {
   final List<DashboardRecommendation> recommendations;
   final DashboardBiometrics? biometrics;
   final DashboardStatistics? statistics;
-  final List<Map<String, dynamic>> heatmap;
-  final List<Map<String, dynamic>> activity;
-  final Map<String, dynamic> goals;
+  final List<int> heatmap;
+  final DashboardActivitySnapshot? activity;
+  final List<DashboardChallenge> goals;
   final Map<String, dynamic> rewards;
 
   const IndividualDashboardData({
@@ -60,8 +60,8 @@ class IndividualDashboardData {
     this.biometrics,
     this.statistics,
     this.heatmap = const [],
-    this.activity = const [],
-    this.goals = const {},
+    this.activity,
+    this.goals = const [],
     this.rewards = const {},
   });
 
@@ -69,7 +69,10 @@ class IndividualDashboardData {
       progress != null ||
       biometrics != null ||
       statistics != null ||
-      recommendations.isNotEmpty;
+      activity != null ||
+      recommendations.isNotEmpty ||
+      goals.isNotEmpty ||
+      rewards.isNotEmpty;
 }
 
 /// Datos extendidos del dashboard individual (progreso, recomendaciones,
@@ -85,9 +88,9 @@ final individualDashboardDataProvider = FutureProvider<IndividualDashboardData>(
     api.getIndividualBiometrics().then<Object?>((v) => v).catchError((_) => null),
     api.getIndividualStatistics().then<Object?>((v) => v).catchError((_) => null),
     api.getIndividualRecommendations().then<Object?>((v) => v).catchError((_) => <DashboardRecommendation>[]),
-    api.getIndividualHeatmap().then<Object?>((v) => v).catchError((_) => <Map<String, dynamic>>[]),
-    api.getIndividualActivity().then<Object?>((v) => v).catchError((_) => <Map<String, dynamic>>[]),
-    api.getIndividualGoals().then<Object?>((v) => v).catchError((_) => <String, dynamic>{}),
+    api.getIndividualHeatmap().then<Object?>((v) => v).catchError((_) => <int>[]),
+    api.getIndividualActivity().then<Object?>((v) => v).catchError((_) => null),
+    api.getIndividualGoals().then<Object?>((v) => v).catchError((_) => <DashboardChallenge>[]),
     api.getIndividualRewards().then<Object?>((v) => v).catchError((_) => <String, dynamic>{}),
   ]);
 
@@ -96,9 +99,9 @@ final individualDashboardDataProvider = FutureProvider<IndividualDashboardData>(
     biometrics: results[1] as DashboardBiometrics?,
     statistics: results[2] as DashboardStatistics?,
     recommendations: (results[3] as List?)?.cast<DashboardRecommendation>() ?? [],
-    heatmap: (results[4] as List?)?.cast<Map<String, dynamic>>() ?? [],
-    activity: (results[5] as List?)?.cast<Map<String, dynamic>>() ?? [],
-    goals: (results[6] as Map?)?.cast<String, dynamic>() ?? {},
+    heatmap: (results[4] as List?)?.cast<int>() ?? [],
+    activity: results[5] as DashboardActivitySnapshot?,
+    goals: (results[6] as List?)?.cast<DashboardChallenge>() ?? [],
     rewards: (results[7] as Map?)?.cast<String, dynamic>() ?? {},
   );
 });

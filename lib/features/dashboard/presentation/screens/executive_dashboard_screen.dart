@@ -129,8 +129,6 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
                 );
               },
             ),
-            const SizedBox(height: 24),
-            _buildAnalysisCard(),
             const SizedBox(height: 40),
           ],
         ),
@@ -444,112 +442,6 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
     final h = minutes ~/ 60;
     final m = minutes % 60;
     return h > 0 ? '${h}h ${m}m' : '${m}m';
-  }
-
-  Widget _buildAnalysisCard() {
-    final fogEngine = ref.watch(fogEngineProvider);
-    final alertSettings = ref.watch(alertSettingsProvider).value ??
-        const AlertSettings(intervalMinutes: 45);
-    final thresholdMinutes = alertSettings.intervalMinutes;
-
-    return StreamBuilder<FogState>(
-      stream: fogEngine.stateStream,
-      builder: (context, snapshot) {
-        final state = snapshot.data ?? FogState(
-          status: ActivityStatus.active,
-          inactiveMinutes: 0,
-          lastMovement: DateTime.now(),
-        );
-        final minutes = state.inactiveMinutes;
-        final isRisk = minutes >= thresholdMinutes;
-
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  height: 140,
-                  color: const Color(0xFF1E3A34),
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            isRisk ? Icons.warning_amber_rounded : Icons.monitor_heart_outlined,
-                            color: isRisk ? const Color(0xFFD68C5E) : Colors.white70,
-                            size: 28,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            isRisk ? 'Riesgo de inactividad' : 'Estado saludable',
-                            style: TextStyle(
-                              color: isRisk ? const Color(0xFFD68C5E) : Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        isRisk
-                            ? '$minutes minutos inactivo. Una pausa activa de 2 min restaura tu rendimiento.'
-                            : 'Monitorizando tu actividad en tiempo real. Pausas cada $thresholdMinutes min.',
-                        style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.5),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  const Icon(Icons.psychology_outlined, color: Color(0xFF3E6F58), size: 28),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'Análisis Ejecutivo',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF3E6F58),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                isRisk
-                    ? 'Llevas $minutes minutos de inactividad continua. Tomar un descanso de movimiento de 2 minutos ahora aumentará tu rendimiento cognitivo durante la próxima hora.'
-                    : 'Tu actividad actual es saludable ($minutes min inactivo). Sigue con pausas activas cada $thresholdMinutes minutos para mantener tu nivel óptimo.',
-                style: const TextStyle(color: Colors.black54, fontSize: 12, height: 1.5),
-              ),
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: () {
-                  context.push('/dashboard/individual');
-                },
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF3E6F58),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: const Text('Ver Análisis Individual', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   Widget _buildMetricCard({

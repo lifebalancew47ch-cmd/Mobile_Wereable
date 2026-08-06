@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lifebalance/core/network/api_client.dart';
 import 'package:lifebalance/data/datasources/secure_database_service.dart';
 import '../../data/datasources/notifications_api_service.dart';
+import '../../data/notification_preferences_store.dart';
 import '../../domain/entities/notification_item.dart';
 import '../../domain/entities/alert_item.dart';
 
@@ -62,9 +63,46 @@ Future<List<AlertItem>> _loadLocalAlerts() async {
   }
 }
 
-/// Preferencias de notificación (GET /preferences).
+final notificationPreferencesStoreProvider =
+    Provider((ref) => NotificationPreferencesStore());
+
+/// Preferencias de notificación.
+///
+/// Se lee primero la copia local (SharedPreferences), que es la que refleja
+/// la última elección del usuario, y se intenta refrescar desde el backend
+/// (`GET /preferences`). Si el backend falla, se devuelve la copia local en
+/// lugar de propagar el error: así los switches nunca "se vuelven atrás".
 final notificationPreferencesProvider =
     FutureProvider<NotificationPreferences>((ref) async {
   final api = ref.watch(notificationsApiServiceProvider);
-  return await api.getPreferences();
+  final store = ref.watch(notificationPreferencesStoreProvider);
+
+  final local = await store.load();
+
+  // Si hay un guardado local sin sincronizar, manda el local: el servidor
+  // todavía tiene el valor viejo y no debe pisar la elección del usuario.
+  // Se reintenta el envío en segundo plano.
+  if (local != null && await store.hasPendingSync()) {
+    try {
+      await api.updatePreferences(
+        pushEnabled: local.pushEnabled,
+        emailEnabled: local.emailEnabled,
+        wearEnabled: local.wearEnabled,
+      );
+      await store.clearPendingSync();
+    } catch (_) {
+      // Sigue pendiente; se reintentará el próximo refresco.
+    }
+    return local;
+  }
+
+  try {
+    final remote = await api.getPreferences(
+      fallback: local ?? NotificationPreferences.defaults,
+    );
+    await store.save(remote);
+    return remote;
+  } catch (_) {
+    return local ?? NotificationPreferences.defaults;
+  }
 });

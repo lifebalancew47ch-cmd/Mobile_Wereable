@@ -2,6 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers/notifications_provider.dart';
 import '../domain/entities/alert_item.dart';
+import '../../../data/datasources/secure_database_service.dart';
+
+/// Prefijo usado en [AlertItem.id] para las alertas generadas localmente por
+/// el FogEngine (ver `_loadLocalAlerts` en notifications_provider.dart). Estas
+/// alertas no existen en el backend de Alerts, así que "leer"/"descartar" debe
+/// resolverse contra la base local en vez de llamar a la API en la nube.
+const _localAlertIdPrefix = 'local-';
+
+String _relativeTime(DateTime time) {
+  final diff = DateTime.now().difference(time);
+  if (diff.inMinutes < 1) return 'Ahora';
+  if (diff.inHours < 1) return 'Hace ${diff.inMinutes} min';
+  if (diff.inDays < 1) return 'Hace ${diff.inHours} h';
+  return 'Hace ${diff.inDays} d';
+}
+
+String _timeOfDay(DateTime time) =>
+    '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
 
 class AlertsScreen extends ConsumerWidget {
   const AlertsScreen({super.key});
@@ -76,6 +94,37 @@ class _AlertCard extends ConsumerWidget {
     return Colors.blueGrey;
   }
 
+  bool get _isLocal => alert.id.startsWith(_localAlertIdPrefix);
+
+  Future<void> _handleAction(BuildContext context, WidgetRef ref, String value) async {
+    try {
+      if (_isLocal) {
+        // Alerta local del FogEngine: no existe en el backend de Alerts, así
+        // que "leer" y "descartar" se resuelven contra la base local.
+        final rawId = int.tryParse(alert.id.substring(_localAlertIdPrefix.length));
+        if (rawId != null) {
+          if (value == 'dismiss') {
+            await SecureDatabaseService.instance.dismissLocalAlert(rawId);
+          } else {
+            await SecureDatabaseService.instance.acknowledgeLocalAlert(rawId);
+          }
+        }
+      } else if (value == 'read') {
+        final api = ref.read(notificationsApiServiceProvider);
+        await api.markAlertRead(alert.id);
+      } else if (value == 'dismiss') {
+        final api = ref.read(notificationsApiServiceProvider);
+        await api.dismissAlert(alert.id);
+      }
+      ref.invalidate(alertsProvider);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo actualizar la alerta: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Card(
@@ -98,21 +147,14 @@ class _AlertCard extends ConsumerWidget {
             const SizedBox(height: 4),
             Text(
               '${alert.source.isEmpty ? 'Sistema' : alert.source} · '
-              '${alert.priority.isEmpty ? 'normal' : alert.priority}',
+              '${alert.priority.isEmpty ? 'normal' : alert.priority} · '
+              '${_timeOfDay(alert.createdAtUtc)} · ${_relativeTime(alert.createdAtUtc)}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
             ),
           ],
         ),
         trailing: PopupMenuButton<String>(
-          onSelected: (value) async {
-            final api = ref.read(notificationsApiServiceProvider);
-            if (value == 'read') {
-              await api.markAlertRead(alert.id);
-            } else if (value == 'dismiss') {
-              await api.dismissAlert(alert.id);
-            }
-            ref.invalidate(alertsProvider);
-          },
+          onSelected: (value) => _handleAction(context, ref, value),
           itemBuilder: (context) => const [
             PopupMenuItem(value: 'read', child: Text('Marcar como leída')),
             PopupMenuItem(value: 'dismiss', child: Text('Descartar')),

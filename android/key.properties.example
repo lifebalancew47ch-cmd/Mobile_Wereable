@@ -1,0 +1,15 @@
+# Copia este archivo a `android/key.properties` (que está en .gitignore,
+# NUNCA lo subas al repo) y completa los valores reales.
+#
+# Generar una keystore de release propia (una sola vez, guárdala en un lugar
+# seguro fuera del repo — si la pierdes, no podrás volver a actualizar la app
+# publicada en Play Store con la misma firma):
+#
+#   keytool -genkey -v -keystore ~/lifebalance-release.jks \
+#     -keyalg RSA -keysize 2048 -validity 10000 -alias lifebalance
+#
+# storeFile puede ser una ruta absoluta o relativa a android/.
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=lifebalance
+storeFile=/ruta/absoluta/a/lifebalance-release.jks

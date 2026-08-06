@@ -4,8 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../data/datasources/secure_database_service.dart';
+import 'encryption_service.dart';
+import 'secure_storage.dart';
+
 final tokenServiceProvider = Provider<TokenService>((ref) {
-  return TokenService(const FlutterSecureStorage());
+  return TokenService(secureStorage);
 });
 
 /// Señal global que notifica cambios de sesión (login/logout/expiración).
@@ -18,30 +23,26 @@ void _notifySessionChange() {
 }
 
 class TokenService {
-  final FlutterSecureStorage _storage;
-
   static const String _accessTokenKey = 'access_token';
   static const String _refreshTokenKey = 'refresh_token';
+  static const String _userCacheKey = 'user_cache';
 
-  static const String _userCacheKey = 'cached_user_profile';
+  final FlutterSecureStorage _storage;
 
   TokenService(this._storage);
 
-  Future<void> saveTokens({required String accessToken, required String refreshToken}) async {
+  Future<void> saveTokens({required String accessToken, String? refreshToken}) async {
     await _storage.write(key: _accessTokenKey, value: accessToken);
-    await _storage.write(key: _refreshTokenKey, value: refreshToken);
-    _notifySessionChange();
+    if (refreshToken != null) {
+      await _storage.write(key: _refreshTokenKey, value: refreshToken);
+    }
   }
 
-  Future<void> invalidateSession() async {
-    await clearTokens();
+  Future<void> saveUserData(String userDataJson) async {
+    await _storage.write(key: _userCacheKey, value: userDataJson);
   }
 
-  Future<void> saveCachedUser(String userJsonStr) async {
-    await _storage.write(key: _userCacheKey, value: userJsonStr);
-  }
-
-  Future<String?> getCachedUser() async {
+  Future<String?> getUserData() async {
     return await _storage.read(key: _userCacheKey);
   }
 
@@ -53,19 +54,57 @@ class TokenService {
     return await _storage.read(key: _refreshTokenKey);
   }
 
+  /// SessionWiper: borra tokens, purga registros de salud en la BD SQLCipher,
+  /// regenera la clave de encriptación AES y limpia datos biométricos/wearable en SharedPreferences.
   Future<void> clearTokens() async {
     await _storage.delete(key: _accessTokenKey);
     await _storage.delete(key: _refreshTokenKey);
     await _storage.delete(key: _userCacheKey);
+    await _storage.delete(key: 'biometric_gender');
+    await _storage.delete(key: 'biometric_height_cm');
+    await _storage.delete(key: 'biometric_weight_kg');
+    await _storage.delete(key: 'biometric_age');
+
+    try {
+      await SecureDatabaseService.instance.purgeAllData();
+      await EncryptionService.clearEncryptionKey();
+    } catch (e) {
+      debugPrint('[SessionWiper] Error purgando base de datos cifrada o clave AES: $e');
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keysToClear = prefs.getKeys().where((k) =>
+        k.startsWith('biometric_') ||
+        k == 'flutter.latest_wear_json' ||
+        k.contains('native_fog')
+      ).toList();
+      for (final key in keysToClear) {
+        await prefs.remove(key);
+      }
+    } catch (e) {
+      debugPrint('[SessionWiper] Error limpiando SharedPreferences: $e');
+    }
+
     _notifySessionChange();
   }
+
+  /// Margen de tolerancia para evitar 401 justo en el límite de expiración
+  /// por desfase de reloj entre dispositivo y servidor.
+  static const Duration _clockSkewMargin = Duration(seconds: 30);
 
   Future<bool> hasValidToken() async {
     final token = await getAccessToken();
     if (token == null || token.isEmpty) return false;
     final expiry = _extractExpiry(token);
-    if (expiry == null) return true;
-    return DateTime.now().isBefore(expiry);
+    // M-01 (audit de seguridad): antes un token sin `exp` decodificable
+    // (opaco, truncado, corrupto, o con firma inválida -- `_extractExpiry`
+    // devuelve null ante cualquier error) se consideraba válido para
+    // siempre y pasaba el guard del router. Ahora se rechaza: si el token
+    // no se puede validar localmente, que falle en la próxima llamada a la
+    // API (que sí lo valida) en vez de dejar pasar a la app.
+    if (expiry == null) return false;
+    return DateTime.now().isBefore(expiry.subtract(_clockSkewMargin));
   }
 
   /// Decodifica el claim `exp` de un JWT (payload en base64url).

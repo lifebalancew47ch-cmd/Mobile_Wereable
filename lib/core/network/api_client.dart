@@ -1,14 +1,28 @@
+import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../security/certificate_pinning.dart';
 import '../security/token_service.dart';
+import '../security/secure_storage.dart';
 
 /// Reintenta peticiones fallidas por indisponibilidad transitoria del backend
-/// (500/502/503/429) o errores de red con backoff exponencial, SIN degradar
-/// nunca el canal a HTTP o sin TLS. Los fallos de TLS nunca se reintentan.
+/// (500/502/503/429) o errores de red con backoff exponencial + jitter, SIN
+/// degradar nunca el canal a HTTP o sin TLS. Los fallos de TLS nunca se
+/// reintentan.
+///
+/// A-06 (audit de seguridad): el contador de reintentos vivía como estado de
+/// instancia (`_attempts`), compartido por TODAS las peticiones concurrentes
+/// de este Dio -- con varias peticiones en paralelo (el dashboard las lanza
+/// así), tres fallos simultáneos consumían los 3 intentos entre las tres, y
+/// el primer éxito reseteaba el contador a 0 dejando que las demás
+/// reintentaran sin límite real. Además el retry corría en un
+/// `Future.delayed` sin `await`: `onError` retornaba de inmediato y, con
+/// `maxAttempts` agotado, `handler.next(err)` podía llamarse dos veces
+/// (una desde el `Future` en vuelo, otra desde una llamada posterior) ->
+/// `StateError`. Ahora el contador vive en `err.requestOptions.extra`, que
+/// es por petición, y el reintento se espera de verdad.
 class RetryWithBackoffInterceptor extends Interceptor {
   RetryWithBackoffInterceptor(
     this._dio, {
@@ -16,11 +30,12 @@ class RetryWithBackoffInterceptor extends Interceptor {
     this.baseDelay = const Duration(milliseconds: 200),
   });
 
+  static const _retryCountKey = '_retry_count';
+
   final Dio _dio;
   final int maxAttempts;
   final Duration baseDelay;
-
-  int _attempts = 0;
+  final Random _random = Random();
 
   bool _isRetryable(DioException err) {
     if (err.type == DioExceptionType.cancel ||
@@ -37,21 +52,28 @@ class RetryWithBackoffInterceptor extends Interceptor {
   }
 
   @override
-  void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (_attempts < maxAttempts && _isRetryable(err)) {
-      _attempts++;
-      Future<void>.delayed(baseDelay * _attempts, () async {
-        try {
-          final response = await _dio.fetch<dynamic>(err.requestOptions);
-          handler.resolve(response);
-        } on DioException catch (retryError) {
-          handler.next(retryError);
-        }
-      });
+  void onError(DioException err, ErrorInterceptorHandler handler) async {
+    final count = (err.requestOptions.extra[_retryCountKey] as int?) ?? 0;
+    if (count >= maxAttempts || !_isRetryable(err)) {
+      handler.next(err);
       return;
     }
-    _attempts = 0;
-    handler.next(err);
+
+    err.requestOptions.extra[_retryCountKey] = count + 1;
+
+    // Backoff exponencial real (antes era lineal: baseDelay * intento) con
+    // jitter para que clientes que fallaron a la vez no reintenten
+    // sincronizados y amplifiquen la caída del backend (efecto manada).
+    final exponentialDelay = baseDelay * (1 << count);
+    final jitter = Duration(milliseconds: _random.nextInt(200));
+    await Future<void>.delayed(exponentialDelay + jitter);
+
+    try {
+      final response = await _dio.fetch<dynamic>(err.requestOptions);
+      handler.resolve(response);
+    } on DioException catch (retryError) {
+      handler.next(retryError);
+    }
   }
 }
 
@@ -63,7 +85,7 @@ Dio _buildDio(Ref ref, String baseUrl) {
 /// reintentos con backoff, auth Bearer) sin depender de Riverpod. Reutilizable
 /// desde aislados de segundo plano donde no existe [Ref].
 Dio buildSecureDio(String baseUrl, {TokenService? authService}) {
-  final tokenService = authService ?? TokenService(const FlutterSecureStorage());
+  final tokenService = authService ?? TokenService(secureStorage);
 
   final dio = Dio(BaseOptions(
     baseUrl: baseUrl,

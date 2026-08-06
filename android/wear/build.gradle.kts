@@ -8,6 +8,10 @@ android {
     compileSdk = 34
 
     defaultConfig {
+        // Auditoria 6/08/2026 (C-03): debe coincidir con el applicationId del
+        // módulo :app — el mecanismo `wearApp(project(":wear"))` de Gradle
+        // exige el mismo package name para empaquetar el Wear OS app dentro
+        // del APK del teléfono.
         applicationId = "com.example.lifebalance"
         minSdk = 30
         targetSdk = 34
@@ -25,6 +29,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    @Suppress("DEPRECATION")
     kotlinOptions {
         jvmTarget = "11"
     }

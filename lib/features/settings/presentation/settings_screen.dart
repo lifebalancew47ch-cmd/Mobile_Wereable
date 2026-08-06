@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../auth/presentation/providers/login_provider.dart';
 import '../../../services/notification_service.dart';
+import '../../../core/security/app_lock_preferences.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -20,6 +21,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   bool _pushEnabled = true;
   bool _sedentaryEnabled = true;
+  bool _biometricLockEnabled = false;
   bool _loading = true;
 
   @override
@@ -30,12 +32,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
+    final biometricLock = await AppLockPreferences.isBiometricLockEnabled();
     if (!mounted) return;
     setState(() {
       _pushEnabled = prefs.getBool(_kPushEnabled) ?? true;
       _sedentaryEnabled = prefs.getBool(_kSedentaryEnabled) ?? true;
+      _biometricLockEnabled = biometricLock;
       _loading = false;
     });
+  }
+
+  Future<void> _setBiometricLockEnabled(bool value) async {
+    setState(() => _biometricLockEnabled = value);
+    await AppLockPreferences.setBiometricLockEnabled(value);
   }
 
   Future<void> _setPushEnabled(bool value) async {
@@ -57,11 +66,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _showChangePasswordDialog() async {
+    // A-05 (audit de seguridad): estos controllers nunca se liberaban.
+    // Además de la fuga de memoria, las tres contraseñas quedaban como
+    // String en el heap de Dart hasta que el GC decidiera actuar, sin
+    // control sobre cuándo -- un volcado de memoria del proceso las exponía
+    // en claro. El try/finally de abajo garantiza `.clear()` + `.dispose()`
+    // sin importar cómo termine el diálogo (guardar, cancelar, o un error
+    // en `changePassword`).
     final currentCtrl = TextEditingController();
     final newCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
+    try {
+      await _runChangePasswordDialog(currentCtrl, newCtrl, confirmCtrl, formKey);
+    } finally {
+      currentCtrl.clear();
+      newCtrl.clear();
+      confirmCtrl.clear();
+      currentCtrl.dispose();
+      newCtrl.dispose();
+      confirmCtrl.dispose();
+    }
+  }
+
+  Future<void> _runChangePasswordDialog(
+    TextEditingController currentCtrl,
+    TextEditingController newCtrl,
+    TextEditingController confirmCtrl,
+    GlobalKey<FormState> formKey,
+  ) async {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -176,6 +210,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       'Intervalo, horario y días de operación'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/profile/settings/alerts'),
+                ),
+                const Divider(),
+                const _SettingsHeader(title: 'Seguridad'),
+                SwitchListTile(
+                  title: const Text('Bloqueo biométrico al abrir la app'),
+                  subtitle: const Text(
+                      'Pide huella, rostro o PIN del dispositivo cada vez que reabres LifeBalance'),
+                  value: _biometricLockEnabled,
+                  onChanged: _setBiometricLockEnabled,
                 ),
                 const Divider(),
                 const _SettingsHeader(title: 'Cuenta'),

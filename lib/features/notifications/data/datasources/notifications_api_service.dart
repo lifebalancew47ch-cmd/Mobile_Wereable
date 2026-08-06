@@ -53,6 +53,37 @@ class NotificationsApiService {
     }
   }
 
+  /// Crea una alerta real en el backend (POST /alerts), en vez de dejarla
+  /// solo en el registro local del dispositivo. Así queda visible en el
+  /// dashboard web/admin y sincronizada entre dispositivos del usuario.
+  ///
+  /// ⚠️ `priority` (`AlertPriority`) es un enum entero (0-8) cuyos nombres no
+  /// están confirmados en el spec de OpenAPI del backend (`docs/...` lo marca
+  /// como "sin nombres confirmados"). Se manda además como string legible por
+  /// si el backend lo acepta así; si el backend espera otro entero específico
+  /// para "alta/media/baja", hay que ajustar [priority] con el equipo backend.
+  Future<void> createAlert({
+    required String userId,
+    required String title,
+    required String body,
+    required String source,
+    int priority = 1,
+    String priorityLabel = 'medium',
+  }) async {
+    try {
+      await _dio.post('/alerts', data: {
+        'userId': userId,
+        'title': title,
+        'body': body,
+        'source': source,
+        'priority': priority,
+        'priorityLabel': priorityLabel,
+      });
+    } on DioException catch (e) {
+      throw Exception(_extractErrorMessage(e.response?.data, 'Error al crear la alerta'));
+    }
+  }
+
   /// Lista de alertas de sedentarismo (GET /alerts).
   Future<List<AlertItem>> getAlerts() async {
     try {
@@ -77,14 +108,37 @@ class NotificationsApiService {
     await _patch('/alerts/$id/dismiss');
   }
 
+  /// Marca una notificación como leída (PATCH /notifications/{id}/read).
+  ///
+  /// Nota: este endpoint es conocido por devolver `200 OK` con
+  /// `{"success": false, ...}` aunque la operación sí se aplica (bug del
+  /// backend de Notifications, confirmado comparando el estado antes/después).
+  /// No afecta a este cliente porque `_patch` no inspecciona el flag
+  /// `success`, solo el status HTTP.
+  Future<void> markNotificationRead(String id) async {
+    await _patch('/notifications/$id/read');
+  }
+
+  /// Archiva una notificación, es decir la "descarta" de la bandeja
+  /// (PATCH /notifications/{id}/archive). Mismo aviso de `success` que arriba.
+  Future<void> archiveNotification(String id) async {
+    await _patch('/notifications/$id/archive');
+  }
+
   /// Obtiene las preferencias de notificación (GET /preferences).
-  Future<NotificationPreferences> getPreferences() async {
+  ///
+  /// [fallback] se usa para las claves que el backend no devuelva, de modo
+  /// que una respuesta parcial no apague opciones que el usuario tenía
+  /// activadas.
+  Future<NotificationPreferences> getPreferences({
+    NotificationPreferences fallback = NotificationPreferences.defaults,
+  }) async {
     try {
       final response = await _dio.get('/preferences');
-      final data = response.data is Map && response.data['data'] is Map
-          ? response.data['data'] as Map<String, dynamic>
-          : (response.data is Map ? response.data as Map<String, dynamic> : <String, dynamic>{});
-      return NotificationPreferences.fromJson(data);
+      return NotificationPreferences.fromJson(
+        _extractMap(response.data),
+        fallback: fallback,
+      );
     } on DioException catch (e) {
       if (e.response != null) {
         throw Exception(_extractErrorMessage(e.response?.data, 'Error al cargar preferencias'));
@@ -94,19 +148,32 @@ class NotificationsApiService {
   }
 
   /// Actualiza las preferencias de notificación (PUT /preferences).
-  Future<void> updatePreferences({
+  ///
+  /// Devuelve las preferencias tal y como quedaron según la respuesta del
+  /// servidor; si la respuesta viene vacía se asume que se guardó lo enviado.
+  /// Lanza si el servidor responde con error, para que la UI pueda avisar.
+  Future<NotificationPreferences> updatePreferences({
     required bool pushEnabled,
     required bool emailEnabled,
     required bool wearEnabled,
   }) async {
+    final sent = NotificationPreferences(
+      pushEnabled: pushEnabled,
+      emailEnabled: emailEnabled,
+      wearEnabled: wearEnabled,
+    );
     try {
-      await _dio.put('/preferences', data: {
-        'pushEnabled': pushEnabled,
-        'emailEnabled': emailEnabled,
-        'wearEnabled': wearEnabled,
-      });
+      final response = await _dio.put('/preferences', data: sent.toJson());
+      final body = _extractMap(response.data);
+      if (body.isEmpty) return sent;
+      return NotificationPreferences.fromJson(body, fallback: sent);
     } on DioException catch (e) {
-      throw Exception(_extractErrorMessage(e.response?.data, 'Error al actualizar preferencias'));
+      if (e.response != null) {
+        throw Exception(
+          _extractErrorMessage(e.response?.data, 'Error al actualizar preferencias'),
+        );
+      }
+      throw Exception('Error de conexión');
     }
   }
 
@@ -127,6 +194,17 @@ class NotificationsApiService {
       return data;
     }
     return fallback;
+  }
+
+  /// Normaliza respuestas que pueden venir planas (`{...}`) o envueltas
+  /// (`{"data": {...}}`, `{"preferences": {...}}`).
+  Map<String, dynamic> _extractMap(dynamic data) {
+    if (data is! Map) return <String, dynamic>{};
+    for (final key in const ['data', 'preferences', 'result']) {
+      final nested = data[key];
+      if (nested is Map) return Map<String, dynamic>.from(nested);
+    }
+    return Map<String, dynamic>.from(data);
   }
 
   List<Map<String, dynamic>> _extractList(dynamic data) {

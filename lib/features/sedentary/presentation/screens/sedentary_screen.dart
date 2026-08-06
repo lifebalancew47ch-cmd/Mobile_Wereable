@@ -41,7 +41,12 @@ class _SedentaryScreenState extends ConsumerState<SedentaryScreen> {
     setState(() => _saving = true);
     try {
       await ref.read(updateSedentaryGoalsProvider((dailyStepsTarget: _stepsTarget, activeMinutesTarget: _activeTarget)).future);
+      // Refresca objetivos Y progreso: el progreso trae su propio target
+      // (dailyStepsTarget/activeMinutesTarget) que debe reflejar el cambio
+      // recién guardado, no solo la tarjeta de "Mis objetivos".
       ref.invalidate(sedentaryGoalsProvider);
+      ref.invalidate(sedentaryProgressProvider);
+      ref.invalidate(sedentaryScoreProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Objetivos actualizados')),

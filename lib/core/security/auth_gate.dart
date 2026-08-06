@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'app_lock_preferences.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -32,6 +33,21 @@ class _AuthGateState extends State<AuthGate> {
         ),
       );
     } on PlatformException catch (e) {
+      // 'NotAvailable' / 'NotEnrolled' / 'PasscodeNotSet': el dispositivo no
+      // tiene biometría ni PIN/patrón configurados. El usuario activó el
+      // bloqueo desde Ajustes, pero no hay forma de que lo cumpla -- dejarlo
+      // fuera de su propia app de salud sería peor que dejarlo pasar.
+      // Se registra para que quede visible que el bloqueo no se está aplicando.
+      const unrecoverableCodes = {'NotAvailable', 'NotEnrolled', 'PasscodeNotSet'};
+      if (unrecoverableCodes.contains(e.code)) {
+        if (!mounted) return;
+        setState(() {
+          _authorized = true;
+          appUnlockedThisSession = true;
+        });
+        context.go('/dashboard');
+        return;
+      }
       setState(() {
         _authMessage = 'Error de biometría: ${e.message}';
       });
@@ -43,7 +59,10 @@ class _AuthGateState extends State<AuthGate> {
     setState(() {
       _authorized = authenticated;
       if (_authorized) {
-        // Redirigir a la app principal si la biometría es exitosa
+        // Marca la sesión de proceso como desbloqueada para que el redirect
+        // del router no vuelva a interceptar la navegación hasta el próximo
+        // arranque en frío, y continúa hacia la app principal.
+        appUnlockedThisSession = true;
         context.go('/dashboard');
       } else {
         _authMessage = 'Autenticación fallida. Intenta de nuevo.';

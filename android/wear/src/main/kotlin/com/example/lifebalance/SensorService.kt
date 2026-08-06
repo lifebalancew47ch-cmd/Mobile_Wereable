@@ -36,6 +36,7 @@ class SensorService : Service(), SensorEventListener2 {
     private var accelerometer: Sensor? = null
     private var offBodySensor: Sensor? = null
     private var gyroscope: Sensor? = null
+    private var gravitySensor: Sensor? = null
     private var stepCounter: Sensor? = null
     private var heartRateSensor: Sensor? = null
 
@@ -43,10 +44,24 @@ class SensorService : Service(), SensorEventListener2 {
     private var lastGyroX = 0f
     private var lastGyroY = 0f
     private var lastGyroZ = 0f
+    private var lastGravityX = 0f
+    private var lastGravityY = 0f
+    private var lastGravityZ = 9.8f
     private var totalSteps = 0
     private var lastHeartRate = 0f
     private var lastHeartRateTime = 0L
 
+    // Últimas 10 lecturas de FC válidas, usadas para el proxy de HRV.
+    private val hrHistory = ArrayDeque<Float>(10)
+
+    // NOTA: se intentó leer SpO2 real vía Health Services (MeasureClient), pero
+    // androidx.health.services.client.data.DataType (1.1.0-rc02) NO expone un
+    // DataType.OXYGEN_SATURATION — el MeasureClient de esta librería solo cubre
+    // HR, velocidad, distancia, calorías, etc. No hay una API pública genérica de
+    // Wear OS para SpO2 en tiempo real; se necesitaría el SDK propietario del
+    // fabricante (p. ej. Samsung Health Sensor SDK) por dispositivo. Por ahora
+    // spo2 se sigue enviando en 0 (sin dato fiable) — ver el fallback en
+    // offline_sync_service.dart del lado Flutter.
     private var wakeLock: PowerManager.WakeLock? = null
 
     private val job = SupervisorJob()
@@ -87,11 +102,12 @@ class SensorService : Service(), SensorEventListener2 {
 
     override fun onCreate() {
         super.onCreate()
+        loadAlertThreshold()
         createNotificationChannel()
         val notification = Notification.Builder(this, "wear_sensor_channel")
             .setContentTitle("LifeBalance")
             .setContentText("Monitoreando actividad...")
-            .setSmallIcon(android.R.drawable.ic_menu_compass)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -130,10 +146,16 @@ class SensorService : Service(), SensorEventListener2 {
             )
         }
 
-        // Giroscopio: orientación espacial del brazo/cuerpo (Filtro Clínico).
+        // Giroscopio: rotaciones espaciales del brazo/cuerpo.
         gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
         gyroscope?.let {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
+        }
+
+        // Gravímetro: vector de gravedad estático para detección de postura reclinada.
+        gravitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY)
+        gravitySensor?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
         }
 
         // Podómetro: contador acumulativo de pasos diarios.
@@ -176,7 +198,7 @@ class SensorService : Service(), SensorEventListener2 {
 
         when (event.sensor.type) {
             Sensor.TYPE_LOW_LATENCY_OFFBODY_DETECT -> {
-                isOnBody = event.values[0] == 0.0f
+                isOnBody = event.values[0] != 0.0f
                 WearSensorState.isOnBody = isOnBody
                 if (!isOnBody) {
                     Log.d("SensorService", "Watch is off-body. Pausing collection.")
@@ -194,6 +216,11 @@ class SensorService : Service(), SensorEventListener2 {
                 WearSensorState.gyroY = lastGyroY
                 WearSensorState.gyroZ = lastGyroZ
             }
+            Sensor.TYPE_GRAVITY -> {
+                lastGravityX = event.values[0]
+                lastGravityY = event.values[1]
+                lastGravityZ = event.values[2]
+            }
             Sensor.TYPE_STEP_COUNTER -> {
                 totalSteps = TodaySteps.of(this, event.values[0].toInt())
                 WearSensorState.steps = totalSteps
@@ -206,6 +233,8 @@ class SensorService : Service(), SensorEventListener2 {
                     lastHeartRate = hr
                     lastHeartRateTime = System.currentTimeMillis()
                     WearSensorState.heartRate = hr
+                    hrHistory.addLast(hr)
+                    if (hrHistory.size > 10) hrHistory.removeFirst()
                     Log.d("SensorService", "Heart rate event: $lastHeartRate bpm")
                 }
             }
@@ -215,6 +244,11 @@ class SensorService : Service(), SensorEventListener2 {
                 val x = event.values[0].toDouble()
                 val y = event.values[1].toDouble()
                 val z = event.values[2].toDouble()
+
+                // Actualizar filtro pasa-bajas para componente de gravedad
+                lastGravityX = 0.8f * lastGravityX + 0.2f * event.values[0]
+                lastGravityY = 0.8f * lastGravityY + 0.2f * event.values[1]
+                lastGravityZ = 0.8f * lastGravityZ + 0.2f * event.values[2]
                 val mag = sqrt(x * x + y * y + z * z)
                 
                 val now = System.currentTimeMillis()
@@ -228,6 +262,7 @@ class SensorService : Service(), SensorEventListener2 {
 
                 // Caducidad de frecuencia cardíaca: si pasaron > 10 min sin lectura fresca, enviar 0f
                 val finalHR = if (now - lastHeartRateTime < 600_000L) lastHeartRate else 0f
+                val hrvProxy = computeHrvProxyMs()
 
                 val reading = JSONObject().apply {
                     put("x", event.values[0])
@@ -238,6 +273,9 @@ class SensorService : Service(), SensorEventListener2 {
                     put("gyroZ", lastGyroZ)
                     put("steps", totalSteps)
                     put("heartRate", finalHR)
+                    put("hrv", hrvProxy)
+                    // SpO2 sin sensor disponible vía API pública de Wear OS (ver nota arriba).
+                    put("spo2", 0f)
                     put("isOnBody", isOnBody)
                     put("timestamp", now)
                 }
@@ -250,6 +288,29 @@ class SensorService : Service(), SensorEventListener2 {
                 }
             }
         }
+    }
+
+    /**
+     * Proxy de HRV a partir de la dispersión de las últimas lecturas de FC.
+     *
+     * IMPORTANTE: esto NO es rMSSD clínico. El rMSSD real requiere intervalos
+     * R-R latido a latido desde ECG o PPG crudo, que el SensorManager estándar
+     * de Android no expone (solo entrega FC ya promediada). Aquí convertimos
+     * cada muestra de FC (lpm) a un intervalo equivalente en ms y calculamos
+     * la raíz de la media de las diferencias sucesivas al cuadrado sobre esa
+     * serie, como indicador relativo de variabilidad — no diagnóstico.
+     */
+    private fun computeHrvProxyMs(): Float {
+        if (hrHistory.size < 3) return 0f
+        val rr = hrHistory.map { 60000f / it }
+        var sumSqDiff = 0.0
+        for (i in 1 until rr.size) {
+            val diff = (rr[i] - rr[i - 1]).toDouble()
+            sumSqDiff += diff * diff
+        }
+        val rmssdProxy = sqrt(sumSqDiff / (rr.size - 1))
+        WearSensorState.hrv = rmssdProxy.toFloat()
+        return rmssdProxy.toFloat()
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
@@ -363,8 +424,8 @@ class SensorService : Service(), SensorEventListener2 {
             val hrKnown = lastHeartRate > 0f
             val hr = lastHeartRate
 
-            // Heurística de orientación por giroscopio: recostado si hay inclinación espacial dominada por X/Y
-            val isReclined = (abs(lastGyroX) > 0.5f || abs(lastGyroY) > 0.5f)
+            // Heurística de orientación por vector de gravedad: recostado si la componente Z es pequeña (<6 m/s²) o giroscopio activo
+            val isReclined = (abs(lastGravityZ) < 6.0f) || (abs(lastGyroX) > 0.5f || abs(lastGyroY) > 0.5f)
 
             // Sueño / Siesta: FC < 60 lpm + recostado durante >= 20 min (40 ventanas de 30s)
             if (hrKnown && hr < 60f && isReclined) {

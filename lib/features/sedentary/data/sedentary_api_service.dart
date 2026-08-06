@@ -137,8 +137,13 @@ class SedentaryApiService {
       final status = e.response?.statusCode;
       final body = e.response?.data;
       debugPrint('[SedentaryApi Error] Status: $status, Data: $body, Err: ${e.message}');
-      final message = body is Map ? (body['message'] ?? body['error']) : body;
-      throw Exception(message?.toString() ?? 'Error del Sedentary Engine (HTTP $status)');
+      final serverMessage = body is Map ? (body['message'] ?? body['error']) : body;
+      // El servidor puede devolver 200-algo-genérico; incluimos el status HTTP
+      // siempre que exista para poder distinguir errores transitorios (502/503,
+      // típico de cold start en servicios gratuitos) de errores reales del
+      // Sedentary Engine (500 con excepción no controlada del lado del servidor).
+      final suffix = status != null ? ' (HTTP $status)' : '';
+      throw Exception('${serverMessage?.toString() ?? 'Error del Sedentary Engine'}$suffix');
     }
   }
 

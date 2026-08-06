@@ -3,9 +3,9 @@ import 'package:flutter/foundation.dart';
 
 /// Lectura médica/fisiológica enviada a `POST /api/v1/medical/readings`.
 class MedicalReading {
-  final double heartRate;
-  final double hrv;
-  final double spo2;
+  final double? heartRate;
+  final double? hrv;
+  final double? spo2;
   final int steps;
   final double? latitude;
   final double? longitude;
@@ -19,9 +19,9 @@ class MedicalReading {
   final DateTime recordedAtUtc;
 
   MedicalReading({
-    required this.heartRate,
-    required this.hrv,
-    required this.spo2,
+    this.heartRate,
+    this.hrv,
+    this.spo2,
     required this.steps,
     this.latitude,
     this.longitude,
@@ -40,9 +40,9 @@ class MedicalReading {
   });
 
   Map<String, dynamic> toJson() => {
-        'heartRate': heartRate,
-        'hrv': hrv,
-        'spo2': spo2,
+        if (heartRate != null) 'heartRate': heartRate,
+        if (hrv != null) 'hrv': hrv,
+        if (spo2 != null) 'spo2': spo2,
         'steps': steps,
         'deviceId': deviceId,
         'recordedAtUtc': recordedAtUtc.toUtc().toIso8601String(),

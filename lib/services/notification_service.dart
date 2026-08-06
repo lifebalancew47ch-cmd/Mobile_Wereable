@@ -55,6 +55,35 @@ class NotificationService {
     );
   }
 
+  /// Muestra una notificación local a partir de un push remoto (FCM) recibido
+  /// mientras la app está en primer plano. Android/iOS solo muestran solos
+  /// los mensajes `notification` cuando la app está en background/cerrada;
+  /// en foreground hay que mostrarlos manualmente, si no el usuario nunca se
+  /// entera de que llegó algo del backend (gamificación, reportes, alertas
+  /// médicas, etc.) mientras tiene la app abierta.
+  Future<void> showRemoteNotification({
+    required String title,
+    required String body,
+    int id = 2001,
+  }) async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'remote_push_channel',
+      'Avisos del servidor',
+      channelDescription: 'Notificaciones y alertas enviadas desde el backend de LifeBalance',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+    const NotificationDetails platformChannelSpecifics =
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+    await flutterLocalNotificationsPlugin.show(
+      id,
+      title.isEmpty ? 'LifeBalance' : title,
+      body,
+      platformChannelSpecifics,
+    );
+  }
+
   /// Programa una notificación de recordatorio a la hora indicada.
   Future<void> scheduleReminder({
     required int hour,

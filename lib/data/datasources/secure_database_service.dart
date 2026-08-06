@@ -23,19 +23,42 @@ class SecureDatabaseService {
     // Retrieve AES-256 key from Secure Storage
     final encryptionKey = await EncryptionService.getEncryptionKey();
 
-    return await openDatabase(
-      path,
-      version: 2,
-      password: encryptionKey,
-      onCreate: _createDB,
-      onUpgrade: _onUpgrade,
-    );
+    try {
+      return await openDatabase(
+        path,
+        version: 4,
+        password: encryptionKey,
+        onCreate: _createDB,
+        onUpgrade: _onUpgrade,
+        onOpen: (db) async {
+          await db.execute('PRAGMA journal_mode = WAL;');
+          await db.execute('PRAGMA synchronous = NORMAL;');
+        },
+      );
+    } catch (e) {
+      // If encryption key is lost or DB is corrupted, SQLCipher throws a logic error
+      if (e.toString().contains('SQL logic error') || e.toString().contains('file is not a database')) {
+        await deleteDatabase(path);
+        return await openDatabase(
+          path,
+          version: 4,
+          password: encryptionKey,
+          onCreate: _createDB,
+          onUpgrade: _onUpgrade,
+          onOpen: (db) async {
+            await db.execute('PRAGMA journal_mode = WAL;');
+            await db.execute('PRAGMA synchronous = NORMAL;');
+          },
+        );
+      }
+      rethrow;
+    }
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await db.execute('''
-CREATE TABLE active_breaks (
+CREATE TABLE IF NOT EXISTS active_breaks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   timestamp TEXT NOT NULL,
   type TEXT NOT NULL,
@@ -46,9 +69,38 @@ CREATE TABLE active_breaks (
   synced_to_cloud INTEGER DEFAULT 0
 )
 ''');
-      await db.execute(
-        'ALTER TABLE alerts_log ADD COLUMN synced_to_cloud INTEGER DEFAULT 0',
-      );
+      await _addColumnIfMissing(db, 'alerts_log', 'synced_to_cloud', 'INTEGER DEFAULT 0');
+    }
+    if (oldVersion < 3) {
+      // Acelerómetro/giroscopio crudos del reloj (antes se descartaban).
+      for (final column in ['accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']) {
+        await _addColumnIfMissing(db, 'vital_signs', column, 'REAL');
+      }
+    }
+    if (oldVersion < 4) {
+      // Antes solo existía `acknowledged` (leída). Se separa "descartada" para
+      // que el Centro de notificaciones pueda ocultar alertas descartadas sin
+      // perder el estado de "leída pero visible".
+      await _addColumnIfMissing(db, 'alerts_log', 'dismissed', 'INTEGER DEFAULT 0');
+    }
+  }
+
+  /// Agrega una columna solo si no existe todavía. `onUpgrade` puede
+  /// re-ejecutarse sobre una base que ya tiene la columna (p. ej. si un
+  /// intento anterior se interrumpió por "database is locked" antes de
+  /// persistir el nuevo `user_version`, pero ya había aplicado el ALTER
+  /// TABLE) — sin esta guarda, sqflite lanza "duplicate column name" y la
+  /// apertura de la base falla permanentemente en cada arranque.
+  Future<void> _addColumnIfMissing(
+    Database db,
+    String table,
+    String column,
+    String type,
+  ) async {
+    final info = await db.rawQuery('PRAGMA table_info($table)');
+    final exists = info.any((row) => row['name'] == column);
+    if (!exists) {
+      await db.execute('ALTER TABLE $table ADD COLUMN $column $type');
     }
   }
 
@@ -72,6 +124,12 @@ CREATE TABLE vital_signs (
   hrv REAL NOT NULL,
   spo2 REAL NOT NULL,
   steps INTEGER NOT NULL,
+  accel_x REAL,
+  accel_y REAL,
+  accel_z REAL,
+  gyro_x REAL,
+  gyro_y REAL,
+  gyro_z REAL,
   synced_to_cloud INTEGER DEFAULT 0
 )
 ''');
@@ -83,6 +141,7 @@ CREATE TABLE alerts_log (
   type TEXT NOT NULL,
   duration_minutes INTEGER NOT NULL,
   acknowledged INTEGER NOT NULL,
+  dismissed INTEGER DEFAULT 0,
   synced_to_cloud INTEGER DEFAULT 0
 )
 ''');
@@ -134,6 +193,32 @@ CREATE TABLE active_breaks (
     });
   }
 
+  /// Marca como leída una alerta local del FogEngine (sigue visible, solo
+  /// deja de mostrarse en negrita). Estas alertas viven solo en SQLite (nunca
+  /// en el backend de Alerts), por lo que "leer" desde el Centro de
+  /// notificaciones debe actualizar esta tabla en vez de llamar a la nube.
+  Future<void> acknowledgeLocalAlert(int id) async {
+    final db = await instance.database;
+    await db.update(
+      'alerts_log',
+      {'acknowledged': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Descarta una alerta local del FogEngine: deja de aparecer en el listado
+  /// (a diferencia de "leída", que solo la desmarca en negrita).
+  Future<void> dismissLocalAlert(int id) async {
+    final db = await instance.database;
+    await db.update(
+      'alerts_log',
+      {'acknowledged': 1, 'dismissed': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   /// Número de sesiones de actividad registradas hoy (fecha local).
   Future<int> countActivitySessionsToday() async {
     final db = await instance.database;
@@ -170,14 +255,15 @@ CREATE TABLE active_breaks (
     return rows.first['total'] as int? ?? 0;
   }
 
-  /// Alertas de sedentarismo registradas hoy (fecha local).
+  /// Alertas de sedentarismo registradas hoy (fecha local), sin las que el
+  /// usuario ya descartó desde el Centro de notificaciones.
   Future<List<Map<String, Object?>>> getAlertsToday() async {
     final db = await instance.database;
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day).toIso8601String();
     return db.query(
       'alerts_log',
-      where: 'timestamp >= ?',
+      where: 'timestamp >= ? AND (dismissed IS NULL OR dismissed = 0)',
       whereArgs: [startOfDay],
       orderBy: 'timestamp DESC',
     );
@@ -310,5 +396,51 @@ CREATE TABLE active_breaks (
   Future<void> markActiveBreakSynced(int id) async {
     final db = await instance.database;
     await db.update('active_breaks', {'synced_to_cloud': 1}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Marca múltiples entidades como sincronizadas en una sola transacción atómica SQLite.
+  Future<void> markBatchAsSynced({
+    List<int> sessionIds = const [],
+    List<int> vitalIds = const [],
+    List<int> alertIds = const [],
+    List<int> breakIds = const [],
+  }) async {
+    final db = await instance.database;
+    await db.transaction((txn) async {
+      for (final id in sessionIds) {
+        await txn.update('activity_sessions', {'synced_to_cloud': 1}, where: 'id = ?', whereArgs: [id]);
+      }
+      for (final id in vitalIds) {
+        await txn.update('vital_signs', {'synced_to_cloud': 1}, where: 'id = ?', whereArgs: [id]);
+      }
+      for (final id in alertIds) {
+        await txn.update('alerts_log', {'synced_to_cloud': 1}, where: 'id = ?', whereArgs: [id]);
+      }
+      for (final id in breakIds) {
+        await txn.update('active_breaks', {'synced_to_cloud': 1}, where: 'id = ?', whereArgs: [id]);
+      }
+    });
+  }
+
+  /// Elimina registros que ya fueron sincronizados (`synced_to_cloud = 1`) y que superan
+  /// el umbral de antigüedad especificado (por defecto 7 días) para evitar crecimiento desmedido.
+  Future<void> purgeSyncedData({Duration ageThreshold = const Duration(days: 7)}) async {
+    final db = await instance.database;
+    final cutoff = DateTime.now().subtract(ageThreshold).toIso8601String();
+    await db.delete('activity_sessions', where: 'synced_to_cloud = 1 AND start_time < ?', whereArgs: [cutoff]);
+    await db.delete('vital_signs', where: 'synced_to_cloud = 1 AND timestamp < ?', whereArgs: [cutoff]);
+    await db.delete('alerts_log', where: 'synced_to_cloud = 1 AND timestamp < ?', whereArgs: [cutoff]);
+    await db.delete('active_breaks', where: 'synced_to_cloud = 1 AND timestamp < ?', whereArgs: [cutoff]);
+  }
+
+  /// Purga física completa de la base de datos SQLCipher (SessionWiper).
+  Future<void> purgeAllData() async {
+    if (_database != null && _database!.isOpen) {
+      await _database!.close();
+      _database = null;
+    }
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, 'lifebalance_secure.db');
+    await deleteDatabase(path);
   }
 }

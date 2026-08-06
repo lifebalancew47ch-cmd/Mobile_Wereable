@@ -60,6 +60,16 @@ class FogEngine {
   double? _latestHrv;
   bool _windowInFlight = false;
 
+  // Cola de reintento para escrituras a SQLite que fallaron (p. ej. disco
+  // lleno, error de I/O de SQLCipher). Antes estas escrituras se disparaban
+  // sin `await` y una excepción se perdía en silencio, fuera del alcance del
+  // try/catch de `_analyzeWindow`. Ahora se esperan, y si fallan quedan en
+  // esta cola acotada para reintentarse en la próxima ventana en vez de
+  // perderse. Tope bajo a propósito: si la cola se llena es señal de que el
+  // problema (disco lleno) no se va a resolver solo reintentando.
+  final List<Future<void> Function()> _pendingWrites = [];
+  static const int _maxPendingWrites = 100;
+
   static const MethodChannel _nativeFogChannel = MethodChannel('com.example.lifebalance/native_fog_sync');
 
   // Métricas del motor real (expuestas a la UI).
@@ -88,6 +98,11 @@ class FogEngine {
 
   /// Minutos acumulados de reposo clínico.
   int get restMinutes => _clinicalClassifier.restMinutes;
+
+  /// `true` si hay escrituras de actividad/alertas pendientes de reintentar
+  /// (la última escritura a SQLite falló). La UI puede usarlo para avisar al
+  /// usuario de un problema de almacenamiento en vez de fallar en silencio.
+  bool get hasPendingWrites => _pendingWrites.isNotEmpty;
 
   FogEngine(this._wearableService, this._notificationService);
 
@@ -160,6 +175,37 @@ class FogEngine {
     _stateController.close();
   }
 
+  /// Ejecuta una escritura a SQLite (`insertActivitySession`/`logAlert`) con
+  /// `await` real y la encola para reintento si falla, en vez de dejar que la
+  /// excepción se pierda como un `Future` sin manejar. También intenta vaciar
+  /// la cola de reintentos previa antes de fallar de nuevo, para no perder el
+  /// orden de las ventanas cuando el almacenamiento se recupera.
+  Future<void> _persistWithRetry(Future<void> Function() write) async {
+    if (_pendingWrites.isNotEmpty) {
+      final queued = List<Future<void> Function()>.from(_pendingWrites);
+      _pendingWrites.clear();
+      for (final queuedWrite in queued) {
+        try {
+          await queuedWrite();
+        } catch (_) {
+          if (_pendingWrites.length < _maxPendingWrites) {
+            _pendingWrites.add(queuedWrite);
+          }
+        }
+      }
+    }
+    try {
+      await write();
+    } catch (e, st) {
+      debugPrint('[FogEngine] Fallo al persistir en SQLite, se encola para reintento: $e\n$st');
+      if (_pendingWrites.length >= _maxPendingWrites) {
+        debugPrint('[FogEngine] Cola de reintento llena ($_maxPendingWrites); se descarta el registro más antiguo.');
+        _pendingWrites.removeAt(0);
+      }
+      _pendingWrites.add(write);
+    }
+  }
+
   Future<void> _analyzeWindow() async {
     if (_windowInFlight) return; // evita análisis superpuestos
     _windowInFlight = true;
@@ -216,12 +262,14 @@ class FogEngine {
       if (immobile && !suppressed) {
         if (_activeWindows > 0) {
           final activeMins = max(1, _activeWindows ~/ 2);
-          SecureDatabaseService.instance.insertActivitySession(
-            _activeStartTime,
-            DateTime.now().toIso8601String(),
-            'active',
-            activeMins,
-          );
+          final activeStart = _activeStartTime;
+          final activeEnd = DateTime.now().toIso8601String();
+          await _persistWithRetry(() => SecureDatabaseService.instance.insertActivitySession(
+                activeStart,
+                activeEnd,
+                'active',
+                activeMins,
+              ));
           _activeWindows = 0;
         }
         _inactiveWindows++;
@@ -229,12 +277,14 @@ class FogEngine {
       } else if (immobile && suppressed) {
         if (_activeWindows > 0) {
           final activeMins = max(1, _activeWindows ~/ 2);
-          SecureDatabaseService.instance.insertActivitySession(
-            _activeStartTime,
-            DateTime.now().toIso8601String(),
-            'active',
-            activeMins,
-          );
+          final activeStart = _activeStartTime;
+          final activeEnd = DateTime.now().toIso8601String();
+          await _persistWithRetry(() => SecureDatabaseService.instance.insertActivitySession(
+                activeStart,
+                activeEnd,
+                'active',
+                activeMins,
+              ));
           _activeWindows = 0;
         }
         _inactiveWindows = 0;
@@ -247,12 +297,14 @@ class FogEngine {
         // Movimiento activo sostenido (>= 1 min): se cierra la sesión inactiva previa.
         if (_inactiveWindows > 0) {
           final idleMins = max(1, _inactiveWindows ~/ 2);
-          SecureDatabaseService.instance.insertActivitySession(
-            _sessionStartTime,
-            DateTime.now().toIso8601String(),
-            'idle',
-            idleMins,
-          );
+          final idleStart = _sessionStartTime;
+          final idleEnd = DateTime.now().toIso8601String();
+          await _persistWithRetry(() => SecureDatabaseService.instance.insertActivitySession(
+                idleStart,
+                idleEnd,
+                'idle',
+                idleMins,
+              ));
           _sessionStartTime = DateTime.now().toIso8601String();
         }
         if (_activeWindows == 0) {
@@ -266,12 +318,14 @@ class FogEngine {
         // Persistir sesión activa acumulada
         final currentActiveMins = _activeWindows ~/ 2;
         if (currentActiveMins >= 1) {
-          SecureDatabaseService.instance.insertActivitySession(
-            _activeStartTime,
-            DateTime.now().toIso8601String(),
-            'active',
-            currentActiveMins,
-          );
+          final activeStart = _activeStartTime;
+          final activeEnd = DateTime.now().toIso8601String();
+          await _persistWithRetry(() => SecureDatabaseService.instance.insertActivitySession(
+                activeStart,
+                activeEnd,
+                'active',
+                currentActiveMins,
+              ));
         }
       }
 
@@ -279,20 +333,23 @@ class FogEngine {
       final thresholdMinutes = _alertThresholdWindows ~/ _minutesPerWindow;
       if (_inactiveWindows >= _alertThresholdWindows) {
         status = ActivityStatus.alertTriggered;
-        _triggerAlert(thresholdMinutes);
+        await _triggerAlert(thresholdMinutes);
         _inactiveWindows = 0;
       }
 
       _lastWindowAnalysis = stopwatch.elapsed;
 
-      _stateController.add(FogState(
-        status: status,
-        inactiveMinutes: _inactiveWindows ~/ 2,
-        lastMovement: _lastMovement,
-        clinicalState: clinicalState,
-        reposoVerificado: reposoVerificado,
-        restMinutes: restMinutes,
-      ));
+      if (!_stateController.isClosed) {
+        _stateController.add(FogState(
+          status: status,
+          inactiveMinutes: _inactiveWindows ~/ 2,
+          lastMovement: _lastMovement,
+          clinicalState: clinicalState,
+          reposoVerificado: reposoVerificado,
+          restMinutes: restMinutes,
+          hasPendingWrites: hasPendingWrites,
+        ));
+      }
     } catch (e, st) {
       debugPrint('[FogEngine] Error analizando ventana: $e\n$st');
     } finally {
@@ -300,21 +357,24 @@ class FogEngine {
     }
   }
 
-  void _triggerAlert(int minutes) {
+  Future<void> _triggerAlert(int minutes) async {
     _alertsTriggered++;
     _notificationService.showInactivityAlert(minutes);
 
-    SecureDatabaseService.instance.logAlert(
-      DateTime.now().toIso8601String(),
-      minutes,
-      false,
+    final alertTimestamp = DateTime.now().toIso8601String();
+    await _persistWithRetry(
+      () => SecureDatabaseService.instance.logAlert(alertTimestamp, minutes, false),
     );
 
-    SecureDatabaseService.instance.insertActivitySession(
-      _sessionStartTime,
-      DateTime.now().toIso8601String(),
-      'alert',
-      minutes,
+    final sessionStart = _sessionStartTime;
+    final sessionEnd = DateTime.now().toIso8601String();
+    await _persistWithRetry(
+      () => SecureDatabaseService.instance.insertActivitySession(
+        sessionStart,
+        sessionEnd,
+        'alert',
+        minutes,
+      ),
     );
     _sessionStartTime = DateTime.now().toIso8601String();
   }

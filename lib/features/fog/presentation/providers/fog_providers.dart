@@ -18,6 +18,7 @@ import '../../../../features/notifications/data/datasources/notifications_api_se
 import '../../../settings/domain/alert_settings.dart';
 import '../../../settings/presentation/providers/alert_settings_provider.dart';
 import '../../../wearable/presentation/wearable_provider.dart';
+import '../../../auth/presentation/providers/profile_provider.dart';
 
 /// Providers de inyección de dependencias para el FogEngine (Sección 13:
 /// Integración Clean Arch). Compartidos entre la pantalla del wearable y la
@@ -87,6 +88,10 @@ final fogEngineProvider = Provider((ref) {
   final alertSub = engine.stateStream.listen((state) {
     if (state.status != ActivityStatus.alertTriggered) return;
     unawaited(_captureGpsAndSend(ref));
+    // Nota: `state.inactiveMinutes` ya viene en 0 aquí (FogEngine resetea el
+    // contador antes de emitir el evento), por eso se usa el umbral
+    // configurado, que es el valor real que disparó la alerta.
+    unawaited(_sendRealAlert(ref, engine.alertThresholdMinutes));
   });
   ref.onDispose(alertSub.cancel);
 
@@ -128,6 +133,26 @@ final offlineSyncControllerProvider = Provider((ref) {
   });
   return sync;
 });
+
+/// Crea la alerta de sedentarismo en el Notifications & Alerts Service
+/// (POST /alerts), además del registro local que ya existía. Así queda
+/// visible en la pestaña Alertas sincronizada entre dispositivos y en el
+/// dashboard web/admin, no solo en el SQLite del teléfono. Nunca lanza: si
+/// falla (sin red, backend caído) la alerta local sigue funcionando igual.
+Future<void> _sendRealAlert(Ref ref, int minutes) async {
+  try {
+    final userId = ref.read(profileProvider).value?.id;
+    if (userId == null || userId.isEmpty) return;
+    await ref.read(notificationsApiServiceProvider).createAlert(
+          userId: userId,
+          title: 'Alerta de sedentarismo',
+          body: 'Llevas $minutes minutos inactivo. Te sugerimos una pausa activa de 2 minutos.',
+          source: 'FogEngine',
+        );
+  } catch (e) {
+    debugPrint('[FogEngine] No se pudo crear la alerta en la nube (queda solo local): $e');
+  }
+}
 
 /// Captura GPS bajo demanda (solo en alertas de sedentarismo) y registra el
 /// evento en el Ingestion Service. Nunca lanza: los fallos se loguean.

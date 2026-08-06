@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/services/dynamic_onboarding_service.dart';
+import '../../../../core/security/secure_storage.dart';
 import '../providers/login_provider.dart';
 import '../providers/login_state.dart';
 
@@ -17,7 +17,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _storage = const FlutterSecureStorage();
+  final _storage = secureStorage;
   final _dynamicService = DynamicOnboardingService();
   
   bool _isPasswordVisible = false;

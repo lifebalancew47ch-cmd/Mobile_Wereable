@@ -75,7 +75,10 @@ class MlPredictionScreen extends ConsumerWidget {
                         alignment: Alignment.center,
                         children: [
                           CircularProgressIndicator(
-                            value: (prediction.riskScore / 100).clamp(0.0, 1.0),
+                            // El backend devuelve riskScore como fracción 0.0-1.0
+                            // (Math.Clamp(...,0,1) en MLPredictionApplicationService),
+                            // no como porcentaje 0-100: no hay que volver a dividir entre 100.
+                            value: prediction.riskScore.clamp(0.0, 1.0),
                             strokeWidth: 9,
                             backgroundColor: Colors.grey.shade200,
                             valueColor: AlwaysStoppedAnimation(riskColor),
@@ -184,7 +187,8 @@ class MlPredictionScreen extends ConsumerWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(6),
                   child: LinearProgressIndicator(
-                    value: (trend.sedentaryRiskScore / 100).clamp(0.0, 1.0),
+                    // Mismo caso: sedentaryRiskScore ya viene en escala 0.0-1.0.
+                    value: trend.sedentaryRiskScore.clamp(0.0, 1.0),
                     minHeight: 10,
                     backgroundColor: Colors.grey.shade200,
                     valueColor: AlwaysStoppedAnimation(color),

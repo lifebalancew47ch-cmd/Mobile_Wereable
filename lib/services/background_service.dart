@@ -1,6 +1,7 @@
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../core/network/api_client.dart';
 import '../features/gamification/data/gamification_api_service.dart';
 import '../features/ingestion/data/ingestion_api_service.dart';
@@ -68,6 +69,24 @@ class BackgroundService {
     WidgetsFlutterBinding.ensureInitialized();
     DartPluginRegistrant.ensureInitialized();
 
+    // Auditoria 6/08/2026 (C-02): este aislado de background NO comparte
+    // memoria con el aislado principal — dotenv.load() en main.dart no lo
+    // inicializa aquí. Antes, CertificatePinning.isConfigured era siempre
+    // false en background y (por el bug de C-01) el pinning quedaba
+    // fail-open, así que la sincronización de datos de salud en segundo
+    // plano viajaba sin protección real ante MITM. Se carga dotenv también
+    // en este aislado, con el mismo archivo que usa la app principal.
+    try {
+      await dotenv.load(
+        fileName: const String.fromEnvironment(
+          'ENV_FILE',
+          defaultValue: '.env.development',
+        ),
+      );
+    } catch (e) {
+      debugPrint('[BackgroundService] No se pudo cargar dotenv: $e');
+    }
+
     if (service is AndroidServiceInstance) {
       service.on('setAsForeground').listen((event) {
         service.setAsForegroundService();
@@ -90,16 +109,16 @@ class BackgroundService {
 
     // Sincronización Offline-First hacia la nube (Ingestion + Gamification).
     final ingestionApi = IngestionApiService(
-      buildSecureDio(_urlFromEnv('https://ingestion-service-fouo.onrender.com/api/v1')),
+      buildSecureDio(_urlFromEnv('INGESTION_API_URL', 'https://ingestion-service-fouo.onrender.com/api/v1')),
     );
     final gamificationApi = GamificationApiService(
-      buildSecureDio(_urlFromEnv('https://gamification-service-9o3z.onrender.com/api/v1')),
+      buildSecureDio(_urlFromEnv('GAMIFICATION_API_URL', 'https://gamification-service-9o3z.onrender.com/api/v1')),
     );
     final medicalApi = MedicalApiService(
-      buildSecureDio(_urlFromEnv('https://medical-service-hb0v.onrender.com/api/v1')),
+      buildSecureDio(_urlFromEnv('MEDICAL_API_URL', 'https://medical-service-hb0v.onrender.com/api/v1')),
     );
     final sedentaryApi = SedentaryApiService(
-      buildSecureDio(_urlFromEnv('https://sedentary-engine-service.onrender.com/api/v1')),
+      buildSecureDio(_urlFromEnv('SEDENTARY_API_URL', 'https://sedentary-engine-service.onrender.com/api/v1')),
     );
     final offlineSync = OfflineSyncService(
       ingestionApi: ingestionApi,
@@ -120,23 +139,27 @@ class BackgroundService {
         final prefs = await SharedPreferences.getInstance();
         final jsonString = prefs.getString('flutter.latest_wear_json');
         if (jsonString != null && jsonString.isNotEmpty) {
-          final List<dynamic> batch = jsonDecode(jsonString);
-          if (batch.isNotEmpty) {
-            final lastData = batch.last as Map<String, dynamic>;
-            final metrics = VitalSign(
-              timestamp: DateTime.fromMillisecondsSinceEpoch((lastData['timestamp'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch),
-              heartRate: (lastData['heartRate'] as num?)?.toDouble() ?? 0,
-              hrv: (lastData['hrv'] as num?)?.toDouble() ?? 0,
-              spo2: (lastData['spo2'] as num?)?.toDouble() ?? 0,
-              steps: (lastData['steps'] as num?)?.toInt() ?? 0,
-              isSedentaryRisk: false,
-            );
-            
-            // Avoid persisting empty placeholders
-            if (metrics.heartRate > 0 || metrics.hrv > 0 || metrics.spo2 > 0 || metrics.steps > 0) {
-              await SecureDatabaseService.instance.insertVitalSign(metrics);
-              debugPrint('[BackgroundService] VitalSign persistido en DB desde background');
+          try {
+            final List<dynamic> batch = jsonDecode(jsonString);
+            if (batch.isNotEmpty) {
+              final lastData = batch.last as Map<String, dynamic>;
+              final metrics = VitalSign(
+                timestamp: DateTime.fromMillisecondsSinceEpoch((lastData['timestamp'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch),
+                heartRate: (lastData['heartRate'] as num?)?.toDouble() ?? 0,
+                hrv: (lastData['hrv'] as num?)?.toDouble() ?? 0,
+                spo2: (lastData['spo2'] as num?)?.toDouble() ?? 0,
+                steps: (lastData['steps'] as num?)?.toInt() ?? 0,
+                isSedentaryRisk: false,
+              );
+              
+              // Avoid persisting empty placeholders
+              if (metrics.heartRate > 0 || metrics.hrv > 0 || metrics.spo2 > 0 || metrics.steps > 0) {
+                await SecureDatabaseService.instance.insertVitalSign(metrics);
+                debugPrint('[BackgroundService] VitalSign persistido en DB desde background');
+              }
             }
+          } catch (e) {
+            debugPrint('[BackgroundService] JSON corrupto en SharedPreferences: $e');
           }
           await prefs.remove('flutter.latest_wear_json');
         }
@@ -157,9 +180,13 @@ class BackgroundService {
   }
 
   static String _defaultNotificationsUrl() =>
-      _urlFromEnv('https://lifebalance-notifications-api.onrender.com/api/v1');
+      _urlFromEnv('NOTIFICATIONS_API_URL', 'https://lifebalance-notifications-api.onrender.com/api/v1');
 
-  /// El aislado de segundo plano no tiene acceso a `dotenv` (cargado en el
-  /// aislado principal), por lo que usa las URLs desplegadas por defecto.
-  static String _urlFromEnv(String fallback) => fallback;
+  /// Lee la URL desde dotenv (ya cargado al inicio de [onStart] — ver C-02);
+  /// si por algún motivo no está inicializado o falta la clave, cae al valor
+  /// desplegado por defecto.
+  static String _urlFromEnv(String key, String fallback) {
+    if (!dotenv.isInitialized) return fallback;
+    return dotenv.env[key] ?? fallback;
+  }
 }

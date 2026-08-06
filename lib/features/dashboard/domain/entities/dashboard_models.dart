@@ -53,31 +53,79 @@ class DashboardSummary {
   }
 }
 
-/// Progreso individual frente a objetivos (GET /dashboard/individual/progress).
+/// Progreso individual semanal (GET /dashboard/individual/progress).
+/// Contrato real del backend: `IndividualProgressResponse(UserId,
+/// WeeklyGoalCompletionPercentage, DaysActive)` — no son metas de
+/// pasos/minutos (esas viven en /dashboard/individual/goals como retos).
 class DashboardProgress {
-  final int dailySteps;
-  final int dailyStepsTarget;
-  final double activeMinutes;
-  final int activeMinutesTarget;
-  final double stepsProgress;
-  final double activeProgress;
+  final double weeklyGoalCompletionPercentage;
+  final int daysActive;
 
   DashboardProgress({
-    required this.dailySteps,
-    required this.dailyStepsTarget,
-    required this.activeMinutes,
-    required this.activeMinutesTarget,
-    required this.stepsProgress,
-    required this.activeProgress,
+    required this.weeklyGoalCompletionPercentage,
+    required this.daysActive,
   });
 
   factory DashboardProgress.fromJson(Map<String, dynamic> json) => DashboardProgress(
+        weeklyGoalCompletionPercentage:
+            (json['weeklyGoalCompletionPercentage'] as num?)?.toDouble() ?? 0,
+        daysActive: (json['daysActive'] as num?)?.toInt() ?? 0,
+      );
+}
+
+/// Snapshot diario de actividad (GET /dashboard/individual/activity).
+/// El backend devuelve un único objeto agregado del día, no un feed de
+/// eventos: `IndividualActivityResponse(UserId, SedentaryActivityResponseDto)`.
+class DashboardActivitySnapshot {
+  final int dailySteps;
+  final double activeMinutes;
+  final double sedentaryHours;
+  final double caloriesBurned;
+  final List<int> hourlyHeatmap;
+
+  DashboardActivitySnapshot({
+    required this.dailySteps,
+    required this.activeMinutes,
+    required this.sedentaryHours,
+    required this.caloriesBurned,
+    required this.hourlyHeatmap,
+  });
+
+  factory DashboardActivitySnapshot.fromJson(Map<String, dynamic> json) =>
+      DashboardActivitySnapshot(
         dailySteps: (json['dailySteps'] as num?)?.toInt() ?? 0,
-        dailyStepsTarget: (json['dailyStepsTarget'] as num?)?.toInt() ?? 0,
         activeMinutes: (json['activeMinutes'] as num?)?.toDouble() ?? 0,
-        activeMinutesTarget: (json['activeMinutesTarget'] as num?)?.toInt() ?? 0,
-        stepsProgress: (json['stepsProgress'] as num?)?.toDouble() ?? 0,
-        activeProgress: (json['activeProgress'] as num?)?.toDouble() ?? 0,
+        sedentaryHours: (json['sedentaryHours'] as num?)?.toDouble() ?? 0,
+        caloriesBurned: (json['caloriesBurned'] as num?)?.toDouble() ?? 0,
+        hourlyHeatmap: (json['hourlyHeatmap'] as List?)
+                ?.map((e) => (e as num?)?.toInt() ?? 0)
+                .toList() ??
+            const [],
+      );
+}
+
+/// Reto/meta individual (GET /dashboard/individual/goals).
+/// Contrato real: `ChallengeProgressDto(ChallengeId, Title,
+/// ProgressPercentage, Completed)` — una lista de retos, no un target fijo
+/// de pasos/minutos.
+class DashboardChallenge {
+  final String challengeId;
+  final String title;
+  final double progressPercentage;
+  final bool completed;
+
+  DashboardChallenge({
+    required this.challengeId,
+    required this.title,
+    required this.progressPercentage,
+    required this.completed,
+  });
+
+  factory DashboardChallenge.fromJson(Map<String, dynamic> json) => DashboardChallenge(
+        challengeId: json['challengeId']?.toString() ?? '',
+        title: json['title']?.toString() ?? '',
+        progressPercentage: (json['progressPercentage'] as num?)?.toDouble() ?? 0,
+        completed: json['completed'] as bool? ?? false,
       );
 }
 
@@ -87,23 +135,27 @@ class DashboardRecommendation {
   final String title;
   final String description;
   final String category;
-  final int priority;
+  final double priorityScore;
 
   DashboardRecommendation({
     required this.id,
     required this.title,
     required this.description,
     required this.category,
-    required this.priority,
+    required this.priorityScore,
   });
 
   factory DashboardRecommendation.fromJson(Map<String, dynamic> json) =>
       DashboardRecommendation(
-        id: json['id']?.toString() ?? '',
+        // El swagger real del Dashboard Service serializa el campo como
+        // "recommendationId" (record RecommendationDto(RecommendationId, ...)),
+        // igual que en MLPredictionService — no "id". Igual "priorityScore"
+        // (double), no "priority" (int).
+        id: json['recommendationId']?.toString() ?? json['id']?.toString() ?? '',
         title: json['title']?.toString() ?? '',
         description: json['description']?.toString() ?? '',
         category: json['category']?.toString() ?? '',
-        priority: (json['priority'] as num?)?.toInt() ?? 0,
+        priorityScore: (json['priorityScore'] as num?)?.toDouble() ?? 0,
       );
 }
 
@@ -137,29 +189,25 @@ class DashboardBiometrics {
 }
 
 /// Estadísticas individuales (GET /dashboard/individual/statistics).
+/// Contrato real: `IndividualStatisticsResponse(UserId, ActiveHoursThisWeek,
+/// SedentaryHoursThisWeek, AverageHeartRate)`.
 class DashboardStatistics {
-  final int totalSessions;
-  final int activeSessions;
-  final int alertCount;
-  final double averageDurationMinutes;
-  final String streakLabel;
+  final double activeHoursThisWeek;
+  final double sedentaryHoursThisWeek;
+  final double averageHeartRate;
 
   DashboardStatistics({
-    required this.totalSessions,
-    required this.activeSessions,
-    required this.alertCount,
-    required this.averageDurationMinutes,
-    required this.streakLabel,
+    required this.activeHoursThisWeek,
+    required this.sedentaryHoursThisWeek,
+    required this.averageHeartRate,
   });
 
   factory DashboardStatistics.fromJson(Map<String, dynamic> json) =>
       DashboardStatistics(
-        totalSessions: (json['totalSessions'] as num?)?.toInt() ?? 0,
-        activeSessions: (json['activeSessions'] as num?)?.toInt() ?? 0,
-        alertCount: (json['alertCount'] as num?)?.toInt() ?? 0,
-        averageDurationMinutes:
-            (json['averageDurationMinutes'] as num?)?.toDouble() ?? 0,
-        streakLabel: json['streakLabel']?.toString() ?? '',
+        activeHoursThisWeek: (json['activeHoursThisWeek'] as num?)?.toDouble() ?? 0,
+        sedentaryHoursThisWeek:
+            (json['sedentaryHoursThisWeek'] as num?)?.toDouble() ?? 0,
+        averageHeartRate: (json['averageHeartRate'] as num?)?.toDouble() ?? 0,
       );
 }
 
