@@ -65,7 +65,9 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
     final weight = double.tryParse(_weightController.text.trim().replaceAll(',', '.'));
 
     var cloudMessage = '';
-    if (height != null && height > 0 && weight != null && weight > 0) {
+    final hasHeight = height != null && height > 0;
+    final hasWeight = weight != null && weight > 0;
+    if (hasHeight || hasWeight) {
       try {
         final api = ref.read(medicalApiServiceProvider);
         await api.addReading(MedicalReading(
@@ -73,8 +75,8 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
           hrv: 0,
           spo2: 0,
           steps: 0,
-          weight: weight,
-          height: height,
+          weight: hasWeight ? weight : 0,
+          height: hasHeight ? height : 0,
           recordedAtUtc: DateTime.now(),
         ));
         cloudMessage = ' y sincronizados con la nube';

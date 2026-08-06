@@ -123,9 +123,10 @@ class MedicalApiService {
     final response = await _call(
       () => _dio.get('/medical/latest'),
     );
-    final data = response is Map && response['data'] is Map
-        ? response['data'] as Map
-        : (response is Map ? response : const {});
+    final payload = response is Response ? response.data : response;
+    final data = payload is Map && payload['data'] is Map
+        ? payload['data'] as Map
+        : (payload is Map ? payload : const {});
     return MedicalReadingResponse.fromJson(_asMap(data));
   }
 
@@ -142,14 +143,15 @@ class MedicalApiService {
           'page': page,
           'pageSize': pageSize,
         }));
-    if (response is List) {
-      return response
+    final payload = response is Response ? response.data : response;
+    if (payload is List) {
+      return payload
           .whereType<Map<String, dynamic>>()
           .map(MedicalReadingResponse.fromJson)
           .toList();
     }
-    if (response is Map && response['data'] is List) {
-      return (response['data'] as List)
+    if (payload is Map && payload['data'] is List) {
+      return (payload['data'] as List)
           .whereType<Map<String, dynamic>>()
           .map(MedicalReadingResponse.fromJson)
           .toList();

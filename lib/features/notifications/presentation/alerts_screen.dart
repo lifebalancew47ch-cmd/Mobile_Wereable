@@ -10,54 +10,53 @@ class AlertsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final alertsAsync = ref.watch(alertsProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Alertas')),
-      body: alertsAsync.when(
-        data: (alerts) {
-          if (alerts.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.shield_outlined, size: 64, color: Colors.grey),
-                  SizedBox(height: 12),
-                  Text('No tienes alertas', style: TextStyle(color: Colors.grey)),
-                ],
-              ),
-            );
-          }
-          return RefreshIndicator(
-            onRefresh: () async => ref.refresh(alertsProvider.future),
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: alerts.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) =>
-                  _AlertCard(alert: alerts[index]),
+    // Sin Scaffold/AppBar propios: esta pantalla vive dentro del TabBarView
+    // de NotificationsScreen, que ya provee el AppBar y el TabBar.
+    return alertsAsync.when(
+      data: (alerts) {
+        if (alerts.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.shield_outlined, size: 64, color: Colors.grey),
+                SizedBox(height: 12),
+                Text('No tienes alertas', style: TextStyle(color: Colors.grey)),
+              ],
             ),
           );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.error_outline, size: 48, color: Theme.of(context).colorScheme.error),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Text(
-                  'No se pudieron cargar las alertas.\n$error',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () => ref.refresh(alertsProvider.future),
-                child: const Text('Reintentar'),
-              ),
-            ],
+        }
+        return RefreshIndicator(
+          onRefresh: () async => ref.refresh(alertsProvider.future),
+          child: ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: alerts.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) =>
+                _AlertCard(alert: alerts[index]),
           ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: Theme.of(context).colorScheme.error),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                'No se pudieron cargar las alertas.\n$error',
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () => ref.refresh(alertsProvider.future),
+              child: const Text('Reintentar'),
+            ),
+          ],
         ),
       ),
     );

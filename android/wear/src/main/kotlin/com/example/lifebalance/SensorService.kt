@@ -176,7 +176,7 @@ class SensorService : Service(), SensorEventListener2 {
 
         when (event.sensor.type) {
             Sensor.TYPE_LOW_LATENCY_OFFBODY_DETECT -> {
-                isOnBody = event.values[0] == 1.0f
+                isOnBody = event.values[0] == 0.0f
                 WearSensorState.isOnBody = isOnBody
                 if (!isOnBody) {
                     Log.d("SensorService", "Watch is off-body. Pausing collection.")

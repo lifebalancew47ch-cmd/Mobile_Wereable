@@ -17,12 +17,28 @@ final notificationsProvider = FutureProvider<List<NotificationItem>>((ref) async
 
 /// Alertas de sedentarismo (GET /alerts) fusionadas con las alertas locales
 /// registradas por el FogEngine en la BD segura.
+///
+/// Las dos fuentes se resuelven de forma independiente: si el backend de
+/// alertas falla o no responde, las alertas locales (críticas para el
+/// monitoreo de sedentarismo) igual deben mostrarse.
 final alertsProvider = FutureProvider<List<AlertItem>>((ref) async {
   final api = ref.watch(notificationsApiServiceProvider);
-  final cloudAlerts = await api.getAlerts();
-  final localAlerts = await _loadLocalAlerts();
-  return [...cloudAlerts, ...localAlerts];
+  final results = await Future.wait([
+    _loadCloudAlerts(api),
+    _loadLocalAlerts(),
+  ]);
+  final combined = [...results[0], ...results[1]];
+  combined.sort((a, b) => b.createdAtUtc.compareTo(a.createdAtUtc));
+  return combined;
 });
+
+Future<List<AlertItem>> _loadCloudAlerts(NotificationsApiService api) async {
+  try {
+    return await api.getAlerts();
+  } catch (_) {
+    return const [];
+  }
+}
 
 Future<List<AlertItem>> _loadLocalAlerts() async {
   try {

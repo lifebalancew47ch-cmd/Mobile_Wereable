@@ -19,7 +19,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Load environment variables (Security - Sección 2 Cloud Prep)
-  await dotenv.load(fileName: const String.fromEnvironment('ENV_FILE', defaultValue: '.env.development'));
+  try {
+    await dotenv.load(fileName: const String.fromEnvironment('ENV_FILE', defaultValue: '.env.development'));
+  } catch (e) {
+    debugPrint('Aviso: No se pudo cargar el archivo env o está vacío ($e). Usando configuración por defecto.');
+  }
 
   // Security Check: Root / Jailbreak detection
   bool jailbroken = await FlutterJailbreakDetection.jailbroken;
