@@ -29,6 +29,8 @@ class MainActivity : Activity() {
     private lateinit var varianceText: TextView
     private lateinit var stepsText: TextView
     private lateinit var bpmText: TextView
+    private lateinit var onBodyText: TextView
+    private lateinit var gyroText: TextView
 
     private var uiUpdateJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Main)
@@ -42,6 +44,8 @@ class MainActivity : Activity() {
         varianceText = findViewById(R.id.varianceText)
         stepsText = findViewById(R.id.stepsText)
         bpmText = findViewById(R.id.bpmText)
+        onBodyText = findViewById(R.id.onBodyText)
+        gyroText = findViewById(R.id.gyroText)
 
         findViewById<Button>(R.id.pauseButton).setOnClickListener {
             // Reinicia el estado compartido al pausar (pausa activa)
@@ -135,6 +139,14 @@ class MainActivity : Activity() {
         stepsText.text = WearSensorState.steps.toString()
         bpmText.text = WearSensorState.heartRate.toInt().toString()
         varianceText.text = "varianza: %.4f".format(WearSensorState.variance)
+        
+        val onBodyStr = if (WearSensorState.isOnBody) "Sí" else "No"
+        onBodyText.text = "Reloj Puesto: $onBodyStr"
+        gyroText.text = "Gyro: X:%.2f Y:%.2f Z:%.2f".format(
+            WearSensorState.gyroX, 
+            WearSensorState.gyroY, 
+            WearSensorState.gyroZ
+        )
 
         val idleWindows = WearSensorState.idleWindows
         val alertWindows = WearSensorState.alertWindows

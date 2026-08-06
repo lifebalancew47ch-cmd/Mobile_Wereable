@@ -14,4 +14,7 @@ object WearSensorState {
     @Volatile var steps: Int = 0
     @Volatile var heartRate: Float = 0f
     @Volatile var isOnBody: Boolean = true
+    @Volatile var gyroX: Float = 0f
+    @Volatile var gyroY: Float = 0f
+    @Volatile var gyroZ: Float = 0f
 }

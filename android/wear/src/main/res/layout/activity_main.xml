@@ -160,6 +160,24 @@
                 android:textColor="#6F8F80"
                 android:textSize="10sp" />
 
+            <TextView
+                android:id="@+id/onBodyText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Reloj Puesto: Sí"
+                android:textColor="#6F8F80"
+                android:textSize="10sp" />
+
+            <TextView
+                android:id="@+id/gyroText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Gyro: X:0.0 Y:0.0 Z:0.0"
+                android:textColor="#6F8F80"
+                android:textSize="10sp"
+                android:textAlignment="center"
+                android:layout_marginTop="4dp" />
+
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 

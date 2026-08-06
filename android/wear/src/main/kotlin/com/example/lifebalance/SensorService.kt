@@ -190,6 +190,9 @@ class SensorService : Service(), SensorEventListener2 {
                 lastGyroX = event.values[0]
                 lastGyroY = event.values[1]
                 lastGyroZ = event.values[2]
+                WearSensorState.gyroX = lastGyroX
+                WearSensorState.gyroY = lastGyroY
+                WearSensorState.gyroZ = lastGyroZ
             }
             Sensor.TYPE_STEP_COUNTER -> {
                 totalSteps = TodaySteps.of(this, event.values[0].toInt())
