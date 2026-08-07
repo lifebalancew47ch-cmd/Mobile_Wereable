@@ -12,7 +12,7 @@ android {
         // módulo :app — el mecanismo `wearApp(project(":wear"))` de Gradle
         // exige el mismo package name para empaquetar el Wear OS app dentro
         // del APK del teléfono.
-        applicationId = "com.example.lifebalance"
+        applicationId = "com.lifebalance.app"
         minSdk = 30
         targetSdk = 34
         versionCode = 1
@@ -28,6 +28,11 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+    buildFeatures {
+        // WearLog.kt y el código dependen de BuildConfig.DEBUG en tiempo de
+        // compilación (no-op de logs fuera de debug).
+        buildConfig = true
     }
     @Suppress("DEPRECATION")
     kotlinOptions {

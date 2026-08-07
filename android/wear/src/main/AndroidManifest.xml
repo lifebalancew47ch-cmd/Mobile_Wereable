@@ -35,14 +35,16 @@
             </intent-filter>
         </activity>
 
+        <!--
+          A-08 (audit de seguridad): el servicio se arranca internamente
+          (BootReceiver / MainActivity), no debe poder invocarlo cualquier
+          app del reloj (agotamiento de batería / sensores sin consentimiento).
+          exported=false + sin intent-filter.
+        -->
         <service
             android:name=".SensorService"
-            android:exported="true"
+            android:exported="false"
             android:foregroundServiceType="connectedDevice|health">
-            <intent-filter>
-                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
-                <data android:scheme="wear" android:host="*" android:pathPrefix="/lifebalance" />
-            </intent-filter>
         </service>
 
         <service
@@ -55,10 +57,14 @@
             </intent-filter>
         </service>
         
+        <!--
+    A-08: BOOT_COMPLETED es una acción protegida del sistema; el receptor
+    no necesita estar exportado para recibirla.
+        -->
         <receiver
             android:name=".BootReceiver"
             android:enabled="true"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>

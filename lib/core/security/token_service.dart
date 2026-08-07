@@ -4,10 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/datasources/secure_database_service.dart';
 import 'encryption_service.dart';
 import 'secure_storage.dart';
+import 'session_cleanup.dart';
 
 final tokenServiceProvider = Provider<TokenService>((ref) {
   return TokenService(secureStorage);
@@ -72,19 +72,12 @@ class TokenService {
       debugPrint('[SessionWiper] Error purgando base de datos cifrada o clave AES: $e');
     }
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final keysToClear = prefs.getKeys().where((k) =>
-        k.startsWith('biometric_') ||
-        k == 'flutter.latest_wear_json' ||
-        k.contains('native_fog')
-      ).toList();
-      for (final key in keysToClear) {
-        await prefs.remove(key);
-      }
-    } catch (e) {
-      debugPrint('[SessionWiper] Error limpiando SharedPreferences: $e');
-    }
+    // Las claves no-credenciales que otros servicios escriben en
+    // almacenamiento plano (biométricos locales, último JSON del wearable,
+    // estado del FogEngine nativo) se limpian aquí, aisladas en
+    // `session_cleanup.dart`: token_service.dart jamás escribe tokens fuera
+    // del secure storage.
+    await clearSensitiveSharedPreferences();
 
     _notifySessionChange();
   }

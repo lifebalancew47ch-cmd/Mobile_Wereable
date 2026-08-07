@@ -38,6 +38,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_main)
 
         statusText = findViewById(R.id.statusText)
@@ -54,6 +55,12 @@ class MainActivity : Activity() {
             WearSensorState.idleWindows = 0
             WearSensorState.activeWindows = 0
             WearSensorState.alertShown = false
+            getSharedPreferences("wear_state", Context.MODE_PRIVATE)
+                .edit()
+                .putLong("idle_windows", 0L)
+                .putLong("active_windows", 0L)
+                .putBoolean("alert_shown", false)
+                .apply()
             updateUi()
         }
 
@@ -150,7 +157,15 @@ class MainActivity : Activity() {
     private fun updateUi() {
         stepsText.text = WearSensorState.steps.toString()
         bpmText.text = WearSensorState.heartRate.toInt().toString()
-        varianceText.text = "varianza: %.4f".format(WearSensorState.variance)
+        // Mostrar varianza en tiempo real + ventanas de análisis + idle actual
+        // para diagnóstico: si liveVariance sube/baja sabremos si el sensor accel funciona;
+        // si windowsAnalyzed incrementa sabremos que analyzeWindowLocal corre;
+        // si idleText incrementa sabremos que el umbral está bien.
+        val lv = WearSensorState.liveVariance
+        val wn = WearSensorState.windowsAnalyzed
+        val iw = WearSensorState.idleWindows
+        val aw = WearSensorState.alertWindows
+        varianceText.text = "var:%.4f w:%d idle:%d/%d".format(lv, wn, iw, aw)
         
         val onBodyStr = if (WearSensorState.isOnBody) "Sí" else "No"
         onBodyText.text = "Reloj Puesto: $onBodyStr"
@@ -160,23 +175,37 @@ class MainActivity : Activity() {
             WearSensorState.gyroZ
         )
 
-        val idleWindows = WearSensorState.idleWindows
-        val alertWindows = WearSensorState.alertWindows
-        val activeWindows = WearSensorState.activeWindows
+        var idleWindows = WearSensorState.idleWindows
+        var alertWindows = WearSensorState.alertWindows
+        var activeWindows = WearSensorState.activeWindows
+
+        if (idleWindows == 0L && activeWindows == 0L) {
+            val prefs = getSharedPreferences("wear_state", Context.MODE_PRIVATE)
+            idleWindows = prefs.getLong("idle_windows", 0L)
+            activeWindows = prefs.getLong("active_windows", 0L)
+            WearSensorState.idleWindows = idleWindows
+            WearSensorState.activeWindows = activeWindows
+        }
+
+        fun formatTime(windows: Long): String {
+            val totalSeconds = windows * 30
+            return if (totalSeconds < 60) {
+                "${totalSeconds}s"
+            } else {
+                "${totalSeconds / 60} min"
+            }
+        }
 
         if (idleWindows >= alertWindows) {
-            val minutes = idleWindows / 2
-            minutesText.text = "$minutes min"
+            minutesText.text = formatTime(idleWindows)
             statusText.text = "¡Alerta de sedentarismo!"
             statusText.setTextColor(android.graphics.Color.parseColor("#E0564C"))
         } else if (idleWindows > 0) {
-            val minutes = idleWindows / 2
-            minutesText.text = "$minutes min"
+            minutesText.text = formatTime(idleWindows)
             statusText.text = "Inactivo"
             statusText.setTextColor(android.graphics.Color.parseColor("#E8A24C"))
         } else {
-            val minutes = activeWindows / 2
-            minutesText.text = "$minutes min"
+            minutesText.text = formatTime(activeWindows)
             statusText.text = "Activo"
             statusText.setTextColor(android.graphics.Color.parseColor("#52C480"))
         }

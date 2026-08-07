@@ -65,7 +65,7 @@ void main() {
       await tokenService.clearTokens();
       verify(() => storage.delete(key: 'access_token')).called(1);
       verify(() => storage.delete(key: 'refresh_token')).called(1);
-      verify(() => storage.delete(key: 'cached_user_profile')).called(1);
+      verify(() => storage.delete(key: 'user_cache')).called(1);
     });
 
     test('El token NUNCA viaja en query params (solo header Bearer)', () async {

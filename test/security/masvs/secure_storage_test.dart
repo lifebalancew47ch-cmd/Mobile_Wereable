@@ -38,7 +38,7 @@ void main() {
       // Ninguna escritura debe ocurrir en otro key (p. ej. shared prefs).
       verifyNever(
         () => storage.write(
-          key: any(named: 'key', that: isNot(anyOf('access_token', 'refresh_token', 'cached_user_profile'))),
+          key: any(named: 'key', that: isNot(anyOf('access_token', 'refresh_token', 'user_cache'))),
           value: any(named: 'value'),
         ),
       );
@@ -51,7 +51,7 @@ void main() {
 
       verify(() => storage.delete(key: 'access_token')).called(1);
       verify(() => storage.delete(key: 'refresh_token')).called(1);
-      verify(() => storage.delete(key: 'cached_user_profile')).called(1);
+      verify(() => storage.delete(key: 'user_cache')).called(1);
     });
 
     test('hasValidToken es false tras clearTokens', () async {
@@ -111,7 +111,12 @@ void main() {
       for (final entity in libDir.listSync(recursive: true)) {
         if (entity is! File || !entity.path.endsWith('.dart')) continue;
         final src = entity.readAsStringSync();
-        if (src.contains('SharedPreferences') &&
+        // Solo es riesgo si el archivo importa el PLUGIN shared_preferences
+        // (almacenamiento plano) y además declara literales de credencial;
+        // mencionar "SharedPreferences" en comentarios/docs no es un riesgo.
+        final usesFlatStorage = src.contains('package:shared_preferences') ||
+            src.contains('SharedPreferences.getInstance');
+        if (usesFlatStorage &&
             RegExp(
               r'''["\'](access|refresh)?_?(token|password|jwt|secret)["\']''',
               caseSensitive: false,

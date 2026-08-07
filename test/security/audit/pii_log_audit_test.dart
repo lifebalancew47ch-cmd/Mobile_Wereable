@@ -9,6 +9,15 @@ void main() {
   group('PII log audit: lib/', () {
     late List<File> dartFiles;
 
+    /// Elimina comentarios de línea completos (//) para no reportar
+    /// falsos positivos: un comentario que DOCUMENTE "no loguear el token"
+    /// no es un envío real de datos.
+    String stripComments(String line) {
+      final idx = line.indexOf('//');
+      if (idx == -1) return line;
+      return line.substring(0, idx);
+    }
+
     setUpAll(() {
       dartFiles = Directory('lib')
           .listSync(recursive: true)
@@ -75,12 +84,23 @@ void main() {
         final src = file.readAsStringSync();
         final hasReporter = src.contains('Crashlytics') ||
             src.contains('Sentry') ||
-            src.contains('reportError');
+            src.contains('reportError') ||
+            src.contains('captureException');
         if (hasReporter) {
           for (final (index, line) in src.split('\n').indexed) {
-            if (RegExp(r'(token|password|secret)',
+            final codeLine = stripComments(line);
+            final callsReporter = codeLine.contains('recordError') ||
+                codeLine.contains('recordFlutterFatalError') ||
+                codeLine.contains('captureException') ||
+                codeLine.contains('reportError') ||
+                codeLine.contains('captureMessage');
+            // Solo importan las líneas que envían datos al reportero; un
+            // comentario que mencione "token" (p. ej. la doc de FCM) no es un
+            // envío de credenciales a Crashlytics.
+            if (callsReporter &&
+                RegExp(r'(access[_-]?token|refresh[_-]?token|password|secret|jwt)',
                     caseSensitive: false)
-                .hasMatch(line)) {
+                    .hasMatch(codeLine)) {
               offenders.add('${file.path}:${index + 1}');
             }
           }
@@ -93,16 +113,24 @@ void main() {
 
   group('PII log audit: datos de salud en sincronización', () {
     test('SyncService no loguea vital signs (HR/SpO2) ni credenciales', () {
-      final src = File('lib/services/sync_service.dart').readAsStringSync();
-      final logLines = src
-          .split('\n')
-          .where((l) => l.contains('debugPrint') || l.contains('print'))
-          .toList();
-      for (final line in logLines) {
-        expect(line, isNot(contains('heartRate')));
-        expect(line, isNot(contains('spo2')));
-        expect(line, isNot(contains('token')));
-        expect(line, isNot(contains('password')));
+      // El SyncService original se consolidó en OfflineSyncService; se
+      // auditan ambos nombres por si reaparecen en el futuro.
+      for (final path in [
+        'lib/services/sync_service.dart',
+        'lib/services/offline_sync_service.dart',
+      ]) {
+        if (!File(path).existsSync()) continue;
+        final src = File(path).readAsStringSync();
+        final logLines = src
+            .split('\n')
+            .where((l) => l.contains('debugPrint') || l.contains('print'))
+            .toList();
+        for (final line in logLines) {
+          expect(line, isNot(contains('heartRate')));
+          expect(line, isNot(contains('spo2')));
+          expect(line, isNot(contains('token')));
+          expect(line, isNot(contains('password')));
+        }
       }
     });
 

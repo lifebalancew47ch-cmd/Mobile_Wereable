@@ -18,6 +18,7 @@ import '../models/vital_sign.dart';
 import '../data/datasources/secure_database_service.dart';
 import 'device_registration_service.dart';
 import 'dart:ui';
+import '../core/utils/app_log.dart';
 
 @pragma('vm:entry-point')
 class BackgroundService {
@@ -155,7 +156,11 @@ class BackgroundService {
               // Avoid persisting empty placeholders
               if (metrics.heartRate > 0 || metrics.hrv > 0 || metrics.spo2 > 0 || metrics.steps > 0) {
                 await SecureDatabaseService.instance.insertVitalSign(metrics);
-                debugPrint('[BackgroundService] VitalSign persistido en DB desde background');
+                AppLog.d('[BackgroundService] VitalSign persistido → '
+                    'hr=${metrics.heartRate} hrv=${metrics.hrv} '
+                    'spo2=${metrics.spo2} steps=${metrics.steps}');
+              } else {
+                debugPrint('[BackgroundService] VitalSign descartado (todos en 0)');
               }
             }
           } catch (e) {

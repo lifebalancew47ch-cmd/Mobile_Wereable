@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import '../core/utils/app_log.dart';
 
 /// Muestra de acelerómetro (compatibilidad heredada: solo X/Y/Z + timestamp).
 class AccelerometerData {
@@ -147,10 +148,15 @@ class WearableCommunicationService {
       if (batch.isEmpty) return null;
       try {
         final sample = WearableSensorSample.fromJson(batch.last);
-        debugPrint('[Wearable] UI sample: steps=${sample.steps} hr=${sample.heartRate} hrv=${sample.hrv}');
+        AppLog.d('[Wearable] UI sample: steps=${sample.steps} '
+            'hr=${sample.heartRate} hrv=${sample.hrv} spo2=${sample.spo2}');
+        if (sample.spo2 > 0 && sample.spo2 < 50) {
+          AppLog.d('[Wearable] ⚠️ SpO2 fuera de rango API (50-100%): '
+              '${sample.spo2} — se filtrará en sync');
+        }
         return sample;
       } catch (e) {
-        debugPrint('[Wearable] UI sample ERROR: $e last=${batch.last}');
+        AppLog.d('[Wearable] UI sample ERROR: $e');
         return null;
       }
     }).where((sample) => sample != null).cast<WearableSensorSample>();
@@ -163,7 +169,7 @@ class WearableCommunicationService {
       try {
         return AccelerometerData.fromJson(batch.last);
       } catch (e) {
-        debugPrint('[Wearable] Accel throttled ERROR: $e last=${batch.last}');
+        AppLog.d('[Wearable] Accel throttled ERROR: $e');
         return null;
       }
     }).where((data) => data != null).cast<AccelerometerData>();

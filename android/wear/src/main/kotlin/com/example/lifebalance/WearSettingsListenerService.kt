@@ -1,7 +1,6 @@
 package com.example.lifebalance
 
 import android.content.Context
-import android.util.Log
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataMapItem
@@ -28,7 +27,7 @@ class WearSettingsListenerService : WearableListenerService() {
                     .putLong("alert_threshold_minutes", minutes)
                     .apply()
 
-                Log.d("WearSettings", "Umbral actualizado a $minutes min")
+                WearLog.d("WearSettings", "Umbral actualizado a $minutes min")
             }
         }
     }

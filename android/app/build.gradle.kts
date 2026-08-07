@@ -27,17 +27,27 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
+    buildFeatures {
+        // NativeLog.kt depende de BuildConfig.DEBUG (no-op de logs en release).
+        // AGP 8+ desactiva la generación de BuildConfig por defecto.
+        buildConfig = true
+    }
+
     @Suppress("DEPRECATION")
     kotlinOptions {
         jvmTarget = "11"
     }
 
     defaultConfig {
-        // applicationId debe coincidir con el package_name registrado en
-        // google-services.json (com.example.lifebalance). Para publicar en
-        // Play Store con un ID distinto, primero actualiza el proyecto
-        // Firebase en la consola y descarga un nuevo google-services.json.
-        applicationId = "com.example.lifebalance"
+        // applicationId REAL para publicación (C-03 del audit): `com.example.*`
+        // está bloqueado en Google Play. El namespace interno (paquete Kotlin)
+        // se mantiene igual para no tener que mover los archivos .kt.
+        //
+        // IMPORTANTE para FCM: google-services.json debe contener un client
+        // cuyo package_name coincida con este applicationId. Si Firebase aún
+        // registra `com.example.lifebalance`, añade `com.lifebalance.app` en
+        // la consola de Firebase y descarga un nuevo google-services.json.
+        applicationId = "com.lifebalance.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 26
@@ -79,7 +89,12 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            // proguard-rules.pro: A-02 del audit — elimina Log.d/v/i de las
+            // capas Kotlin en release (las capas Dart usan AppLog).
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
             signingConfig = signingConfigs.getByName("release")
         }
     }

@@ -4,6 +4,7 @@ import '../../../auth/presentation/providers/profile_provider.dart';
 import '../../../medical/presentation/providers/medical_provider.dart';
 import '../../../medical/data/medical_api_service.dart';
 import '../../../../core/security/secure_storage.dart';
+import '../../../../core/utils/app_log.dart';
 
 class BiometricProfileScreen extends ConsumerStatefulWidget {
   const BiometricProfileScreen({super.key});
@@ -32,18 +33,25 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
   }
 
   Future<void> _loadSaved() async {
-    final gender = await _storage.read(key: _kGender);
-    final height = await _storage.read(key: _kHeightCm);
-    final weight = await _storage.read(key: _kWeightKg);
-    final age = await _storage.read(key: _kAge);
+    try {
+      final gender = await _storage.read(key: _kGender);
+      final height = await _storage.read(key: _kHeightCm);
+      final weight = await _storage.read(key: _kWeightKg);
+      final age = await _storage.read(key: _kAge);
 
-    if (!mounted) return;
-    setState(() {
-      _selectedGender = gender;
-      _heightController.text = height ?? '';
-      _weightController.text = weight ?? '';
-      _ageController.text = age ?? '';
-    });
+      AppLog.d('[BiometricProfile] _loadSaved → gender=$gender '
+          'height=$height weight=$weight age=$age');
+
+      if (!mounted) return;
+      setState(() {
+        _selectedGender = (gender?.isNotEmpty == true) ? gender : null;
+        _heightController.text = height ?? '';
+        _weightController.text = weight ?? '';
+        _ageController.text = age ?? '';
+      });
+    } catch (e) {
+      debugPrint('[BiometricProfile] Error al cargar desde SecureStorage: $e');
+    }
   }
 
   int _completedCount() {
@@ -59,10 +67,24 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
     if (_syncing) return;
     setState(() => _syncing = true);
 
-    await _storage.write(key: _kGender, value: _selectedGender ?? '');
-    await _storage.write(key: _kHeightCm, value: _heightController.text.trim());
-    await _storage.write(key: _kWeightKg, value: _weightController.text.trim());
-    await _storage.write(key: _kAge, value: _ageController.text.trim());
+    try {
+      await _storage.write(key: _kGender, value: _selectedGender ?? '');
+      await _storage.write(key: _kHeightCm, value: _heightController.text.trim());
+      await _storage.write(key: _kWeightKg, value: _weightController.text.trim());
+      await _storage.write(key: _kAge, value: _ageController.text.trim());
+      AppLog.d('[BiometricProfile] Guardado → gender=$_selectedGender '
+          'height=${_heightController.text.trim()} '
+          'weight=${_weightController.text.trim()} '
+          'age=${_ageController.text.trim()}');
+    } catch (e) {
+      debugPrint('[BiometricProfile] Error al guardar en SecureStorage: $e');
+      if (!mounted) return;
+      setState(() => _syncing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.red),
+      );
+      return;
+    }
 
     // Sincroniza peso y altura con el Medical Data Service (POST /medical/readings)
     final height = double.tryParse(_heightController.text.trim().replaceAll(',', '.'));

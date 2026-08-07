@@ -7,6 +7,11 @@ package com.example.lifebalance
  */
 object WearSensorState {
     @Volatile var variance: Double = 0.0
+    /** Varianza calculada sobre las muestras actuales del buffer (actualización
+     *  en tiempo real, cada evento de acelerómetro). Útil para depuración. */
+    @Volatile var liveVariance: Double = 0.0
+    /** Número de ventanas de análisis completadas (se incrementa en analyzeWindowLocal). */
+    @Volatile var windowsAnalyzed: Long = 0L
     @Volatile var idleWindows: Long = 0L
     @Volatile var activeWindows: Long = 0L
     @Volatile var alertWindows: Long = 90L

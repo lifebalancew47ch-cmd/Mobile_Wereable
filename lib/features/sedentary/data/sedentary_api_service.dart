@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+
+import '../../../core/utils/app_log.dart';
 
 /// Respuesta de puntuación sedentaria diaria (Sedentary Score 0-100).
 class SedentaryScore {
@@ -136,7 +137,8 @@ class SedentaryApiService {
     } on DioException catch (e) {
       final status = e.response?.statusCode;
       final body = e.response?.data;
-      debugPrint('[SedentaryApi Error] Status: $status, Data: $body, Err: ${e.message}');
+      AppLog.d('[SedentaryApi Error] Status: $status, Data: $body, '
+          'Err: ${e.message}');
       final serverMessage = body is Map ? (body['message'] ?? body['error']) : body;
       // El servidor puede devolver 200-algo-genérico; incluimos el status HTTP
       // siempre que exista para poder distinguir errores transitorios (502/503,

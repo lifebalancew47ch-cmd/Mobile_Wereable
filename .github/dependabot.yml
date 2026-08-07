@@ -1,0 +1,37 @@
+# Dependabot — actualización automática de dependencias (Fase 3 del plan de
+# seguridad). Sin esto, la única revisión de versiones era el escaneo puntual
+# de Trivy en CI y los fixes de CVE quedaban a la espera de un toque manual.
+version: 2
+updates:
+  - package-ecosystem: "pub"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "security"
+
+  - package-ecosystem: "gradle"
+    directory: "/android/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "security"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "security"

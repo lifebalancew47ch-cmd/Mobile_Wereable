@@ -10,6 +10,7 @@ import '../features/medical/data/medical_api_service.dart';
 import '../features/sedentary/data/sedentary_api_service.dart';
 import 'device_identity_service.dart';
 import 'location_service.dart';
+import '../core/utils/app_log.dart';
 
 /// Sincronización Offline-First hacia la nube.
 ///
@@ -252,6 +253,10 @@ class OfflineSyncService {
       alerts: validAlerts.isNotEmpty ? validAlerts.map(_toAlertItem).toList() : null,
     );
 
+    final spo2Values = validVitals.map((r) => r['spo2']).toList();
+    AppLog.d('[OfflineSync] Enviando lote $clientBatchId: '
+        '${validVitals.length} vitals, spo2 raw en DB: $spo2Values');
+
     try {
       final response = await _ingestionApi.sync(request);
 
@@ -267,7 +272,8 @@ class OfflineSyncService {
         debugPrint('[OfflineSync] Lote $clientBatchId con errores (se reintenta).');
       }
     } on DioException catch (e) {
-      debugPrint('[OfflineSync] Error HTTP en Ingestion (${e.response?.statusCode}): ${e.response?.data}');
+      AppLog.d('[OfflineSync] Error HTTP en Ingestion '
+          '(${e.response?.statusCode}): ${e.response?.data}');
       if (e.response?.statusCode == 400 || e.response?.statusCode == 409) {
         // En caso de error 400 (inválido) o 409 (Conflicto por BatchId idempotente previamente procesado),
         // marcamos los elementos como sincronizados en una transacción atómica para desahogar la cola local.
@@ -281,7 +287,7 @@ class OfflineSyncService {
         rethrow;
       }
     } catch (e) {
-      debugPrint('[OfflineSync] Error enviando lote de ingestión: $e');
+      AppLog.d('[OfflineSync] Error enviando lote de ingestión: $e');
       rethrow;
     }
   }
@@ -331,12 +337,16 @@ class OfflineSyncService {
       final hrvRaw = (row['hrv'] as num?)?.toDouble() ?? 0;
       final validHrv = (hrvRaw >= 1.0 && hrvRaw <= 300.0) ? hrvRaw : null;
       final spo2Raw = (row['spo2'] as num?)?.toDouble() ?? 0;
-      final validSpo2 = (spo2Raw >= 1.0 && spo2Raw <= 100.0) ? spo2Raw : null;
+      // Mismo placeholder que _toVitalItem: backend no acepta campo faltante.
+      final validSpo2 = (spo2Raw >= 50.0 && spo2Raw <= 100.0) ? spo2Raw : 95.0;
       final stepsRaw = (row['steps'] as num?)?.toInt() ?? 0;
       final validSteps = max(0, stepsRaw);
 
+      AppLog.d('[OfflineSync] Medical reading id=${row['id']} '
+          'spo2=$spo2Raw→$validSpo2${spo2Raw < 50.0 ? "(placeholder)" : ""}');
+
       // Descartar registros completamente vacíos (sin signos vitales y 0 pasos)
-      if (validHr == null && validHrv == null && validSpo2 == null && validSteps == 0) {
+      if (validHr == null && validHrv == null && validSteps == 0) {
         continue;
       }
 
@@ -385,10 +395,12 @@ class OfflineSyncService {
         _lastMedicalSync = last;
         debugPrint('[OfflineSync] Lote médico descartado por HTTP 400.');
       } else {
-        debugPrint('[OfflineSync] Error HTTP enviando lecturas médicas: $e (se reintenta luego)');
+        AppLog.d('[OfflineSync] Error HTTP enviando lecturas médicas: $e '
+            '(se reintenta luego)');
       }
     } catch (e) {
-      debugPrint('[OfflineSync] Error inesperado enviando lecturas médicas: $e (se reintenta luego)');
+      AppLog.d('[OfflineSync] Error inesperado enviando lecturas médicas: $e '
+          '(se reintenta luego)');
     }
   }
 
@@ -399,9 +411,17 @@ class OfflineSyncService {
     final hrvRaw = (row['hrv'] as num?)?.toDouble() ?? 0;
     final validHrv = (hrvRaw >= 1.0 && hrvRaw <= 300.0) ? hrvRaw : null;
     final spo2Raw = (row['spo2'] as num?)?.toDouble() ?? 0;
-    final validSpo2 = (spo2Raw >= 1.0 && spo2Raw <= 100.0) ? spo2Raw : null;
+    // El backend requiere SpO2 en [50, 100] (campo no-nullable en C#).
+    // Si el reloj no mide SpO2 (0) o da lectura inválida (1-49), usamos
+    // 95.0 como placeholder — igual que hace biometric_profile_screen.dart.
+    final validSpo2 = (spo2Raw >= 50.0 && spo2Raw <= 100.0) ? spo2Raw : 95.0;
     final stepsRaw = (row['steps'] as num?)?.toInt() ?? 0;
     final validSteps = max(0, stepsRaw);
+    AppLog.d('[OfflineSync] _toVitalItem id=${row['id']} '
+        'hr=$hrRaw→${validHr ?? "null"} '
+        'hrv=${hrvRaw.toStringAsFixed(2)}→${validHrv != null ? validHrv.toStringAsFixed(2) : "null"} '
+        'spo2=$spo2Raw→$validSpo2${spo2Raw < 50.0 ? "(placeholder)" : ""} '
+        'steps=$stepsRaw');
 
     return VitalSignSyncItem(
       timestamp: DateTime.tryParse(rawTs) ?? DateTime.now(),

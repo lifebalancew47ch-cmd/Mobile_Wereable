@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+
+import '../../../core/utils/app_log.dart';
 
 /// Elemento de signo vital del lote de sincronización (contrato Ingestion).
 class VitalSignSyncItem {
@@ -148,7 +149,7 @@ class IngestionApiService {
       }
       throw Exception('Respuesta inesperada del Ingestion Service.');
     } on DioException catch (e) {
-      throw _mapError(e, 'Error al sincronizar');
+      _logAndRethrow(e, 'Error al sincronizar');
     }
   }
 
@@ -171,18 +172,17 @@ class IngestionApiService {
         if (idempotencyKey != null) 'idempotencyKey': idempotencyKey,
       });
     } on DioException catch (e) {
-      throw _mapError(e, 'Error al registrar evento');
+      _logAndRethrow(e, 'Error al registrar evento');
     }
   }
 
-  Exception _mapError(DioException e, String fallback) {
+  /// Logs the error and re-throws as DioException so callers can handle
+  /// specific status codes (e.g., 400/409 → mark batch synced, not retry).
+  Never _logAndRethrow(DioException e, String fallback) {
     final status = e.response?.statusCode;
     final body = e.response?.data;
-    debugPrint('[IngestionApi Error] Status: $status, Data: $body, Err: ${e.message}');
-    if (e.response != null) {
-      final message = e.response?.data?['message'] ?? e.response?.data?['error'] ?? body?.toString();
-      return Exception(message?.toString() ?? '$fallback (HTTP $status)');
-    }
-    return Exception('$fallback: ${e.message ?? e.type.name}');
+    AppLog.d('[IngestionApi Error] Status: $status, Data: $body, '
+        'Err: ${e.message}');
+    throw e;
   }
 }

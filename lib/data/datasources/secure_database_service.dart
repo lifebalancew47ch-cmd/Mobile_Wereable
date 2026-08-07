@@ -31,8 +31,11 @@ class SecureDatabaseService {
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
         onOpen: (db) async {
-          await db.execute('PRAGMA journal_mode = WAL;');
-          await db.execute('PRAGMA synchronous = NORMAL;');
+          // journal_mode returns a row — rawQuery, not execute.
+          await db.rawQuery('PRAGMA journal_mode = WAL;');
+          // synchronous cannot be changed inside a transaction context on
+          // SQLCipher; ignore the error — it's a perf hint, not critical.
+          try { await db.execute('PRAGMA synchronous = NORMAL;'); } catch (_) {}
         },
       );
     } catch (e) {
@@ -46,7 +49,7 @@ class SecureDatabaseService {
           onCreate: _createDB,
           onUpgrade: _onUpgrade,
           onOpen: (db) async {
-            await db.execute('PRAGMA journal_mode = WAL;');
+            await db.rawQuery('PRAGMA journal_mode = WAL;');
             await db.execute('PRAGMA synchronous = NORMAL;');
           },
         );

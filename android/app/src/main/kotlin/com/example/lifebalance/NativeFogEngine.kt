@@ -6,7 +6,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import org.json.JSONArray
 import org.json.JSONObject
@@ -62,7 +61,7 @@ class NativeFogEngine private constructor(private val context: Context) {
     fun resetIdleWindows() {
         idleWindows = 0L
         alertShown = false
-        Log.d("NativeFogEngine", "State reset by Flutter")
+        NativeLog.d("NativeFogEngine", "State reset by Flutter")
     }
 
     /**
@@ -92,7 +91,7 @@ class NativeFogEngine private constructor(private val context: Context) {
                 lastWindowTime = now
             }
         } catch (e: Exception) {
-            Log.e("NativeFogEngine", "Error procesando lote JSON: ${e.message}")
+            NativeLog.e("NativeFogEngine", "Error procesando lote JSON: ${e.message}")
         }
     }
 
@@ -119,7 +118,7 @@ class NativeFogEngine private constructor(private val context: Context) {
         if (variance < VARIANCE_THRESHOLD) {
             // Ventana inactiva
             idleWindows++
-            Log.d("NativeFogEngine", "Ventana inactiva nativa ($idleWindows/$alertThresholdWindows). Varianza: $variance")
+            NativeLog.d("NativeFogEngine", "Ventana inactiva nativa ($idleWindows/$alertThresholdWindows). Varianza: $variance")
 
             if (idleWindows >= alertThresholdWindows && !alertShown) {
                 alertShown = true
@@ -127,7 +126,7 @@ class NativeFogEngine private constructor(private val context: Context) {
             }
         } else {
             // Movimiento detectado -> Reinicia contador
-            Log.d("NativeFogEngine", "Movimiento detectado nativo. Varianza: $variance. Contador reiniciado.")
+            NativeLog.d("NativeFogEngine", "Movimiento detectado nativo. Varianza: $variance. Contador reiniciado.")
             idleWindows = 0L
             alertShown = false
         }
@@ -135,7 +134,7 @@ class NativeFogEngine private constructor(private val context: Context) {
 
     private fun triggerNotification() {
         val minutes = idleWindows / 2
-        Log.w("NativeFogEngine", "¡ALERTA DE SEDENTARISMO NATIVA! $minutes minutos inactivo.")
+        NativeLog.w("NativeFogEngine", "¡ALERTA DE SEDENTARISMO NATIVA! $minutes minutos inactivo.")
 
         val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
         val pendingIntent = PendingIntent.getActivity(

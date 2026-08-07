@@ -16,12 +16,12 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
-import android.util.Log
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
@@ -66,6 +66,9 @@ class SensorService : Service(), SensorEventListener2 {
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
+    // Scope en hilo principal para el timer de análisis — comparte el mismo job
+    // para que se cancele junto con el servicio.
+    private val mainScope = CoroutineScope(Dispatchers.Main + job)
 
     private val readingsBuffer = ArrayDeque<JSONObject>(50)
     private var lastBatchSendTime = 0L
@@ -82,7 +85,6 @@ class SensorService : Service(), SensorEventListener2 {
 
     // Análisis de inactividad local en segundo plano (Wear OS background detection)
     private val magnitudes = ArrayList<Double>(200)
-    private var windowStartTime = 0L
     private var idleWindows = 0L
     private var activeWindows = 0L
     private var consecutiveActiveWindows = 0
@@ -91,7 +93,12 @@ class SensorService : Service(), SensorEventListener2 {
     private var sleepWindows = 0L
     private var reposoVerificado = false
     private val WINDOW_MS = 30_000L
-    private val VARIANCE_THRESHOLD = 0.05 // Alineado con el teléfono (0.05)
+    // Umbral para clasificar una ventana como "inmóvil".
+    // El teléfono usaba 0.05, pero en muñeca el temblor fisiológico, el pulso y
+    // los micro-movimientos de mano al estar sentado generan varianzas de 0.15-0.35.
+    // Con 0.50 se distingue perfectamente entre estar sentado (var < 0.50) y
+    // caminata/movimiento activo real (var > 1.0).
+    private val VARIANCE_THRESHOLD = 0.50
     private var alertWindows = 90L // 90 ventanas de 30s = 45 min por defecto
 
     private fun loadAlertThreshold() {
@@ -100,9 +107,30 @@ class SensorService : Service(), SensorEventListener2 {
         alertWindows = minutes * 2
     }
 
+    private fun saveState() {
+        getSharedPreferences("wear_state", Context.MODE_PRIVATE)
+            .edit()
+            .putLong("idle_windows", idleWindows)
+            .putLong("active_windows", activeWindows)
+            .putBoolean("alert_shown", alertShown)
+            .apply()
+    }
+
+    private fun loadState() {
+        val prefs = getSharedPreferences("wear_state", Context.MODE_PRIVATE)
+        idleWindows = prefs.getLong("idle_windows", 0L)
+        activeWindows = prefs.getLong("active_windows", 0L)
+        alertShown = prefs.getBoolean("alert_shown", false)
+
+        WearSensorState.idleWindows = idleWindows
+        WearSensorState.activeWindows = activeWindows
+        WearSensorState.alertShown = alertShown
+    }
+
     override fun onCreate() {
         super.onCreate()
         loadAlertThreshold()
+        loadState()
         createNotificationChannel()
         val notification = Notification.Builder(this, "wear_sensor_channel")
             .setContentTitle("LifeBalance")
@@ -169,6 +197,27 @@ class SensorService : Service(), SensorEventListener2 {
         heartRateSensor?.let {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
         }
+
+        // Timer de análisis de ventana — hilo principal para compartir el acceso a
+        // `magnitudes` con onSensorChanged (ambos en el main thread). Garantiza que
+        // analyzeWindowLocal corra cada 30s aunque el acelerómetro esté en batching
+        // agresivo o el reloj entre en reposo entre entregas de sensor.
+        mainScope.launch {
+            delay(WINDOW_MS) // esperar la primera ventana completa
+            while (true) {
+                val now = System.currentTimeMillis()
+                WearLog.d("SensorService", "Timer tick: magnitudes=${magnitudes.size} idle=$idleWindows active=$activeWindows")
+                if (magnitudes.isNotEmpty()) {
+                    analyzeWindowLocal(now)
+                } else {
+                    // Sin datos de acelerómetro en esta ventana: reportar estado actual
+                    // sin modificar idleWindows ni activeWindows (sensor off o servicio arrancando)
+                    WearLog.w("SensorService", "Timer: no hay muestras de acelerómetro en ${WINDOW_MS}ms")
+                    WearSensorState.windowsAnalyzed++
+                }
+                delay(WINDOW_MS)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -183,7 +232,7 @@ class SensorService : Service(), SensorEventListener2 {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        Log.d("SensorService", "Flushing sensors before destroy")
+        WearLog.d("SensorService", "Flushing sensors before destroy")
         sensorManager.flush(this)
         sensorManager.unregisterListener(this)
         wakeLock?.let {
@@ -201,11 +250,11 @@ class SensorService : Service(), SensorEventListener2 {
                 isOnBody = event.values[0] != 0.0f
                 WearSensorState.isOnBody = isOnBody
                 if (!isOnBody) {
-                    Log.d("SensorService", "Watch is off-body. Pausing collection.")
+                    WearLog.d("SensorService", "Watch is off-body. Pausing collection.")
                     // Flush immediately when taken off body
                     flushBuffer()
                 } else {
-                    Log.d("SensorService", "Watch is on-body. Resuming collection.")
+                    WearLog.d("SensorService", "Watch is on-body. Resuming collection.")
                 }
             }
             Sensor.TYPE_GYROSCOPE -> {
@@ -224,7 +273,7 @@ class SensorService : Service(), SensorEventListener2 {
             Sensor.TYPE_STEP_COUNTER -> {
                 totalSteps = TodaySteps.of(this, event.values[0].toInt())
                 WearSensorState.steps = totalSteps
-                Log.d("SensorService", "Step counter event: totalSteps=$totalSteps (raw=${event.values[0]})")
+                WearLog.d("SensorService", "Step counter event: totalSteps=$totalSteps (raw=${event.values[0]})")
             }
             Sensor.TYPE_HEART_RATE -> {
                 // values[0] en lpm; 0 cuando no hay contacto/toma fiable.
@@ -235,7 +284,7 @@ class SensorService : Service(), SensorEventListener2 {
                     WearSensorState.heartRate = hr
                     hrHistory.addLast(hr)
                     if (hrHistory.size > 10) hrHistory.removeFirst()
-                    Log.d("SensorService", "Heart rate event: $lastHeartRate bpm")
+                    WearLog.d("SensorService", "Heart rate event: $lastHeartRate bpm")
                 }
             }
             Sensor.TYPE_ACCELEROMETER -> {
@@ -253,11 +302,7 @@ class SensorService : Service(), SensorEventListener2 {
                 
                 val now = System.currentTimeMillis()
                 if (mag.isFinite()) {
-                    if (windowStartTime == 0L) windowStartTime = now
                     magnitudes.add(mag)
-                    if (now - windowStartTime >= WINDOW_MS) {
-                        analyzeWindowLocal(now)
-                    }
                 }
 
                 // Caducidad de frecuencia cardíaca: si pasaron > 10 min sin lectura fresca, enviar 0f
@@ -281,6 +326,12 @@ class SensorService : Service(), SensorEventListener2 {
                 }
 
                 readingsBuffer.add(reading)
+
+                // Actualizar varianza en tiempo real para debug en pantalla.
+                if (magnitudes.size > 1) {
+                    val mean = magnitudes.sum() / magnitudes.size
+                    WearSensorState.liveVariance = magnitudes.map { (it - mean).pow(2) }.sum() / magnitudes.size
+                }
 
                 if (now - lastBatchSendTime >= BATCH_INTERVAL_MS) {
                     lastBatchSendTime = now
@@ -316,7 +367,7 @@ class SensorService : Service(), SensorEventListener2 {
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     override fun onFlushCompleted(sensor: Sensor?) {
-        Log.d("SensorService", "onFlushCompleted called for sensor: ${sensor?.name}")
+        WearLog.d("SensorService", "onFlushCompleted called for sensor: ${sensor?.name}")
         flushBuffer()
     }
 
@@ -341,9 +392,9 @@ class SensorService : Service(), SensorEventListener2 {
                     .connectedNodes.await()
                     .firstOrNull { it.isNearby }?.id
                 lastNodeRefreshTime = now
-                Log.d("SensorService", "Node cache refreshed: $cachedNodeId")
+                WearLog.d("SensorService", "Node cache refreshed: $cachedNodeId")
             } catch (e: Exception) {
-                Log.e("SensorService", "Failed to refresh nodes", e)
+                WearLog.e("SensorService", "Failed to refresh nodes", e)
             }
         }
         return cachedNodeId
@@ -353,7 +404,7 @@ class SensorService : Service(), SensorEventListener2 {
         val nodeId = getCachedNode()
         
         if (nodeId == null) {
-            Log.w("SensorService", "No nearby node found. Will retry later.")
+            WearLog.w("SensorService", "No nearby node found. Will retry later.")
             onSendFailed()
             return
         }
@@ -365,9 +416,9 @@ class SensorService : Service(), SensorEventListener2 {
                 data.toByteArray()
             ).await()
             onSendSucceeded()
-            Log.d("SensorService", "Batch sent successfully to $nodeId")
+            WearLog.d("SensorService", "Batch sent successfully to $nodeId")
         } catch (e: Exception) {
-            Log.e("SensorService", "Error sending batch", e)
+            WearLog.e("SensorService", "Error sending batch", e)
             onSendFailed()
         }
     }
@@ -393,20 +444,24 @@ class SensorService : Service(), SensorEventListener2 {
             consecutiveActiveWindows = 0
             alertShown = false
         }
-        
+
         if (magnitudes.isEmpty()) return
         val mean = magnitudes.sum() / magnitudes.size
         val variance = magnitudes.map { (it - mean).pow(2) }.sum() / magnitudes.size
         magnitudes.clear()
-        windowStartTime = now
 
-        // 1. Protección Off-Body (reloj quitado de la muñeca o reposando sobre una mesa):
-        val isOffBodyTable = (variance < 0.0001) && (lastHeartRate <= 0f)
-        if (!isOnBody || isOffBodyTable) {
-            // Reloj fuera del cuerpo: congelar temporizadores (no suma inactividad ni declara caminata activa)
-            Log.d("SensorService", "Watch off-body or resting on table. Detection frozen.")
+        WearSensorState.windowsAnalyzed++
+        WearLog.d("SensorService", "analyzeWindow #${WearSensorState.windowsAnalyzed}: var=%.5f hr=%.1f isOnBody=$isOnBody idle=$idleWindows active=$activeWindows restW=$restWindows".format(variance, lastHeartRate))
+
+        // 1. Protección Off-Body: solo confiar en el sensor TYPE_LOW_LATENCY_OFFBODY_DETECT.
+        // Antes se usaba "isOffBodyTable = variance < 0.0001 && lastHeartRate <= 0f" pero
+        // causaba falsos positivos: lastHeartRate empieza en 0f durante los primeros 30-90s
+        // (o si el sensor HR no está disponible), haciendo que la primera ventana de quietud
+        // siempre devolviera early y el estado nunca cambiara de "Activo".
+        if (!isOnBody) {
+            WearLog.d("SensorService", "Watch off-body (sensor). Detection frozen.")
             consecutiveActiveWindows = 0
-            
+
             WearSensorState.variance = variance
             WearSensorState.idleWindows = idleWindows
             WearSensorState.activeWindows = activeWindows
@@ -424,15 +479,20 @@ class SensorService : Service(), SensorEventListener2 {
             val hrKnown = lastHeartRate > 0f
             val hr = lastHeartRate
 
-            // Heurística de orientación por vector de gravedad: recostado si la componente Z es pequeña (<6 m/s²) o giroscopio activo
-            val isReclined = (abs(lastGravityZ) < 6.0f) || (abs(lastGyroX) > 0.5f || abs(lastGyroY) > 0.5f)
+            // Heurística de orientación por vector de gravedad: recostado si la componente Z
+            // del vector de gravedad es pequeña (< 6 m/s²).
+            // NOTA: Se eliminó el componente de giroscopio (lastGyroX/Y/Z) porque captura el
+            // ÚLTIMO sample del sensor, el cual casi siempre supera 0.5 rad/s en uso normal
+            // del reloj, haciendo que isReclined fuera true casi siempre y que el filtro de
+            // reposo clínico exigiera 40 ventanas (20 min) en lugar de 10 (5 min).
+            val isReclined = abs(lastGravityZ) < 6.0f
 
             // Sueño / Siesta: FC < 60 lpm + recostado durante >= 20 min (40 ventanas de 30s)
             if (hrKnown && hr < 60f && isReclined) {
                 sleepWindows++
                 restWindows = 0L
                 reposoVerificado = false
-                Log.d("SensorService", "Clinical Filter: Sleep state active ($sleepWindows windows). Alert paused.")
+                WearLog.d("SensorService", "Clinical Filter: Sleep (hr=%.1f reclined=$isReclined) sleepW=$sleepWindows. Alert paused.".format(hr))
                 
                 WearSensorState.variance = variance
                 WearSensorState.idleWindows = idleWindows
@@ -442,14 +502,15 @@ class SensorService : Service(), SensorEventListener2 {
                 return
             }
 
-            // Reposo Clínico Verificado (Descanso Legítimo): FC estrictamente 60-100 lpm en steady-state
-            if (hrKnown && hr >= 60f && hr <= 100f) {
+            // Reposo Clínico Verificado (Siesta/Descanso): solo se activa estando RECOSTADO (isReclined = true)
+            // con FC en reposo (60-100 lpm) sostenida durante >= 20 min (40 ventanas).
+            // Estar sentado erguido trabajando NO congela el temporizador de sedentarismo.
+            if (hrKnown && hr >= 60f && hr <= 100f && isReclined) {
                 sleepWindows = 0L
                 restWindows++
-                val requiredWindows = if (isReclined) 40L else 10L // 20 min recostado (40w), 5 min sentado (10w)
-                if (restWindows >= requiredWindows) {
+                if (restWindows >= 40L) { // 20 min recostado
                     reposoVerificado = true
-                    Log.d("SensorService", "Clinical Filter: Clinical Rest Verified ($restWindows windows). Alert paused.")
+                    WearLog.d("SensorService", "Clinical Filter: Rest Verified (hr=%.1f reclined=true restW=$restWindows). Alert paused.".format(hr))
                     
                     WearSensorState.variance = variance
                     WearSensorState.idleWindows = idleWindows
@@ -466,20 +527,22 @@ class SensorService : Service(), SensorEventListener2 {
 
             // Trabajo Sedentario (Vigilia): Inmóvil sin reposo verificado -> SÍ suma inactividad para la alerta
             idleWindows++
+            WearLog.d("SensorService", "Sedentary window: idleWindows=$idleWindows/$alertWindows (hr=${if (hrKnown) "%.1f".format(hr) else "N/A"} reclined=$isReclined)")
 
         } else {
             // Movimiento detectado:
             consecutiveActiveWindows++
+            activeWindows++
+            WearLog.d("SensorService", "Movement window: consecutiveActive=$consecutiveActiveWindows activeWindows=$activeWindows")
             if (consecutiveActiveWindows >= 2) {
                 // Movimiento activo sostenido (caminata real >= 1 min)
                 idleWindows = 0L
-                activeWindows++
                 restWindows = 0L
                 sleepWindows = 0L
                 reposoVerificado = false
                 alertShown = false
+                WearLog.d("SensorService", "Active sustained: idleWindows reset, activeWindows=$activeWindows")
             }
-            // Si consecutiveActiveWindows == 1, es un gesto de brazo aislado; se ignora sin borrar el estado previo
         }
 
         loadAlertThreshold()
@@ -493,13 +556,14 @@ class SensorService : Service(), SensorEventListener2 {
         WearSensorState.activeWindows = activeWindows
         WearSensorState.alertWindows = alertWindows
         WearSensorState.alertShown = alertShown
+        saveState()
         
-        Log.d("SensorService", "SensorService alive, idle=$idleWindows/$alertWindows, active=$activeWindows, var=$variance")
+        WearLog.d("SensorService", "SensorService alive, idle=$idleWindows/$alertWindows, active=$activeWindows, var=$variance")
     }
 
     private fun triggerWearAlert() {
         val minutes = idleWindows / 2
-        Log.w("SensorService", "¡Alerta de sedentarismo en Wear OS! $minutes min inactivo.")
+        WearLog.w("SensorService", "¡Alerta de sedentarismo en Wear OS! $minutes min inactivo.")
         
         // Vibración háptica en el reloj
         val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator

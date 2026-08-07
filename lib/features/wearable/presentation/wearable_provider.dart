@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../services/wearable_communication_service.dart';
+import '../../../core/utils/app_log.dart';
 
 class WearableState {
   final bool isConnected;
@@ -41,7 +42,8 @@ class WearableNotifier extends StateNotifier<WearableState> {
   void _initStream() {
     debugPrint('[Wearable] WearableNotifier suscribiendo sensorStreamThrottled');
     _sub = _service.sensorStreamThrottled.listen((sample) {
-      debugPrint('[Wearable] Notifier sample: ts=${sample.timestamp} steps=${sample.steps} hr=${sample.heartRate}');
+      AppLog.d('[Wearable] Notifier sample: ts=${sample.timestamp} '
+          'steps=${sample.steps} hr=${sample.heartRate}');
       _resetDisconnectTimer();
       final accelData = AccelerometerData(
         sample.x,
