@@ -6,7 +6,11 @@ set -u
 
 # Pega aquí el accessToken FRESCO (recién sacado del login). Caduca en 30 min.
 # Si prefieres, exporta TOKEN por fuera y esto lo respeta: TOKEN=eyJ... bash audit_probe.sh
-TOKEN="${TOKEN:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YTc0Y2IxMmI1Njk0OWRhOTYxNDcyNjQiLCJlbWFpbCI6InRlc3RAdXR0ZXN0LmNvbSIsIm5hbWUiOiJ0ZXN0ZXJjb2RlIiwiZmlyc3ROYW1lIjoidGVzdGVyIiwibGFzdE5hbWUiOiJjb2RlIiwiaXNFbWFpbENvbmZpcm1lZCI6IkZhbHNlIiwicm9sZSI6IlVTRVIiLCJ0ZW5hbnRfaWQiOiJkNmUyYzAyYWY5ZTA0NTgwYjRkMTAwZjBhNDQ4OGJmOCIsIm9yZ2FuaXphdGlvbl9pZCI6IjZhNzRjYjE3NDA3OWIyMjFjZWE1MTUxYyIsImp0aSI6ImFlZmUyNzEzLTY4ZWMtNGI1OS04NTA5LTE1ZWRiZjE5Yjc0ZCIsImlhdCI6MTc4NjAzOTM3MSwiZXhwIjoxNzg2MDQxMTcxLCJpc3MiOiJMaWZlQmFsYW5jZSIsImF1ZCI6IkxpZmVCYWxhbmNlIn0.s58BOTw4nm-dmEpLJQ_fUdrL-d1E8LjZYMptPM8sh3Y}"
+TOKEN="${TOKEN:-PEGA_AQUI_EL_ACCESSTOKEN}"
+if [ "$TOKEN" = "PEGA_AQUI_EL_ACCESSTOKEN" ]; then
+  echo "Falta el accessToken: pasa TOKEN=\"...\" o edita audit_probe.sh" >&2
+  exit 1
+fi
 : "${TOKEN:?Falta el accessToken}"
 
 AUTH="Authorization: Bearer $TOKEN"

@@ -7,11 +7,11 @@
 
 # ---- PEGA AQUI EL TOKEN FRESCO ----
 $Token = $env:TOKEN
-if (-not $Token) { $Token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YTc0Y2IxMmI1Njk0OWRhOTYxNDcyNjQiLCJlbWFpbCI6InRlc3RAdXR0ZXN0LmNvbSIsIm5hbWUiOiJ0ZXN0ZXJjb2RlIiwiZmlyc3ROYW1lIjoidGVzdGVyIiwibGFzdE5hbWUiOiJjb2RlIiwiaXNFbWFpbENvbmZpcm1lZCI6IkZhbHNlIiwicm9sZSI6IlVTRVIiLCJ0ZW5hbnRfaWQiOiJkNmUyYzAyYWY5ZTA0NTgwYjRkMTAwZjBhNDQ4OGJmOCIsIm9yZ2FuaXphdGlvbl9pZCI6IjZhNzRjYjE3NDA3OWIyMjFjZWE1MTUxYyIsImp0aSI6IjQzYjQ5MWYyLWFjOWMtNDkxNS1iY2Q5LWNlYzhkMDc4YjVhYyIsImlhdCI6MTc4NjAzOTg0MiwiZXhwIjoxNzg2MDQxNjQyLCJpc3MiOiJMaWZlQmFsYW5jZSIsImF1ZCI6IkxpZmVCYWxhbmNlIn0.0HwKZR6FNdG2jLQUY839PAk5967meIZAX0frZ4qYXiY" }
+if (-not $Token) { $Token = "PEGA_AQUI_EL_ACCESSTOKEN" }
 # -----------------------------------
 
-if ($Token -eq "PEGA_AQUI_EL_ACCESSTOKEN") {
-  Write-Host "Falta el token: pega el accessToken en la variable \$Token o usa \$env:TOKEN" -ForegroundColor Red
+if ($Token -eq "PEGA_AQUI_EL_ACCESSTOKEN" -or -not $Token) {
+  Write-Host "Falta el token: pega el accessToken en la variable `$Token o usa `$env:TOKEN" -ForegroundColor Red
   exit 1
 }
 
