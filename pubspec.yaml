@@ -36,7 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_background_service: ^5.0.5
   flutter_background_service_android: ^6.2.3
-  flutter_local_notifications: ^17.2.1
+  flutter_local_notifications: ^18.0.1
   sensors_plus: ^4.0.2
   shared_preferences: ^2.2.3
   permission_handler: ^11.3.0
