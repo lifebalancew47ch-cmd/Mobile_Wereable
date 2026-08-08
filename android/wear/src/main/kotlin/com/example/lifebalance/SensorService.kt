@@ -582,7 +582,18 @@ class SensorService : Service(), SensorEventListener2 {
             .setSmallIcon(R.mipmap.ic_launcher)
             .setAutoCancel(true)
             .build()
-        manager.notify(999, alertNotification)
+        // Check permission before posting notification
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (android.content.ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                manager.notify(999, alertNotification)
+            }
+        } else {
+            manager.notify(999, alertNotification)
+        }
     }
 
     private fun createNotificationChannel() {
