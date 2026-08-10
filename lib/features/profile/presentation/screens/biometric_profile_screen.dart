@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/presentation/providers/profile_provider.dart';
 import '../../../medical/presentation/providers/medical_provider.dart';
 import '../../../medical/data/medical_api_service.dart';
+import '../../../dashboard/presentation/providers/dashboard_provider.dart';
 import '../../../../core/security/secure_storage.dart';
 import '../../../../core/utils/app_log.dart';
 import '../../../../core/validation/validators.dart';
@@ -103,15 +104,25 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
 
     setState(() => _syncing = true);
 
+    double? bmi;
+    if (height != null && height > 0 && weight != null && weight > 0) {
+      final heightM = height / 100.0;
+      bmi = weight / (heightM * heightM);
+    }
+
     try {
       await _storage.write(key: _kGender,    value: _selectedGender ?? '');
       await _storage.write(key: _kHeightCm,  value: _heightController.text.trim());
       await _storage.write(key: _kWeightKg,  value: _weightController.text.trim());
       await _storage.write(key: _kAge,       value: _ageController.text.trim());
+      if (bmi != null) {
+        await _storage.write(key: 'biometric_bmi', value: bmi.toStringAsFixed(1));
+      }
       AppLog.d('[BiometricProfile] Guardado → gender=$_selectedGender '
           'height=${_heightController.text.trim()} '
           'weight=${_weightController.text.trim()} '
-          'age=${_ageController.text.trim()}');
+          'age=${_ageController.text.trim()} '
+          'bmi=${bmi?.toStringAsFixed(1)}');
     } catch (e) {
       AppLog.d('[BiometricProfile] Error al guardar en SecureStorage: $e');
       if (!mounted) return;
@@ -123,11 +134,6 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
     }
 
     // Sincroniza peso y altura con el Medical Data Service (POST /medical/readings).
-    // A-01 (pendiente backend): el endpoint requiere heartRate [30-250] y
-    // spo2 [50-100] como campos obligatorios no-nullable. Se usan valores
-    // fisiológicamente neutros (60 lpm / 95%) hasta que el backend exponga
-    // un endpoint específico de biometría (p.ej. PUT /profile/biometrics)
-    // o haga opcionales esos campos. No modificar sin coordinar con backend.
     final hasHeight = height != null && height > 0;
     final hasWeight = weight != null && weight > 0;
     var cloudMessage = '';
@@ -138,8 +144,8 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
           steps: 0,
           weight: hasWeight ? weight : 0,
           height: hasHeight ? height : 0,
-          heartRate: 60, // TODO A-01: eliminar cuando backend acepte null
-          spo2: 95,      // TODO A-01: eliminar cuando backend acepte null
+          heartRate: 60,
+          spo2: 95,
           recordedAtUtc: DateTime.now(),
         ));
         cloudMessage = ' y sincronizados con la nube';
@@ -147,6 +153,9 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
         cloudMessage = ' (sin conexión: se guardó localmente)';
       }
     }
+
+    // Invalida el proveedor del dashboard para refrescar la tarjeta de IMC e Indicadores
+    ref.invalidate(dashboardDataProvider);
 
     if (!mounted) return;
     setState(() => _syncing = false);

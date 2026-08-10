@@ -10,6 +10,7 @@ import '../../../../models/fog_state.dart';
 import '../../../wearable/presentation/wearable_provider.dart';
 import '../../../settings/domain/alert_settings.dart';
 import '../../../settings/presentation/providers/alert_settings_provider.dart';
+import '../../../../core/security/secure_storage.dart';
 
 class ExecutiveDashboardScreen extends ConsumerStatefulWidget {
   const ExecutiveDashboardScreen({super.key});
@@ -163,8 +164,30 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
       localSteps = (vitalRows.first['steps'] as num?)?.toInt() ?? 0;
       localHeartRate = (vitalRows.first['heart_rate'] as num?)?.toDouble() ?? 0.0;
     }
+    final heightStr = await secureStorage.read(key: 'biometric_height_cm');
+    final weightStr = await secureStorage.read(key: 'biometric_weight_kg');
+    final bmiStr    = await secureStorage.read(key: 'biometric_bmi');
+    var localBmi = 0.0;
+    if (bmiStr != null && bmiStr.isNotEmpty) {
+      localBmi = double.tryParse(bmiStr) ?? 0.0;
+    }
+    if (localBmi <= 0 && heightStr != null && weightStr != null) {
+      final h = double.tryParse(heightStr);
+      final w = double.tryParse(weightStr);
+      if (h != null && w != null && h > 0 && w > 0) {
+        localBmi = w / ((h / 100.0) * (h / 100.0));
+      }
+    }
 
-    return {'active': active, 'idle': idle, 'alerts': alerts, 'todaySessions': todaySessions, 'steps': localSteps, 'heartRate': localHeartRate};
+    return {
+      'active': active,
+      'idle': idle,
+      'alerts': alerts,
+      'todaySessions': todaySessions,
+      'steps': localSteps,
+      'heartRate': localHeartRate,
+      'bmi': localBmi,
+    };
   }
 
   Widget _buildWearableStatus(WearableState state) {
@@ -359,6 +382,8 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
     final displayCalories = (cloudCalories != null && cloudCalories > 0) ? cloudCalories : calculatedCalories;
 
     final cloudBmi = dashboard?.kpis?.bmi;
+    final localBmi = (stats['bmi'] as num?)?.toDouble() ?? 0.0;
+    final displayBmi = (cloudBmi != null && cloudBmi > 0) ? cloudBmi : localBmi;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -459,7 +484,7 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
                 child: _buildMetricCard(
                   icon: Icons.monitor_weight_outlined,
                   label: 'IMC',
-                  value: (cloudBmi != null && cloudBmi > 0) ? cloudBmi.toStringAsFixed(1) : '--',
+                  value: displayBmi > 0 ? displayBmi.toStringAsFixed(1) : '--',
                   subtitle: 'Índice masa corporal',
                   labelColor: Colors.teal.shade700,
                   hasSideBorder: true,
