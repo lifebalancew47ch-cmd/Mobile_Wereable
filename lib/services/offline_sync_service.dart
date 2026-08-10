@@ -514,12 +514,37 @@ class OfflineSyncService {
         if (steps > dailySteps) dailySteps = steps;
       }
 
+      // Calorías quemadas: activeMinutes * 5.0 (o de pasos)
+      final caloriesBurned = (activeMinutes * 5.0) + (dailySteps * 0.04);
+
+      // Opción B.1: Enviar sesión de actividad directa al SedentaryEngine
       await sedentaryApi.recordActivity(
         dailySteps: dailySteps,
         activeMinutes: activeMinutes.toDouble(),
         sedentaryHours: sedentaryMinutes / 60.0,
+        caloriesBurned: caloriesBurned,
         recordedAtUtc: now,
       );
+
+      // Opción B.2: Enviar como evento crudo de sincronización al IngestionService
+      try {
+        final deviceId = await _deviceIdentity.getDeviceId();
+        await _ingestionApi.postEvent(
+          deviceId: deviceId,
+          eventType: 'ActivitySession',
+          source: 'MobileApp',
+          occurredAtUtc: now,
+          payload: {
+            'dailySteps': dailySteps,
+            'activeMinutes': activeMinutes.toDouble(),
+            'sedentaryHours': (sedentaryMinutes / 60.0),
+            'caloriesBurned': caloriesBurned,
+          },
+        );
+      } catch (ingestionErr) {
+        AppLog.d('[OfflineSync] Evento ActivitySession en Ingestion omitido/error: $ingestionErr');
+      }
+
       _lastReportedActivityDay = dayKey;
       // Persistir para que el próximo inicio de app/isolate no duplique.
       try {
@@ -527,7 +552,7 @@ class OfflineSyncService {
         await prefs.setString(_kLastReportedDayKey, dayKey);
       } catch (_) {}
       debugPrint(
-          '[OfflineSync] Actividad diaria reportada: ${activeMinutes}min activos / ${sedentaryMinutes}min inactivo / $dailySteps pasos.');
+          '[OfflineSync] Actividad diaria reportada (Sedentary + Ingestion): ${activeMinutes}min activos / ${sedentaryMinutes}min inactivo / $dailySteps pasos / ${caloriesBurned.toStringAsFixed(1)} kcal.');
     } catch (e) {
       AppLog.d('[OfflineSync] Error reportando actividad diaria: $e');
     }

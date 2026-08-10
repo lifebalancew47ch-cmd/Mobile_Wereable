@@ -123,7 +123,7 @@ class SedentaryApiService {
           'dailySteps': dailySteps,
           'activeMinutes': activeMinutes,
           'sedentaryHours': sedentaryHours,
-          'caloriesBurned': caloriesBurned,
+          'caloriesBurned': caloriesBurned > 0 ? caloriesBurned : (activeMinutes * 5.0),
           if (hourlyHeatmap != null) 'hourlyHeatmap': hourlyHeatmap,
           if (companyId != null) 'companyId': companyId,
           if (recordedAtUtc != null)

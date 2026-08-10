@@ -353,6 +353,13 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
     final cloudHR = dashboard?.kpis?.heartRate;
     final localHR = stats['heartRate'] as double? ?? 0.0;
     final displayHR = localHR > 0 ? localHR : (cloudHR != null && cloudHR > 0 ? cloudHR : 0.0);
+
+    final cloudCalories = dashboard?.kpis?.caloriesBurned;
+    final calculatedCalories = (activeMinutes * 5.0) + (displaySteps * 0.04);
+    final displayCalories = (cloudCalories != null && cloudCalories > 0) ? cloudCalories : calculatedCalories;
+
+    final cloudBmi = dashboard?.kpis?.bmi;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
@@ -429,6 +436,34 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
                   labelColor: Colors.red.shade700,
                   hasSideBorder: true,
                   borderColor: Colors.red.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildMetricCard(
+                  icon: Icons.local_fire_department,
+                  label: 'CALORÍAS',
+                  value: displayCalories > 0 ? '${displayCalories.toStringAsFixed(0)} kcal' : '--',
+                  subtitle: 'Energía quemada',
+                  labelColor: Colors.deepOrange.shade700,
+                  hasSideBorder: true,
+                  borderColor: Colors.deepOrange.shade700,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildMetricCard(
+                  icon: Icons.monitor_weight_outlined,
+                  label: 'IMC',
+                  value: (cloudBmi != null && cloudBmi > 0) ? cloudBmi.toStringAsFixed(1) : '--',
+                  subtitle: 'Índice masa corporal',
+                  labelColor: Colors.teal.shade700,
+                  hasSideBorder: true,
+                  borderColor: Colors.teal.shade700,
                 ),
               ),
             ],
