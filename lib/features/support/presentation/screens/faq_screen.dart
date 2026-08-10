@@ -7,8 +7,15 @@ class FAQScreen extends StatelessWidget {
 
   Future<void> _launchVideo() async {
     final uri = Uri.parse('https://lifebalance-adv3.onrender.com/videos/VideoExplicativo_LifeBalance.mp4');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        await launchUrl(uri, mode: LaunchMode.platformDefault);
+      }
+    } catch (_) {
+      try {
+        await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+      } catch (_) {}
     }
   }
 
