@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_jailbreak_detection/flutter_jailbreak_detection.dart';
@@ -232,75 +231,4 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
 /// M-07 (fix 07/08/2026): pantalla de bloqueo de seguridad mostrada cuando
 /// [FlutterJailbreakDetection] detecta un entorno comprometido (root/jailbreak).
 ///
-/// Sustituye el `exit(0)` anterior, que terminaba el proceso abruptamente sin
-/// dar oportunidad al framework de cerrar limpiamente las conexiones SQLCipher.
-/// Ahora el usuario ve un aviso claro y cierra la app mediante
-/// [SystemNavigator.pop], que notifica al sistema operativo para que ejecute
-/// su rutina de finalización normal (flush WAL, liberar file locks).
-class _SecurityBlockScreen extends StatelessWidget {
-  const _SecurityBlockScreen();
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        backgroundColor: const Color(0xFF1A1A2E),
-        body: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.security,
-                    size: 72,
-                    color: Color(0xFFE94560),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Dispositivo no compatible',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'LifeBalance no puede ejecutarse en un dispositivo con '
-                    'root o jailbreak porque no puede garantizar la '
-                    'confidencialidad de tus datos de salud.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFE94560),
-                      minimumSize: const Size.fromHeight(48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: () => SystemNavigator.pop(),
-                    child: const Text(
-                      'Cerrar aplicación',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
