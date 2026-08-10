@@ -11,6 +11,7 @@ class MockWearableCommunicationService extends Mock
 class MockNotificationService extends Mock implements NotificationService {}
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('FogEngine Tests', () {
     late FogEngine fogEngine;
     late MockWearableCommunicationService mockWearableService;
@@ -33,14 +34,14 @@ void main() {
       accelerometerController.close();
     });
 
-    test('Engine starts and initializes correctly', () {
-      fogEngine.start();
+    test('Engine starts and initializes correctly', () async {
+      await fogEngine.start();
       verify(() => mockWearableService.accelerometerStream).called(1);
       expect(fogEngine.isRunning, isTrue);
     });
 
     test('Engine receives data and processes state correctly', () async {
-      fogEngine.start();
+      await fogEngine.start();
 
       // Emit some accelerometer data to simulate movement
       accelerometerController.add(AccelerometerData(1.0, 2.0, 9.8, 1000));
@@ -54,7 +55,7 @@ void main() {
     });
 
     test('Pause stops processing and resume restarts it', () async {
-      fogEngine.start();
+      await fogEngine.start();
       expect(fogEngine.isRunning, isTrue);
 
       fogEngine.pause();
@@ -75,7 +76,7 @@ void main() {
     });
 
     test('Stop releases resources and marks engine as stopped', () async {
-      fogEngine.start();
+      await fogEngine.start();
       accelerometerController.add(AccelerometerData(1.0, 2.0, 9.8, 1000));
       await Future.delayed(const Duration(milliseconds: 50));
 

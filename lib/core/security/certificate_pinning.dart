@@ -48,8 +48,7 @@ class CertificatePinning {
         .toList();
 
     if ((kDebugMode || kProfileMode) && pins.length == 1) {
-      // ignore: avoid_print
-      print('[CertificatePinning] ⚠️  Solo 1 pin configurado. '
+      debugPrint('[CertificatePinning] ⚠️  Solo 1 pin configurado. '
           'Configura al menos 2 (leaf + CA intermediaria) en '
           'PINNED_CERT_SHA256 para evitar un punto único de fallo.');
     }

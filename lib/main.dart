@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -62,8 +63,7 @@ void main() async {
   // notifica al framework y le permite ejecutar su rutina de finalización.
   bool jailbroken = await FlutterJailbreakDetection.jailbroken;
   if (jailbroken) {
-    runApp(const _SecurityBlockScreen());
-    return; // No continuar con la inicialización normal.
+    exit(0);
   }
 
   // Firebase (push remoto FCM). No-bloqueante: si no hay google-services.json

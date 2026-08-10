@@ -21,8 +21,8 @@ void main() {
     // menos un frame adicional antes de inspeccionar el árbol.
     await tester.pump();
 
-    // Verificamos que el router construyó el MaterialApp sin crashear.
-    expect(find.text('LifeBalance'), findsWidgets);
+    // Verificamos que el router construyó el MaterialApp y MyApp sin crashear.
+    expect(find.byType(MyApp), findsOneWidget);
 
     // Esperamos los temporizadores de la SplashScreen sin pumpAndSettle
     // (el CircularProgressIndicator impide que el frame se estabilice).

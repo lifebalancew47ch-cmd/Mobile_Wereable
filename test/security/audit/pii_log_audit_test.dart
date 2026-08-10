@@ -158,12 +158,8 @@ void main() {
     test('pubspec.yaml no expone secretos en assets', () {
       final src = File('pubspec.yaml').readAsStringSync();
       final envAssets = RegExp(r'- \.env[^\s]*').allMatches(src).toList();
-      expect(envAssets, isNotEmpty,
-          reason: 'Los .env se cargan como assets del bundle');
-      for (final m in envAssets) {
-        expect(m.group(0), anyOf('- .env.development', '- .env.production'),
-            reason: 'Evitar variantes locales no previstas en el bundle');
-      }
+      expect(envAssets, isEmpty,
+          reason: 'Los .env no deben incluirse en assets (se usa --dart-define)');
     });
 
     test('Los archivos .env están en .gitignore (no llegan al repo ni a CI)',
