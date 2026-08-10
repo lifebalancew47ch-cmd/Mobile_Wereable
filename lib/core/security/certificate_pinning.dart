@@ -69,7 +69,7 @@ class CertificatePinning {
   /// activo del servidor Y la CA intermediaria de respaldo.
   ///
   /// Para LifeBalance esto significa pasar dos hashes en PINNED_CERT_SHA256:
-  ///   --dart-define=PINNED_CERT_SHA256=<leaf_sha256>,<intermediate_ca_sha256>
+  ///   `--dart-define=PINNED_CERT_SHA256=<leaf_sha256>,<intermediate_ca_sha256>`
   ///
   /// Si se detecta un único pin en modo debug/profile se emite un warning.
   static bool get hasBackupPin => _pins.length >= 2;
