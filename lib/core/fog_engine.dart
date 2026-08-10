@@ -245,7 +245,7 @@ class FogEngine {
         _consecutiveActiveWindows++;
       }
 
-      final isSustainedActive = _consecutiveActiveWindows >= 2;
+      final isSustainedActive = _consecutiveActiveWindows >= 4;
 
       _clinicalClassifier.feed(
         immobile: immobile,
@@ -290,11 +290,11 @@ class FogEngine {
         _inactiveWindows = 0;
         status = ActivityStatus.idle;
       } else if (!isSustainedActive) {
-        // Movimiento aislado de 30s (gesto de brazo mientras está sentado):
+        // Movimiento aislado de brazo o gesticulación sentado (< 2 min / < 4 ventanas de 30s):
         // NO resetea _inactiveWindows ni destruye la sesión inactiva previa.
         status = ActivityStatus.idle;
       } else {
-        // Movimiento activo sostenido (>= 1 min): se cierra la sesión inactiva previa.
+        // Movimiento activo sostenido real (>= 2 min / >= 4 ventanas de 30s): se cierra la sesión inactiva previa.
         if (_inactiveWindows > 0) {
           final idleMins = max(1, _inactiveWindows ~/ 2);
           final idleStart = _sessionStartTime;

@@ -49,6 +49,7 @@ class SensorService : Service(), SensorEventListener2 {
     private var lastGravityY = 0f
     private var lastGravityZ = 9.8f
     private var totalSteps = 0
+    private var stepsAtActiveStart = 0
     private var lastHeartRate = 0f
     private var lastHeartRateTime = 0L
 
@@ -475,6 +476,7 @@ class SensorService : Service(), SensorEventListener2 {
 
         if (immobile) {
             consecutiveActiveWindows = 0
+            stepsAtActiveStart = totalSteps
 
             // 2. Filtro Clínico de Falsos Positivos:
             val hrKnown = lastHeartRate > 0f
@@ -532,17 +534,28 @@ class SensorService : Service(), SensorEventListener2 {
 
         } else {
             // Movimiento detectado:
+            if (consecutiveActiveWindows == 0) {
+                stepsAtActiveStart = totalSteps
+            }
             consecutiveActiveWindows++
             activeWindows++
-            WearLog.d("SensorService", "Movement window: consecutiveActive=$consecutiveActiveWindows activeWindows=$activeWindows")
-            if (consecutiveActiveWindows >= 2) {
-                // Movimiento activo sostenido (caminata real >= 1 min)
-                idleWindows = 0L
-                restWindows = 0L
-                sleepWindows = 0L
-                reposoVerificado = false
-                alertShown = false
-                WearLog.d("SensorService", "Active sustained: idleWindows reset, activeWindows=$activeWindows")
+            val stepsDelta = totalSteps - stepsAtActiveStart
+            WearLog.d("SensorService", "Movement window #$consecutiveActiveWindows: stepsDelta=$stepsDelta var=%.4f idle=$idleWindows".format(variance))
+            
+            // Validación de Actividad Real Sostenida (al menos 2 minutos continuos = 4 ventanas de 30s):
+            // Para evitar que manotazos o gesticulaciones al estar sentado reseteen el contador inactivo:
+            // Exige 4 ventanas consecutivas (2 min) Y validación multi-sensor (pasos reales en podómetro > 0 O varianza sostenida muy alta >= 1.2).
+            if (consecutiveActiveWindows >= 4) {
+                if (stepsDelta > 0 || variance >= 1.2) {
+                    idleWindows = 0L
+                    restWindows = 0L
+                    sleepWindows = 0L
+                    reposoVerificado = false
+                    alertShown = false
+                    WearLog.d("SensorService", "Actividad REAL Sostenida (2 min / 4 ventanas, stepsDelta=$stepsDelta). idleWindows reseteado a 0!")
+                } else {
+                    WearLog.w("SensorService", "Gesticulación de brazos sentado (0 pasos en 2 min). idleWindows NO reseteado ($idleWindows).")
+                }
             }
         }
 
