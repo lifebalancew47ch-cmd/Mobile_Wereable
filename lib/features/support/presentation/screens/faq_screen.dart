@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class FAQScreen extends StatelessWidget {
   const FAQScreen({super.key});
+
+  Future<void> _launchVideo() async {
+    final uri = Uri.parse('https://lifebalance-adv3.onrender.com/videos/VideoExplicativo_LifeBalance.mp4');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
 
   static const List<({String q, String a})> _faqs = [
     (
@@ -49,7 +57,7 @@ class FAQScreen extends StatelessWidget {
                 child: _QuickAccessCard(
                   icon: Icons.play_circle_outline,
                   title: 'Ver explicación',
-                  onTap: () => context.push('/support/video'),
+                  onTap: _launchVideo,
                 ),
               ),
               const SizedBox(width: 12),

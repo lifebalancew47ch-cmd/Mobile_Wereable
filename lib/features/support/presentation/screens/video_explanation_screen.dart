@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-/// Explicación paso a paso (sin video simulado) de cómo funciona LifeBalance.
+/// Explicación paso a paso de cómo funciona LifeBalance con acceso directo al video web.
 class VideoExplanationScreen extends StatelessWidget {
   const VideoExplanationScreen({super.key});
 
@@ -28,6 +29,13 @@ class VideoExplanationScreen extends StatelessWidget {
     ),
   ];
 
+  Future<void> _launchVideo() async {
+    final uri = Uri.parse('https://lifebalance-adv3.onrender.com/videos/VideoExplicativo_LifeBalance.mp4');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -41,6 +49,18 @@ class VideoExplanationScreen extends StatelessWidget {
             style: TextStyle(fontSize: 14, color: Colors.black54, height: 1.4),
           ),
           const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: _launchVideo,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF3E6F58),
+              foregroundColor: Colors.white,
+              minimumSize: const Size(double.infinity, 56),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: const Icon(Icons.play_circle_fill),
+            label: const Text('Ver video explicativo en la web', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          ),
+          const SizedBox(height: 24),
           ...List.generate(_steps.length, (i) {
             final step = _steps[i];
             return Padding(
@@ -51,8 +71,8 @@ class VideoExplanationScreen extends StatelessWidget {
                   Container(
                     width: 32,
                     height: 32,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3E6F58),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF3E6F58),
                       shape: BoxShape.circle,
                     ),
                     child: Center(
@@ -75,7 +95,7 @@ class VideoExplanationScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text(step.desc, style: TextStyle(color: Colors.black54, fontSize: 13, height: 1.4)),
+                        Text(step.desc, style: const TextStyle(color: Colors.black54, fontSize: 13, height: 1.4)),
                       ],
                     ),
                   ),
@@ -83,13 +103,13 @@ class VideoExplanationScreen extends StatelessWidget {
               ),
             );
           }),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
             onPressed: () => context.push('/fog'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3E6F58),
-              foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 56),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF3E6F58),
+              side: const BorderSide(color: Color(0xFF3E6F58)),
+              minimumSize: const Size(double.infinity, 52),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             icon: const Icon(Icons.memory),
