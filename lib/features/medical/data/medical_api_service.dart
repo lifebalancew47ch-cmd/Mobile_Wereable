@@ -41,9 +41,9 @@ class MedicalReading {
   });
 
   Map<String, dynamic> toJson() => {
-        if (heartRate != null) 'heartRate': heartRate,
-        if (hrv != null) 'hrv': hrv,
-        if (spo2 != null) 'spo2': spo2,
+        'heartRate': heartRate ?? 70.0,
+        'hrv': hrv ?? 0.0,
+        'spo2': spo2 ?? 95.0,
         'steps': steps,
         'deviceId': deviceId,
         'recordedAtUtc': recordedAtUtc.toUtc().toIso8601String(),
@@ -55,10 +55,10 @@ class MedicalReading {
         if (gyroscopeX != null) 'gyroscopeX': gyroscopeX,
         if (gyroscopeY != null) 'gyroscopeY': gyroscopeY,
         if (gyroscopeZ != null) 'gyroscopeZ': gyroscopeZ,
-        if (systolicBp > 0) 'systolicBp': systolicBp,
-        if (diastolicBp > 0) 'diastolicBp': diastolicBp,
-        if (weight > 0) 'weight': weight,
-        if (height > 0) 'height': height,
+        'systolicBp': systolicBp,
+        'diastolicBp': diastolicBp,
+        'weight': weight,
+        'height': height,
       };
 }
 

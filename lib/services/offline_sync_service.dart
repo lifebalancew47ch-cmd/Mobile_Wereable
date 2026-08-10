@@ -46,13 +46,24 @@ class OfflineSyncService {
   String? _lastReportedActivityDay;
   static const _kLastReportedDayKey = 'offline_sync_last_reported_day';
 
-  /// Carga el día persistido desde SharedPreferences al iniciar el servicio.
+  // M-05 (fix 07/08/2026): cursor de sincronización médica persistido en
+  // SharedPreferences. Antes se reiniciaba a epoch en cada arranque, lo que
+  // enviaba todas las lecturas históricas al backend en cada inicio de app.
+  static const _kLastMedicalSyncKey = 'offline_sync_last_medical_sync_ts';
+
+  /// Carga el estado persistido (cursor médico + día reportado) al arrancar.
   Future<void> _loadLastReportedDay() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       _lastReportedActivityDay = prefs.getString(_kLastReportedDayKey);
+      // M-05: restaurar cursor médico desde SharedPreferences.
+      final ts = prefs.getString(_kLastMedicalSyncKey);
+      if (ts != null) {
+        _lastMedicalSync = DateTime.tryParse(ts) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      }
     } catch (_) {
-      // Si falla, se re-reportará el día actual (sin consecuencias graves).
+      // Si falla, se re-reportará el día actual y se re-subirán lecturas
+      // médicas recientes (sin consecuencias graves; el backend deduplica).
     }
   }
 
@@ -72,6 +83,14 @@ class OfflineSyncService {
 
   /// Inicia el ciclo periódico (por defecto 15 min) y, si se provee un stream
   /// de conectividad, sincroniza de inmediato al recuperar conexión.
+  /// M-05: persiste el cursor de sincronización médica en SharedPreferences
+  /// para que el próximo arranque de app/isolate no reenvíe lecturas ya subidas.
+  void _persistMedicalSyncCursor() {
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString(_kLastMedicalSyncKey, _lastMedicalSync.toIso8601String());
+    }).catchError((_) {});
+  }
+
   void startPeriodicSync({
     Duration interval = const Duration(minutes: 15),
     Stream<bool>? connectivityStream,
@@ -88,7 +107,7 @@ class OfflineSyncService {
         flush();
       });
     }
-    debugPrint('[OfflineSync] Sincronización periódica activa (${interval.inMinutes} min).');
+    AppLog.d('[OfflineSync] Sincronización periódica activa (${interval.inMinutes} min).');
   }
 
   void stop() {
@@ -107,6 +126,12 @@ class OfflineSyncService {
     return vitals.length + sessions.length + alerts.length + breaks.length;
   }
 
+  /// Lecturas médicas pendientes de subir al Medical Data Service (después de cursor).
+  Future<int> pendingMedicalCount() async {
+    final readings = await _db.getVitalSignsAfter(_lastMedicalSync);
+    return readings.length;
+  }
+
   /// Fuerza una sincronización inmediata (desde la UI, "Sincronizar ahora").
   /// Devuelve true si terminó sin errores; false si quedó algo pendiente.
   Future<bool> syncNow() async {
@@ -119,7 +144,7 @@ class OfflineSyncService {
       try {
         await _flushActiveBreaks();
       } catch (e) {
-        debugPrint('[OfflineSync] Error en _flushActiveBreaks: $e');
+        AppLog.d('[OfflineSync] Error en _flushActiveBreaks: $e');
         hasErrors = true;
       }
 
@@ -127,21 +152,21 @@ class OfflineSyncService {
         await _flushIngestionBatch();
         anySuccess = true;
       } catch (e) {
-        debugPrint('[OfflineSync] Error en _flushIngestionBatch: $e');
+        AppLog.d('[OfflineSync] Error en _flushIngestionBatch: $e');
         hasErrors = true;
       }
 
       try {
         await _flushMedicalReadings();
       } catch (e) {
-        debugPrint('[OfflineSync] Error en _flushMedicalReadings: $e');
+        AppLog.d('[OfflineSync] Error en _flushMedicalReadings: $e');
         hasErrors = true;
       }
 
       try {
         await _flushDailyActivity();
       } catch (e) {
-        debugPrint('[OfflineSync] Error en _flushDailyActivity: $e');
+        AppLog.d('[OfflineSync] Error en _flushDailyActivity: $e');
         hasErrors = true;
       }
 
@@ -166,7 +191,7 @@ class OfflineSyncService {
       await _db.purgeSyncedData(); // Purga automática de registros antiguos sincronizados
       lastSync = DateTime.now();
     } catch (e) {
-      debugPrint('[OfflineSync] Error en flush: $e');
+      AppLog.d('[OfflineSync] Error en flush: $e');
     } finally {
       _syncing = false;
     }
@@ -267,9 +292,9 @@ class OfflineSyncService {
           sessionIds: sessionIds,
           alertIds: alertIds,
         );
-        debugPrint('[OfflineSync] Ingestión exitosa del lote $clientBatchId');
+        AppLog.d('[OfflineSync] Ingestión exitosa del lote $clientBatchId');
       } else {
-        debugPrint('[OfflineSync] Lote $clientBatchId con errores (se reintenta).');
+        AppLog.d('[OfflineSync] Lote $clientBatchId con errores (se reintenta).');
       }
     } on DioException catch (e) {
       AppLog.d('[OfflineSync] Error HTTP en Ingestion '
@@ -282,7 +307,7 @@ class OfflineSyncService {
           sessionIds: sessionIds,
           alertIds: alertIds,
         );
-        debugPrint('[OfflineSync] Lote $clientBatchId resuelto (Código ${e.response?.statusCode}).');
+        AppLog.d('[OfflineSync] Lote $clientBatchId resuelto (Código ${e.response?.statusCode}).');
       } else {
         rethrow;
       }
@@ -333,22 +358,20 @@ class OfflineSyncService {
     for (final row in validReadings) {
       final rawTs = (row['timestamp'] as String?) ?? '';
       final hrRaw = ((row['heart_rate'] as num?)?.toDouble() ?? 0).round();
-      final validHr = (hrRaw >= 1 && hrRaw <= 260) ? hrRaw.toDouble() : null;
+      // Contract: [Range(30, 250)] en backend C# MedicalReadingRequest
+      final validHr = (hrRaw >= 30 && hrRaw <= 250) ? hrRaw.toDouble() : 70.0;
       final hrvRaw = (row['hrv'] as num?)?.toDouble() ?? 0;
-      final validHrv = (hrvRaw >= 1.0 && hrvRaw <= 300.0) ? hrvRaw : null;
+      // Contract: [Range(0, 300)]
+      final validHrv = (hrvRaw >= 0.0 && hrvRaw <= 300.0) ? hrvRaw : 0.0;
       final spo2Raw = (row['spo2'] as num?)?.toDouble() ?? 0;
-      // Mismo placeholder que _toVitalItem: backend no acepta campo faltante.
+      // Contract: [Range(50, 100)]
       final validSpo2 = (spo2Raw >= 50.0 && spo2Raw <= 100.0) ? spo2Raw : 95.0;
       final stepsRaw = (row['steps'] as num?)?.toInt() ?? 0;
-      final validSteps = max(0, stepsRaw);
+      // Contract: [Range(0, 50000)]
+      final validSteps = max(0, min(50000, stepsRaw));
 
       AppLog.d('[OfflineSync] Medical reading id=${row['id']} '
-          'spo2=$spo2Raw→$validSpo2${spo2Raw < 50.0 ? "(placeholder)" : ""}');
-
-      // Descartar registros completamente vacíos (sin signos vitales y 0 pasos)
-      if (validHr == null && validHrv == null && validSteps == 0) {
-        continue;
-      }
+          'hr=$hrRaw→$validHr hrv=$hrvRaw→$validHrv spo2=$spo2Raw→$validSpo2 steps=$stepsRaw→$validSteps');
 
       batch.add(MedicalReading(
         heartRate: validHr,
@@ -384,7 +407,9 @@ class OfflineSyncService {
           ) ??
           DateTime.now();
       _lastMedicalSync = last;
-      debugPrint('[OfflineSync] Lecturas médicas enviadas: ${batch.length}');
+      // M-05: persistir cursor para que el próximo arranque no reenvíe todo.
+      _persistMedicalSyncCursor();
+      AppLog.d('[OfflineSync] Lecturas médicas enviadas: ${batch.length}');
     } on DioException catch (e) {
       if (e.response?.statusCode == 400) {
         // Validation error, advance cursor to not block queue
@@ -393,7 +418,8 @@ class OfflineSyncService {
             ) ??
             DateTime.now();
         _lastMedicalSync = last;
-        debugPrint('[OfflineSync] Lote médico descartado por HTTP 400.');
+        _persistMedicalSyncCursor(); // M-05
+        AppLog.d('[OfflineSync] Lote médico descartado por HTTP 400.');
       } else {
         AppLog.d('[OfflineSync] Error HTTP enviando lecturas médicas: $e '
             '(se reintenta luego)');
@@ -503,7 +529,7 @@ class OfflineSyncService {
       debugPrint(
           '[OfflineSync] Actividad diaria reportada: ${activeMinutes}min activos / ${sedentaryMinutes}min inactivo / $dailySteps pasos.');
     } catch (e) {
-      debugPrint('[OfflineSync] Error reportando actividad diaria: $e');
+      AppLog.d('[OfflineSync] Error reportando actividad diaria: $e');
     }
   }
 

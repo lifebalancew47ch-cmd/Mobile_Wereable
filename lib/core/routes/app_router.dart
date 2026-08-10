@@ -34,6 +34,7 @@ import 'package:lifebalance/features/dashboard/presentation/screens/individual_d
 
 // Navigation Shell
 import 'package:lifebalance/shared/widgets/main_navigation_shell.dart';
+import 'package:lifebalance/core/security/role_guard.dart';
 
 // Global keys for navigation
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
@@ -161,11 +162,17 @@ final GoRouter appRouter = GoRouter(
         ),
 
         // Tab 3: Admin / Summary
+        // C-02 (fix 07/08/2026): protegida con RoleGuard. Solo usuarios con
+        // rol ADMIN o SUPERADMIN pueden ver esta pantalla. La autorización
+        // real vive en el backend; este guard es defensa en profundidad en UI.
         StatefulShellBranch(
           routes: <RouteBase>[
             GoRoute(
               path: '/admin',
-              builder: (BuildContext context, GoRouterState state) => const AdminSummaryScreen(),
+              builder: (BuildContext context, GoRouterState state) => const RoleGuard(
+                allowedRoles: {'ADMIN', 'SUPERADMIN'},
+                child: AdminSummaryScreen(),
+              ),
             ),
           ],
         ),

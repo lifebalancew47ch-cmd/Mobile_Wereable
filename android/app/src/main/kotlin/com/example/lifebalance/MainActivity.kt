@@ -1,6 +1,9 @@
 package com.example.lifebalance
 
 import android.os.Bundle
+import android.view.WindowManager
+import com.google.android.gms.wearable.MessageClient
+import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import io.flutter.embedding.android.FlutterActivity
@@ -8,11 +11,44 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterActivity(), MessageClient.OnMessageReceivedListener {
 
     private val WEARABLE_EVENT_CHANNEL = "com.example.lifebalance/wearable_sensors"
     private val WEARABLE_SETTINGS_CHANNEL = "com.example.lifebalance/wearable_settings"
     private val NATIVE_FOG_CHANNEL = "com.example.lifebalance/native_fog_sync"
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_SECURE,
+            WindowManager.LayoutParams.FLAG_SECURE
+        )
+        Wearable.getMessageClient(this).addListener(this)
+    }
+
+    override fun onDestroy() {
+        Wearable.getMessageClient(this).removeListener(this)
+        super.onDestroy()
+    }
+
+    override fun onMessageReceived(messageEvent: MessageEvent) {
+        if (messageEvent.path != "/lifebalance/sensors") return
+        val payload = messageEvent.data ?: return
+        if (payload.size > 256 * 1024) return
+
+        val jsonString = String(payload)
+        NativeLog.d("MainActivity", "Direct received sensor batch (${jsonString.length} chars)")
+
+        WearDataBus.emit(jsonString)
+
+        val prefs = applicationContext.getSharedPreferences(
+            "FlutterSharedPreferences",
+            MODE_PRIVATE
+        )
+        prefs.edit().putString("flutter.latest_wear_json", jsonString).apply()
+
+        NativeFogEngine.getInstance(applicationContext).processBatchJson(jsonString)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

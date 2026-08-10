@@ -7,13 +7,19 @@ import '../../core/security/encryption_service.dart';
 class SecureDatabaseService {
   static final SecureDatabaseService instance = SecureDatabaseService._init();
   static Database? _database;
+  static Future<Database>? _initFuture;
 
   SecureDatabaseService._init();
 
   Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _initDB('lifebalance_secure.db');
-    return _database!;
+    if (_database != null && _database!.isOpen) return _database!;
+    _initFuture ??= _initDB('lifebalance_secure.db');
+    try {
+      _database = await _initFuture!;
+      return _database!;
+    } finally {
+      _initFuture = null;
+    }
   }
 
   Future<Database> _initDB(String filePath) async {
@@ -31,10 +37,7 @@ class SecureDatabaseService {
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
         onOpen: (db) async {
-          // journal_mode returns a row — rawQuery, not execute.
           await db.rawQuery('PRAGMA journal_mode = WAL;');
-          // synchronous cannot be changed inside a transaction context on
-          // SQLCipher; ignore the error — it's a perf hint, not critical.
           try { await db.execute('PRAGMA synchronous = NORMAL;'); } catch (_) {}
         },
       );

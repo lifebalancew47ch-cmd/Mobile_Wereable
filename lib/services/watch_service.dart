@@ -15,6 +15,7 @@ class WatchService implements IWatchService {
   final WearableCommunicationService _wearableService = WearableCommunicationService();
   StreamSubscription? _accelSub;
   VitalSign? _latestSign;
+  DateTime? _lastSavedTime;
 
   WatchService() {
     _accelSub = _wearableService.sensorStream.listen((data) {
@@ -25,7 +26,6 @@ class WatchService implements IWatchService {
         spo2: data.spo2,
         steps: data.steps,
         isSedentaryRisk: false,
-        // Antes se descartaban aquí: ahora se persisten para llegar al backend.
         accelX: data.x,
         accelY: data.y,
         accelZ: data.z,
@@ -33,8 +33,25 @@ class WatchService implements IWatchService {
         gyroY: data.gyroY,
         gyroZ: data.gyroZ,
       );
+      _maybeSaveMetricsImmediately();
     });
     startPeriodicSync();
+  }
+
+  void _maybeSaveMetricsImmediately() async {
+    final metrics = _latestSign;
+    if (metrics == null) return;
+    if (metrics.heartRate <= 0 &&
+        metrics.hrv <= 0 &&
+        metrics.spo2 <= 0 &&
+        metrics.steps <= 0) {
+      return;
+    }
+    final now = DateTime.now();
+    if (_lastSavedTime == null || now.difference(_lastSavedTime!).inSeconds >= 60) {
+      _lastSavedTime = now;
+      await SecureDatabaseService.instance.insertVitalSign(metrics);
+    }
   }
 
   @override
@@ -51,8 +68,6 @@ class WatchService implements IWatchService {
     _syncTimer?.cancel();
     _syncTimer = Timer.periodic(interval, (timer) async {
       final metrics = _latestSign;
-      // Evita persistir signos vitales falsos (todos en cero) mientras no
-      // haya integración con Health/sensores de salud del wearable.
       if (metrics == null ||
           (metrics.heartRate <= 0 &&
               metrics.hrv <= 0 &&
@@ -60,6 +75,7 @@ class WatchService implements IWatchService {
               metrics.steps <= 0)) {
         return;
       }
+      _lastSavedTime = DateTime.now();
       await SecureDatabaseService.instance.insertVitalSign(metrics);
     });
   }

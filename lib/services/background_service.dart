@@ -1,7 +1,6 @@
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../core/network/api_client.dart';
 import '../features/gamification/data/gamification_api_service.dart';
 import '../features/ingestion/data/ingestion_api_service.dart';
@@ -70,23 +69,10 @@ class BackgroundService {
     WidgetsFlutterBinding.ensureInitialized();
     DartPluginRegistrant.ensureInitialized();
 
-    // Auditoria 6/08/2026 (C-02): este aislado de background NO comparte
-    // memoria con el aislado principal — dotenv.load() en main.dart no lo
-    // inicializa aquí. Antes, CertificatePinning.isConfigured era siempre
-    // false en background y (por el bug de C-01) el pinning quedaba
-    // fail-open, así que la sincronización de datos de salud en segundo
-    // plano viajaba sin protección real ante MITM. Se carga dotenv también
-    // en este aislado, con el mismo archivo que usa la app principal.
-    try {
-      await dotenv.load(
-        fileName: const String.fromEnvironment(
-          'ENV_FILE',
-          defaultValue: '.env.development',
-        ),
-      );
-    } catch (e) {
-      debugPrint('[BackgroundService] No se pudo cargar dotenv: $e');
-    }
+    // C-01 (fix 07/08/2026): flutter_dotenv eliminado. Las constantes de URL
+    // y los pins TLS se compilan en el binario con --dart-define, por lo que
+    // están disponibles automáticamente en este isolate de background sin
+    // necesidad de cargar ningún archivo en runtime.
 
     if (service is AndroidServiceInstance) {
       service.on('setAsForeground').listen((event) {
@@ -109,18 +95,11 @@ class BackgroundService {
     // activa, el FogEngine de Dart toma el control y sincroniza el conteo con el nativo.
 
     // Sincronización Offline-First hacia la nube (Ingestion + Gamification).
-    final ingestionApi = IngestionApiService(
-      buildSecureDio(_urlFromEnv('INGESTION_API_URL', 'https://ingestion-service-fouo.onrender.com/api/v1')),
-    );
-    final gamificationApi = GamificationApiService(
-      buildSecureDio(_urlFromEnv('GAMIFICATION_API_URL', 'https://gamification-service-9o3z.onrender.com/api/v1')),
-    );
-    final medicalApi = MedicalApiService(
-      buildSecureDio(_urlFromEnv('MEDICAL_API_URL', 'https://medical-service-hb0v.onrender.com/api/v1')),
-    );
-    final sedentaryApi = SedentaryApiService(
-      buildSecureDio(_urlFromEnv('SEDENTARY_API_URL', 'https://sedentary-engine-service.onrender.com/api/v1')),
-    );
+    // C-01: se usan las constantes compiladas en lugar de dotenv.
+    final ingestionApi = IngestionApiService(buildSecureDio(kIngestionApiUrl));
+    final gamificationApi = GamificationApiService(buildSecureDio(kGamificationApiUrl));
+    final medicalApi = MedicalApiService(buildSecureDio(kMedicalApiUrl));
+    final sedentaryApi = SedentaryApiService(buildSecureDio(kSedentaryApiUrl));
     final offlineSync = OfflineSyncService(
       ingestionApi: ingestionApi,
       gamificationApi: gamificationApi,
@@ -128,14 +107,14 @@ class BackgroundService {
       sedentaryApi: sedentaryApi,
     );
     final connectivity = ConnectivityMonitor();
-    // Sincroniza cada 5 minutos y de inmediato al recuperar conexión.
+    // Sincroniza cada 15 minutos y de inmediato al recuperar conexión.
     offlineSync.startPeriodicSync(
-      interval: const Duration(minutes: 5),
+      interval: const Duration(minutes: 15),
       connectivityStream: connectivity.onlineStream,
     );
 
     // Poll SharedPreferences for wearable data from Native Android
-    Timer.periodic(const Duration(minutes: 5), (timer) async {
+    Timer.periodic(const Duration(minutes: 15), (timer) async {
       try {
         final prefs = await SharedPreferences.getInstance();
         final jsonString = prefs.getString('flutter.latest_wear_json');
@@ -164,12 +143,12 @@ class BackgroundService {
               }
             }
           } catch (e) {
-            debugPrint('[BackgroundService] JSON corrupto en SharedPreferences: $e');
+            AppLog.d('[BackgroundService] JSON corrupto en SharedPreferences: $e');
           }
           await prefs.remove('flutter.latest_wear_json');
         }
       } catch (e) {
-        debugPrint('[BackgroundService] Error polling wear data: $e');
+        AppLog.d('[BackgroundService] Error polling wear data: $e');
       }
     });
 
@@ -184,14 +163,6 @@ class BackgroundService {
     deviceRegistration.registerDeviceOnTokenRefresh();
   }
 
-  static String _defaultNotificationsUrl() =>
-      _urlFromEnv('NOTIFICATIONS_API_URL', 'https://lifebalance-notifications-api.onrender.com/api/v1');
-
-  /// Lee la URL desde dotenv (ya cargado al inicio de [onStart] — ver C-02);
-  /// si por algún motivo no está inicializado o falta la clave, cae al valor
-  /// desplegado por defecto.
-  static String _urlFromEnv(String key, String fallback) {
-    if (!dotenv.isInitialized) return fallback;
-    return dotenv.env[key] ?? fallback;
-  }
+  // C-01: constante compilada desde --dart-define=NOTIFICATIONS_API_URL=...
+  static String _defaultNotificationsUrl() => kNotificationsApiUrl;
 }

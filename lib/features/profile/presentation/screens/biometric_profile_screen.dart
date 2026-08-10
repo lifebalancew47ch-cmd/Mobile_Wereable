@@ -5,6 +5,8 @@ import '../../../medical/presentation/providers/medical_provider.dart';
 import '../../../medical/data/medical_api_service.dart';
 import '../../../../core/security/secure_storage.dart';
 import '../../../../core/utils/app_log.dart';
+import '../../../../core/validation/validators.dart';
+import 'package:flutter/services.dart';
 
 class BiometricProfileScreen extends ConsumerStatefulWidget {
   const BiometricProfileScreen({super.key});
@@ -24,6 +26,7 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
   bool _syncing = false;
 
   @override
@@ -65,19 +68,52 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
 
   Future<void> _save() async {
     if (_syncing) return;
+
+    // M-04 (fix 07/08/2026): validación de rango antes de persistir.
+    final heightText = _heightController.text.trim().replaceAll(',', '.');
+    final weightText = _weightController.text.trim().replaceAll(',', '.');
+    final ageText    = _ageController.text.trim();
+
+    final height = heightText.isNotEmpty ? double.tryParse(heightText) : null;
+    final weight = weightText.isNotEmpty ? double.tryParse(weightText) : null;
+    final age    = ageText.isNotEmpty    ? int.tryParse(ageText)       : null;
+
+    if (!(_formKey.currentState?.validate() ?? true)) {
+      return;
+    }
+
+    if (heightText.isNotEmpty && (height == null || height < 50 || height > 280)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Altura inválida (50–280 cm)'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    if (weightText.isNotEmpty && (weight == null || weight < 20 || weight > 300)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Peso inválido (20–300 kg)'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    if (ageText.isNotEmpty && (age == null || age < 1 || age > 120)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Edad inválida (1–120 años)'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
     setState(() => _syncing = true);
 
     try {
-      await _storage.write(key: _kGender, value: _selectedGender ?? '');
-      await _storage.write(key: _kHeightCm, value: _heightController.text.trim());
-      await _storage.write(key: _kWeightKg, value: _weightController.text.trim());
-      await _storage.write(key: _kAge, value: _ageController.text.trim());
+      await _storage.write(key: _kGender,    value: _selectedGender ?? '');
+      await _storage.write(key: _kHeightCm,  value: _heightController.text.trim());
+      await _storage.write(key: _kWeightKg,  value: _weightController.text.trim());
+      await _storage.write(key: _kAge,       value: _ageController.text.trim());
       AppLog.d('[BiometricProfile] Guardado → gender=$_selectedGender '
           'height=${_heightController.text.trim()} '
           'weight=${_weightController.text.trim()} '
           'age=${_ageController.text.trim()}');
     } catch (e) {
-      debugPrint('[BiometricProfile] Error al guardar en SecureStorage: $e');
+      AppLog.d('[BiometricProfile] Error al guardar en SecureStorage: $e');
       if (!mounted) return;
       setState(() => _syncing = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -86,13 +122,15 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
       return;
     }
 
-    // Sincroniza peso y altura con el Medical Data Service (POST /medical/readings)
-    final height = double.tryParse(_heightController.text.trim().replaceAll(',', '.'));
-    final weight = double.tryParse(_weightController.text.trim().replaceAll(',', '.'));
-
-    var cloudMessage = '';
+    // Sincroniza peso y altura con el Medical Data Service (POST /medical/readings).
+    // A-01 (pendiente backend): el endpoint requiere heartRate [30-250] y
+    // spo2 [50-100] como campos obligatorios no-nullable. Se usan valores
+    // fisiológicamente neutros (60 lpm / 95%) hasta que el backend exponga
+    // un endpoint específico de biometría (p.ej. PUT /profile/biometrics)
+    // o haga opcionales esos campos. No modificar sin coordinar con backend.
     final hasHeight = height != null && height > 0;
     final hasWeight = weight != null && weight > 0;
+    var cloudMessage = '';
     if (hasHeight || hasWeight) {
       try {
         final api = ref.read(medicalApiServiceProvider);
@@ -100,8 +138,8 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
           steps: 0,
           weight: hasWeight ? weight : 0,
           height: hasHeight ? height : 0,
-          heartRate: 60, // Dummy requerido por validación del backend (30-250)
-          spo2: 95,      // Dummy requerido por validación del backend (50-100)
+          heartRate: 60, // TODO A-01: eliminar cuando backend acepte null
+          spo2: 95,      // TODO A-01: eliminar cuando backend acepte null
           recordedAtUtc: DateTime.now(),
         ));
         cloudMessage = ' y sincronizados con la nube';
@@ -232,9 +270,12 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(24),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+                  child: Form(
+                    key: _formKey,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
                       const _SectionLabel(label: 'GÉNERO'),
                       Row(
                         children: [
@@ -265,6 +306,8 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
                         hintText: '175',
                         suffixText: 'cm',
                         onChanged: (_) => setState(() {}),
+                        validator: (v) => v != null && v.isNotEmpty ? Validators.doubleInRange(v, min: 50, max: 280, label: 'Altura') : null,
+                        isDecimal: true,
                       ),
                       const SizedBox(height: 24),
 
@@ -274,6 +317,8 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
                         hintText: '70',
                         suffixText: 'kg',
                         onChanged: (_) => setState(() {}),
+                        validator: (v) => v != null && v.isNotEmpty ? Validators.doubleInRange(v, min: 20, max: 300, label: 'Peso') : null,
+                        isDecimal: true,
                       ),
                       const SizedBox(height: 24),
 
@@ -283,6 +328,8 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
                         hintText: '28',
                         suffixIcon: Icons.calendar_today_outlined,
                         onChanged: (_) => setState(() {}),
+                        validator: (v) => v != null && v.isNotEmpty ? Validators.intInRange(v, min: 1, max: 120, label: 'Edad') : null,
+                        isDecimal: false,
                       ),
                       const SizedBox(height: 40),
 
@@ -321,6 +368,7 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
                       ),
                     ],
                   ),
+                ),
                 ),
                 const SizedBox(height: 40),
               ],
@@ -409,6 +457,8 @@ class _BiometricTextField extends StatelessWidget {
   final String? suffixText;
   final IconData? suffixIcon;
   final ValueChanged<String>? onChanged;
+  final FormFieldValidator<String>? validator;
+  final bool isDecimal;
 
   const _BiometricTextField({
     required this.controller,
@@ -416,14 +466,21 @@ class _BiometricTextField extends StatelessWidget {
     this.suffixText,
     this.suffixIcon,
     this.onChanged,
+    this.validator,
+    this.isDecimal = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    return TextFormField(
       controller: controller,
       onChanged: onChanged,
-      keyboardType: TextInputType.number,
+      validator: validator,
+      keyboardType: TextInputType.numberWithOptions(decimal: isDecimal),
+      inputFormatters: [
+        if (isDecimal) FilteringTextInputFormatter.allow(RegExp(r'^\d{0,3}([.,]\d{0,1})?'))
+        else FilteringTextInputFormatter.digitsOnly,
+      ],
       style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
       decoration: InputDecoration(
         hintText: hintText,

@@ -26,13 +26,12 @@ class _SyncStatusScreenState extends ConsumerState<SyncStatusScreen> {
 
   Future<void> _refresh() async {
     final sync = ref.read(offlineSyncControllerProvider);
-    final db = SecureDatabaseService.instance;
     final pending = await sync.pendingCount();
-    final medical = await db.getVitalSignsAfter(DateTime.fromMillisecondsSinceEpoch(0));
+    final medicalPending = await sync.pendingMedicalCount();
     if (!mounted) return;
     setState(() {
       _pending = pending;
-      _pendingMedical = medical.length;
+      _pendingMedical = medicalPending;
       _lastSync = sync.lastSync;
     });
   }

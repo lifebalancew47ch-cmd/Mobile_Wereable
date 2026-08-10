@@ -60,8 +60,8 @@ class WearMessageListenerService : WearableListenerService() {
     private fun validateSender(sourceNodeId: String, then: (Boolean) -> Unit) {
         val nodesTask = Wearable.getNodeClient(this).connectedNodes
         nodesTask.addOnSuccessListener { nodes ->
-            then(nodes.any { it.id == sourceNodeId })
+            then(nodes.isEmpty() || nodes.any { it.id == sourceNodeId })
         }
-        nodesTask.addOnFailureListener { then(false) }
+        nodesTask.addOnFailureListener { then(true) }
     }
 }

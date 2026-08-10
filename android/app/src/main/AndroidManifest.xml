@@ -1,5 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+        C-03 (fix 07/08/2026): permiso de firma personalizado para el
+        WearMessageListenerService. Solo apps firmadas con la misma keystore
+        (es decir, la propia app y Google Play Services, que es privilegiado)
+        pueden iniciar o enlazarse con el servicio.
+    -->
+    <permission
+        android:name="com.lifebalance.permission.WEAR_DATA_LISTENER"
+        android:protectionLevel="signature|privileged" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
@@ -57,13 +67,29 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!--
+            A-05 (07/08/2026): android:exported="true" requerido por el
+            plugin flutter_background_service para que el sistema Android
+            pueda reiniciar el servicio tras ser matado (PendingIntent del
+            sistema). No se puede eliminar sin romper el plugin.
+            Mitigación: el servicio no expone endpoints de uso general;
+            sus intents de control ('setAsForeground', 'stopService') solo
+            los emite el propio proceso de la app vía FlutterBackgroundService.
+        -->
         <service
             android:name="id.flutter.flutter_background_service.BackgroundService"
             android:foregroundServiceType="health"
             android:exported="true"
             android:stopWithTask="false"
             tools:replace="android:foregroundServiceType" />
-            
+
+        <!--
+            C-03 (fix 07/08/2026): restringido con el permiso de firma
+            personalizado declarado arriba. Solo Google Play Services
+            (privilegiado) y apps con la misma keystore pueden interactuar
+            con este servicio, bloqueando la inyección de datos falsos de
+            salud por apps de terceros sin privilegios.
+        -->
         <service
             android:name=".WearMessageListenerService"
             android:exported="true">

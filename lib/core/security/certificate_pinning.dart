@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'spki_extractor.dart';
 
@@ -31,17 +30,49 @@ class CertificatePinning {
   }
 
   static List<String> _loadPins() {
-    final raw =
-        dotenv.isInitialized ? (dotenv.env['PINNED_CERT_SHA256'] ?? '') : '';
-    return raw
+    // C-01 (fix 07/08/2026): pin inyectado en tiempo de compilación con
+    //   --dart-define=PINNED_CERT_SHA256=AB:CD:...,EF:01:...
+    // Al estar compilado en el binario no es extraíble como texto del APK.
+    // En debug/profile no se necesita (validateCertificate devuelve true
+    // en kDebugMode/kProfileMode). En release sin --dart-define, la lista
+    // queda vacía → fail-closed (ninguna conexión pasa).
+    //
+    // M-06 (fix 07/08/2026): se recomienda configurar ≥ 2 pins (leaf + CA
+    // intermediaria). Si solo se detecta 1, se emite un aviso en debug para
+    // que el equipo lo corrija antes de release.
+    const raw = String.fromEnvironment('PINNED_CERT_SHA256', defaultValue: '');
+    final pins = raw
         .split(',')
         .map((pin) => pin.trim().replaceAll(':', '').toUpperCase())
         .where((pin) => pin.isNotEmpty)
         .toList();
+
+    if ((kDebugMode || kProfileMode) && pins.length == 1) {
+      // ignore: avoid_print
+      print('[CertificatePinning] ⚠️  Solo 1 pin configurado. '
+          'Configura al menos 2 (leaf + CA intermediaria) en '
+          'PINNED_CERT_SHA256 para evitar un punto único de fallo.');
+    }
+
+    return pins;
   }
 
   /// True si hay al menos un pin configurado en el entorno.
   static bool get isConfigured => _pins.isNotEmpty;
+
+  /// M-06 (fix 07/08/2026): true si hay ≥ 2 pins configurados.
+  ///
+  /// Un único pin crea un punto único de fallo: si el proveedor rota la clave
+  /// pública (no solo el certificado) todos los usuarios quedan sin servicio
+  /// hasta que se publique una nueva versión. La práctica recomendada
+  /// (OWASP MASVS-NETWORK-2) es siempre configurar al menos el certificado
+  /// activo del servidor Y la CA intermediaria de respaldo.
+  ///
+  /// Para LifeBalance esto significa pasar dos hashes en PINNED_CERT_SHA256:
+  ///   --dart-define=PINNED_CERT_SHA256=<leaf_sha256>,<intermediate_ca_sha256>
+  ///
+  /// Si se detecta un único pin en modo debug/profile se emite un warning.
+  static bool get hasBackupPin => _pins.length >= 2;
 
   /// Callback usado por dio (badCertificateCallback).
   /// Se invoca SOLO cuando el certificado no valida contra la CA raíz;
