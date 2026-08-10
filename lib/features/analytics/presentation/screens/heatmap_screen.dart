@@ -241,11 +241,20 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
   }
 
   Widget _buildHeader() {
+    final canPop = Navigator.canPop(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Row(
           children: [
+            if (canPop) ...[
+              IconButton(
+                icon: const Icon(Icons.arrow_back, color: Color(0xFF3E6F58)),
+                onPressed: () => Navigator.maybePop(context),
+                tooltip: 'Regresar',
+              ),
+              const SizedBox(width: 4),
+            ],
             const CircleAvatar(
               radius: 18,
               backgroundColor: Color(0xFF3E6F58),
@@ -253,7 +262,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
             ),
             const SizedBox(width: 12),
             const Text(
-              'LifeBalance',
+              'Mapa de calor',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -265,6 +274,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
         IconButton(
           onPressed: () => _pickDate(),
           icon: const Icon(Icons.calendar_month, color: Color(0xFF3E6F58)),
+          tooltip: 'Seleccionar fecha',
         ),
       ],
     );

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,14 +20,55 @@ class ExecutiveDashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<ExecutiveDashboardScreen> createState() => _ExecutiveDashboardScreenState();
 }
 
-class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScreen> {
+class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScreen>
+    with WidgetsBindingObserver {
   static const int _goalPauses = 5;
+  static const Duration _autoRefreshInterval = Duration(seconds: 30);
+
   Future<Map<String, dynamic>>? _statsFuture;
+  DateTime? _lastUpdated;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _statsFuture = _loadLocalStats();
+    _lastUpdated = DateTime.now();
+    _autoRefreshTimer = Timer.periodic(_autoRefreshInterval, (_) => _refresh(showSpinner: false));
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // El servicio en segundo plano sigue registrando sesiones/alertas
+    // mientras la app está en background; al volver a primer plano hay que
+    // refrescar para que la vista no muestre datos obsoletos.
+    if (state == AppLifecycleState.resumed) {
+      _refresh(showSpinner: false);
+    }
+  }
+
+  /// Recarga estadísticas locales y datos de nube. Se usa tanto para el
+  /// pull-to-refresh manual como para el refresco automático periódico y
+  /// el refresco al volver del background.
+  Future<void> _refresh({bool showSpinner = true}) async {
+    if (showSpinner && mounted) {
+      setState(() => _statsFuture = _loadLocalStats());
+    } else {
+      _statsFuture = _loadLocalStats();
+    }
+    ref.invalidate(dashboardDataProvider);
+    ref.invalidate(profileProvider);
+    await _statsFuture;
+    if (!mounted) return;
+    setState(() => _lastUpdated = DateTime.now());
   }
 
   @override
@@ -80,59 +122,167 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
           const SizedBox(width: 8),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
+      body: RefreshIndicator(
+        color: const Color(0xFF3E6F58),
+        onRefresh: () => _refresh(),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              const SizedBox(height: 16),
+              _buildDynamicWelcomeBanner(userName),
+              const SizedBox(height: 8),
+              _buildLastUpdatedRow(),
+              const SizedBox(height: 12),
+              _buildWearableStatus(wearableState),
+              const SizedBox(height: 24),
+              StreamBuilder<FogState>(
+                stream: fogEngine.stateStream,
+                builder: (context, snapshot) {
+                  final state = snapshot.data ?? FogState(
+                    status: ActivityStatus.active,
+                    inactiveMinutes: 0,
+                    lastMovement: DateTime.now(),
+                  );
+                  final score = (state.inactiveMinutes / alertSettings.intervalMinutes)
+                      .clamp(0.0, 1.0);
+                  final label = _riskLabel(state.inactiveMinutes);
+
+                  return Column(
+                    children: [
+                      _buildScoreGauge(score, state.inactiveMinutes, label),
+                      const SizedBox(height: 24),
+                      _buildTrendPill(),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 40),
+
+              FutureBuilder<Map<String, dynamic>>(
+                future: _statsFuture,
+                builder: (context, statsSnapshot) {
+                  if (statsSnapshot.connectionState == ConnectionState.waiting &&
+                      !statsSnapshot.hasData) {
+                    return _buildMetricsGridSkeleton();
+                  }
+
+                  final stats = statsSnapshot.data ?? {'active': 0, 'idle': 0, 'alerts': 0, 'todaySessions': 0, 'steps': 0, 'heartRate': 0.0};
+
+                  // Sobrescribir stats locales con datos EN VIVO del wearable si existen
+                  final live = liveSensor.value ?? wearableState.lastSample;
+                  if (live != null) {
+                    if (live.steps > 0) stats['steps'] = live.steps;
+                    if (live.heartRate > 0) stats['heartRate'] = live.heartRate;
+                  }
+
+                  return dashboardAsync.when(
+                    loading: () => _buildMetricsGrid(stats),
+                    error: (_, __) => Column(
+                      children: [
+                        _buildCloudErrorBanner('No se pudo conectar con el servidor'),
+                        const SizedBox(height: 16),
+                        _buildMetricsGrid(stats),
+                      ],
+                    ),
+                    data: (data) => Column(
+                      children: [
+                        if (data.hasError) ...[
+                          _buildCloudErrorBanner(data.error!),
+                          const SizedBox(height: 16),
+                        ],
+                        _buildMetricsGrid(stats, dashboard: data),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLastUpdatedRow() {
+    final updated = _lastUpdated;
+    final label = updated == null
+        ? 'Actualizando…'
+        : 'Actualizado ${updated.hour.toString().padLeft(2, '0')}:${updated.minute.toString().padLeft(2, '0')}:${updated.second.toString().padLeft(2, '0')}';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Icon(Icons.update, size: 12, color: Colors.grey.shade500),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(width: 10),
+          GestureDetector(
+            onTap: () => _refresh(),
+            child: Text(
+              'Actualizar',
+              style: TextStyle(
+                fontSize: 10,
+                color: const Color(0xFF3E6F58),
+                fontWeight: FontWeight.bold,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCloudErrorBanner(String message) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF3EB),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFD68C5E).withValues(alpha: 0.3)),
+        ),
+        child: Row(
           children: [
-            const SizedBox(height: 16),
-            _buildDynamicWelcomeBanner(userName),
-            const SizedBox(height: 16),
-            _buildWearableStatus(wearableState),
-            const SizedBox(height: 24),
-            StreamBuilder<FogState>(
-              stream: fogEngine.stateStream,
-              builder: (context, snapshot) {
-                final state = snapshot.data ?? FogState(
-                  status: ActivityStatus.active,
-                  inactiveMinutes: 0,
-                  lastMovement: DateTime.now(),
-                );
-                final score = (state.inactiveMinutes / alertSettings.intervalMinutes)
-                    .clamp(0.0, 1.0);
-                final label = _riskLabel(state.inactiveMinutes);
-
-                return Column(
-                  children: [
-                    _buildScoreGauge(score, state.inactiveMinutes, label),
-                    const SizedBox(height: 24),
-                    _buildTrendPill(),
-                  ],
-                );
-              },
+            const Icon(Icons.cloud_off, size: 16, color: Color(0xFFD68C5E)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Mostrando datos locales · $message',
+                style: const TextStyle(fontSize: 11, color: Color(0xFF8A6A4A), fontWeight: FontWeight.w600),
+              ),
             ),
-            const SizedBox(height: 40),
-
-            FutureBuilder<Map<String, dynamic>>(
-              future: _statsFuture,
-              builder: (context, statsSnapshot) {
-                final stats = statsSnapshot.data ?? {'active': 0, 'idle': 0, 'alerts': 0, 'todaySessions': 0, 'steps': 0, 'heartRate': 0.0};
-                
-                // Sobrescribir stats locales con datos EN VIVO del wearable si existen
-                final live = liveSensor.value ?? wearableState.lastSample;
-                if (live != null) {
-                  if (live.steps > 0) stats['steps'] = live.steps;
-                  if (live.heartRate > 0) stats['heartRate'] = live.heartRate;
-                }
-
-                return dashboardAsync.when(
-                  loading: () => _buildMetricsGrid(stats),
-                  error: (_, __) => _buildMetricsGrid(stats),
-                  data: (data) => _buildMetricsGrid(stats, dashboard: data),
-                );
-              },
-            ),
-            const SizedBox(height: 40),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildMetricsGridSkeleton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        children: List.generate(3, (row) {
+          return Padding(
+            padding: EdgeInsets.only(bottom: row == 2 ? 0 : 16),
+            child: Row(
+              children: [
+                Expanded(child: _ShimmerBox(height: 108)),
+                const SizedBox(width: 16),
+                Expanded(child: _ShimmerBox(height: 108)),
+              ],
+            ),
+          );
+        }),
       ),
     );
   }
@@ -668,6 +818,47 @@ class _ExecutiveDashboardScreenState extends ConsumerState<ExecutiveDashboardScr
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Placeholder animado ("shimmer") mostrado mientras se cargan las
+/// estadísticas locales por primera vez, en vez de tarjetas en ceros.
+class _ShimmerBox extends StatefulWidget {
+  final double height;
+
+  const _ShimmerBox({required this.height});
+
+  @override
+  State<_ShimmerBox> createState() => _ShimmerBoxState();
+}
+
+class _ShimmerBoxState extends State<_ShimmerBox> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final t = _controller.value;
+        return Container(
+          height: widget.height,
+          decoration: BoxDecoration(
+            color: Color.lerp(const Color(0xFFF0F5F2), const Color(0xFFE2EAE6), t),
+            borderRadius: BorderRadius.circular(16),
+          ),
+        );
+      },
     );
   }
 }

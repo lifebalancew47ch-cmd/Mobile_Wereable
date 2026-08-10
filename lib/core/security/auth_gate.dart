@@ -70,6 +70,38 @@ class _AuthGateState extends State<AuthGate> {
     });
   }
 
+  /// Salida de emergencia: si por lo que sea (bug de plataforma, hardware
+  /// biométrico que deja de responder, etc.) el usuario no puede completar
+  /// la autenticación, esto evita quedar encerrado fuera de su propia app
+  /// para siempre. Requiere una confirmación explícita para no anular el
+  /// bloqueo por un toque accidental.
+  Future<void> _disableLockAndContinue() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Desactivar bloqueo'),
+        content: const Text(
+          'Esto desactivará el bloqueo por huella/rostro/PIN al abrir la app. '
+          'Podrás volver a activarlo desde Ajustes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Desactivar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await AppLockPreferences.setBiometricLockEnabled(false);
+    if (!mounted) return;
+    context.go('/dashboard');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -79,12 +111,24 @@ class _AuthGateState extends State<AuthGate> {
           children: [
             const Icon(Icons.security, size: 80, color: Colors.blue),
             const SizedBox(height: 20),
-            Text(_authMessage, style: const TextStyle(fontSize: 16)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                _authMessage,
+                style: const TextStyle(fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+            ),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _authenticate,
               child: const Text('Autenticar'),
-            )
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: _disableLockAndContinue,
+              child: const Text('No puedo autenticarme · Desactivar bloqueo'),
+            ),
           ],
         ),
       ),

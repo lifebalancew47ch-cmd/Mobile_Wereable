@@ -15,6 +15,16 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+        Mismo patrón que WearMessageListenerService en el teléfono (fix C-03):
+        solo el propio par de apps (firmadas con la misma keystore) o Google
+        Play Services (privilegiado) pueden entregar datos a los listeners
+        expuestos por la Wearable API.
+    -->
+    <permission
+        android:name="com.lifebalance.permission.WEAR_DATA_LISTENER"
+        android:protectionLevel="signature|privileged" />
+
     <application
         android:allowBackup="false"
         android:fullBackupContent="false"
@@ -49,9 +59,16 @@
             android:foregroundServiceType="connectedDevice|health">
         </service>
 
+        <!--
+          Mismo hallazgo que A-08/A-09 en SensorService/WearMessageListener:
+          exported=true sin permiso permitía que cualquier app del reloj
+          empujara un DataItem falso a esta ruta y alterara el umbral de
+          alerta de sedentarismo. Restringido con el permiso de firma.
+        -->
         <service
             android:name=".WearSettingsListenerService"
-            android:exported="true">
+            android:exported="true"
+            android:permission="com.lifebalance.permission.WEAR_DATA_LISTENER">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
                 <data android:scheme="wear" android:host="*"

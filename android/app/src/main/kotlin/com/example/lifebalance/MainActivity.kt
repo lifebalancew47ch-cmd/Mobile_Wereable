@@ -6,12 +6,18 @@ import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity(), MessageClient.OnMessageReceivedListener {
+// FlutterFragmentActivity (no FlutterActivity): el plugin local_auth exige
+// que la Activity anfitriona sea una FragmentActivity para poder mostrar el
+// BiometricPrompt nativo (huella/rostro/PIN). Con FlutterActivity plano,
+// authenticate() fallaba de inmediato con PlatformException(no_fragment_activity)
+// sin llegar a pintar el diálogo del sistema, dejando al usuario sin forma de
+// pasar la pantalla de bloqueo tras activarlo en Ajustes.
+class MainActivity : FlutterFragmentActivity(), MessageClient.OnMessageReceivedListener {
 
     private val WEARABLE_EVENT_CHANNEL = "com.example.lifebalance/wearable_sensors"
     private val WEARABLE_SETTINGS_CHANNEL = "com.example.lifebalance/wearable_settings"

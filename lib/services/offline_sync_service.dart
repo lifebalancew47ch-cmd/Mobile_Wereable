@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/datasources/secure_database_service.dart';
 import '../features/ingestion/data/ingestion_api_service.dart';
@@ -589,7 +588,10 @@ class OfflineSyncService {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_kLastReportedDayKey, dayKey);
       } catch (_) {}
-      debugPrint(
+      // A-02: métricas de actividad son datos de salud del usuario; usar
+      // AppLog (no-op fuera de kDebugMode) en vez de debugPrint (que sí
+      // escribe a logcat en release).
+      AppLog.d(
           '[OfflineSync] Actividad diaria reportada (Sedentary + Ingestion): ${activeMinutes}min activos / ${sedentaryMinutes}min inactivo / $dailySteps pasos / ${caloriesBurned.toStringAsFixed(1)} kcal.');
     } catch (e) {
       AppLog.d('[OfflineSync] Error reportando actividad diaria: $e');
