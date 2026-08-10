@@ -71,9 +71,10 @@ class DashboardApiService {
   }
 
   /// El backend envuelve el objeto en `{userId, rewards: {...}}`.
-  Future<Map<String, dynamic>> getIndividualRewards() async {
+  Future<DashboardRewards> getIndividualRewards() async {
     final data = await _getData('/dashboard/individual/rewards');
-    return (data['rewards'] as Map?)?.cast<String, dynamic>() ?? data;
+    final rewardsMap = (data['rewards'] as Map?)?.cast<String, dynamic>() ?? data;
+    return DashboardRewards.fromJson(rewardsMap);
   }
 
   /// Estado general del sistema (GET /dashboard/system, público).

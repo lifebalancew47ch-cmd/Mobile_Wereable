@@ -58,8 +58,8 @@ class IndividualDashboardScreen extends ConsumerWidget {
                     _buildGoalsCard(theme, data.goals),
                     const SizedBox(height: 16),
                   ],
-                  if (data.rewards.isNotEmpty) ...[
-                    _buildRewardsCard(theme, data.rewards),
+                  if (data.rewards != null) ...[
+                    _buildRewardsCard(theme, data.rewards!),
                     const SizedBox(height: 16),
                   ],
                   if (!data.hasAnyData)
@@ -345,20 +345,16 @@ class IndividualDashboardScreen extends ConsumerWidget {
 
   // Campos reales de UserRewardsResponseDto: points, badgesUnlocked,
   // currentStreakDays, recentRewards (no "level"/"totalPoints"/"badges").
-  Widget _buildRewardsCard(ThemeData theme, Map<String, dynamic> rewards) {
-    final points = rewards['points'];
-    final badges = rewards['badgesUnlocked'];
-    final streak = rewards['currentStreakDays'];
+  Widget _buildRewardsCard(ThemeData theme, DashboardRewards rewards) {
     return _sectionCard(
       theme,
       title: 'Recompensas',
       icon: Icons.emoji_events,
       child: Row(
         children: [
-          if (points != null)
-            _metric(theme, '$points', 'pts', 'Puntos'),
-          if (badges != null) _metric(theme, '$badges', '', 'Medallas'),
-          if (streak != null) _metric(theme, '$streak', 'días', 'Racha'),
+          _metric(theme, '${rewards.points}', 'pts', 'Puntos'),
+          _metric(theme, '${rewards.badgesUnlocked}', '', 'Medallas'),
+          _metric(theme, '${rewards.currentStreakDays}', 'días', 'Racha'),
         ],
       ),
     );

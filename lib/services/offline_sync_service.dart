@@ -10,6 +10,7 @@ import '../features/medical/data/medical_api_service.dart';
 import '../features/sedentary/data/sedentary_api_service.dart';
 import 'device_identity_service.dart';
 import 'location_service.dart';
+import '../core/security/secure_storage.dart';
 import '../core/utils/app_log.dart';
 
 /// Sincronización Offline-First hacia la nube.
@@ -346,6 +347,16 @@ class OfflineSyncService {
 
     final deviceId = await _deviceIdentity.getDeviceId();
 
+    // Biometría guardada del usuario (peso / altura) para cálculo automático de IMC y calorías en backend
+    double userWeight = 0;
+    double userHeight = 0;
+    try {
+      final wStr = await secureStorage.read(key: 'biometric_weight_kg');
+      final hStr = await secureStorage.read(key: 'biometric_height_cm');
+      if (wStr != null) userWeight = double.tryParse(wStr) ?? 0;
+      if (hStr != null) userHeight = double.tryParse(hStr) ?? 0;
+    } catch (_) {}
+
     // GPS bajo demanda (Sección: solo se captura en alertas de sedentarismo,
     // nunca en streaming continuo). Se adjunta la última coordenada conocida
     // si sigue siendo razonablemente reciente; si no hay ninguna o ya expiró,
@@ -371,13 +382,15 @@ class OfflineSyncService {
       final validSteps = max(0, min(50000, stepsRaw));
 
       AppLog.d('[OfflineSync] Medical reading id=${row['id']} '
-          'hr=$hrRaw→$validHr hrv=$hrvRaw→$validHrv spo2=$spo2Raw→$validSpo2 steps=$stepsRaw→$validSteps');
+          'hr=$hrRaw→$validHr hrv=$hrvRaw→$validHrv spo2=$spo2Raw→$validSpo2 steps=$stepsRaw→$validSteps weight=$userWeight height=$userHeight');
 
       batch.add(MedicalReading(
         heartRate: validHr,
         hrv: validHrv,
         spo2: validSpo2,
         steps: validSteps,
+        weight: userWeight,
+        height: userHeight,
         deviceId: deviceId,
         recordedAtUtc: DateTime.tryParse(rawTs) ?? DateTime.now(),
         accelerometerX: (row['accel_x'] as num?)?.toDouble(),
@@ -504,14 +517,37 @@ class OfflineSyncService {
         }
       }
 
-      // Pasos del día: último valor acumulado de vital_signs.
+      // Pasos del día y mapa de calor por hora (24 enteros).
       var dailySteps = 0;
+      final hourlyHeatmap = List<int>.filled(24, 0);
+      final maxStepsPerHour = List<int>.filled(24, 0);
+
       final vitals = await _db.getVitalSignsAfter(
         DateTime(now.year, now.month, now.day),
       );
       for (final row in vitals) {
         final steps = (row['steps'] as num?)?.toInt() ?? 0;
         if (steps > dailySteps) dailySteps = steps;
+
+        final rawTs = row['timestamp'] as String?;
+        if (rawTs != null) {
+          final dt = DateTime.tryParse(rawTs)?.toLocal();
+          if (dt != null && dt.hour >= 0 && dt.hour < 24) {
+            if (steps > maxStepsPerHour[dt.hour]) {
+              maxStepsPerHour[dt.hour] = steps;
+            }
+          }
+        }
+      }
+
+      // Calcular el delta horaria de pasos para el heatmap
+      int previousMax = 0;
+      for (var h = 0; h < 24; h++) {
+        if (maxStepsPerHour[h] > 0) {
+          final delta = maxStepsPerHour[h] - previousMax;
+          hourlyHeatmap[h] = delta > 0 ? delta : 0;
+          previousMax = maxStepsPerHour[h];
+        }
       }
 
       // Calorías quemadas: activeMinutes * 5.0 (o de pasos)
@@ -523,6 +559,7 @@ class OfflineSyncService {
         activeMinutes: activeMinutes.toDouble(),
         sedentaryHours: sedentaryMinutes / 60.0,
         caloriesBurned: caloriesBurned,
+        hourlyHeatmap: hourlyHeatmap,
         recordedAtUtc: now,
       );
 
@@ -539,6 +576,7 @@ class OfflineSyncService {
             'activeMinutes': activeMinutes.toDouble(),
             'sedentaryHours': (sedentaryMinutes / 60.0),
             'caloriesBurned': caloriesBurned,
+            'hourlyHeatmap': hourlyHeatmap,
           },
         );
       } catch (ingestionErr) {

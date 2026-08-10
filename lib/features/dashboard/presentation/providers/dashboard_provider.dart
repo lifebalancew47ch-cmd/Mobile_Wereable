@@ -52,7 +52,7 @@ class IndividualDashboardData {
   final List<int> heatmap;
   final DashboardActivitySnapshot? activity;
   final List<DashboardChallenge> goals;
-  final Map<String, dynamic> rewards;
+  final DashboardRewards? rewards;
 
   const IndividualDashboardData({
     this.progress,
@@ -62,7 +62,7 @@ class IndividualDashboardData {
     this.heatmap = const [],
     this.activity,
     this.goals = const [],
-    this.rewards = const {},
+    this.rewards,
   });
 
   bool get hasAnyData =>
@@ -72,7 +72,7 @@ class IndividualDashboardData {
       activity != null ||
       recommendations.isNotEmpty ||
       goals.isNotEmpty ||
-      rewards.isNotEmpty;
+      rewards != null;
 }
 
 /// Datos extendidos del dashboard individual (progreso, recomendaciones,
@@ -91,7 +91,7 @@ final individualDashboardDataProvider = FutureProvider<IndividualDashboardData>(
     api.getIndividualHeatmap().then<Object?>((v) => v).catchError((_) => <int>[]),
     api.getIndividualActivity().then<Object?>((v) => v).catchError((_) => null),
     api.getIndividualGoals().then<Object?>((v) => v).catchError((_) => <DashboardChallenge>[]),
-    api.getIndividualRewards().then<Object?>((v) => v).catchError((_) => <String, dynamic>{}),
+    api.getIndividualRewards().then<Object?>((v) => v).catchError((_) => null),
   ]);
 
   return IndividualDashboardData(
@@ -102,7 +102,7 @@ final individualDashboardDataProvider = FutureProvider<IndividualDashboardData>(
     heatmap: (results[4] as List?)?.cast<int>() ?? [],
     activity: results[5] as DashboardActivitySnapshot?,
     goals: (results[6] as List?)?.cast<DashboardChallenge>() ?? [],
-    rewards: (results[7] as Map?)?.cast<String, dynamic>() ?? {},
+    rewards: results[7] as DashboardRewards?,
   );
 });
 

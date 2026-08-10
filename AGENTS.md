@@ -137,6 +137,20 @@ Diseño mobile-first (NO página web) previa al login para usuarios sin sesión:
 - **50 Frases Pre-Login**: Tarjeta visual en `LoginScreen` con frases aleatorias orientadas a convencer al usuario de ingresar según la hora, enfocadas en prevención de sedentarismo y salud corporal (sin usar nombre).
 - **50 Frases Post-Login (Bienvenida)**: Banner verde en `ExecutiveDashboardScreen` con inyección dinámica del nombre del usuario (`[Nombre]`) obtenido de `profileProvider`, recomendando movilidad o descanso según la fase.
 
+### 4.6 Especificación Oficial de Consumo (GET Lectura) y Envío (POST Escritura)
+
+#### 📖 Lectura - APIs GET (`DashboardService`)
+Todos los componentes de la interfaz leen desde **`DashboardService`** (`https://lifebalance-dashboard-service.onrender.com/api/v1`):
+- **Panorama Biométrico**: `GET /dashboard/individual` (`biometrics.heartRate`, `biometrics.steps`, `biometrics.bmi`, `biometrics.systolicBp`, `biometrics.diastolicBp`).
+- **Estadísticas de Actividad**: `GET /dashboard/individual/statistics` (`activeHoursThisWeek`, `sedentaryHoursThisWeek`, `averageHeartRate`).
+- **Calorías Hoy & Pasos**: `GET /dashboard/individual/kpis` (`dailySteps`, `caloriesBurned`, `heartRate`, `bmi`).
+- **Actividad por Hora (Heatmap)**: `GET /dashboard/individual/heatmap` (`hourlyHeatmap` - arreglo de 24 enteros).
+- **Recompensas y Racha**: `GET /dashboard/individual/rewards` (`points`, `currentStreakDays`, `badgesUnlocked`).
+
+#### ✍️ Escritura - APIs POST (Reloj / App Móvil)
+- **🟢 Flujo 1 (Signos vitales continuos cada 1–5 min)**: `POST https://medical-service-hb0v.onrender.com/api/v1/medical/readings` (Header `Authorization: Bearer <jwt_token>`). JSON: `heartRate`, `spo2`, `hrv`, `steps`, `weight`, `height`, `systolicBp`, `diastolicBp`, `deviceId`. El backend calcula automáticamente el IMC a partir de `weight` y `height`, y estima calorías/minutos activos.
+- **🟡 Flujo 2 (Resumen diario o tras entrenamiento)**: `POST https://sedentary-engine-service.onrender.com/api/v1/sedentary/activity` (Header `Authorization: Bearer <jwt_token>`). JSON: `dailySteps`, `activeMinutes`, `sedentaryHours`, `caloriesBurned`, `hourlyHeatmap` (24 enteros).
+
 ## 5. Key Components
 
 ### 5.1 Authentication Flow & Network (`features/auth`, `core/network`)

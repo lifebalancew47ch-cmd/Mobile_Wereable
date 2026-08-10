@@ -163,6 +163,7 @@ class DashboardRecommendation {
 class DashboardBiometrics {
   final double bmi;
   final double heartRate;
+  final int steps;
   final double systolicBp;
   final double diastolicBp;
   final double weight;
@@ -171,6 +172,7 @@ class DashboardBiometrics {
   DashboardBiometrics({
     required this.bmi,
     required this.heartRate,
+    this.steps = 0,
     required this.systolicBp,
     required this.diastolicBp,
     required this.weight,
@@ -181,6 +183,7 @@ class DashboardBiometrics {
       DashboardBiometrics(
         bmi: (json['bmi'] as num?)?.toDouble() ?? 0,
         heartRate: (json['heartRate'] as num?)?.toDouble() ?? 0,
+        steps: (json['steps'] as num?)?.toInt() ?? 0,
         systolicBp: (json['systolicBp'] as num?)?.toDouble() ?? 0,
         diastolicBp: (json['diastolicBp'] as num?)?.toDouble() ?? 0,
         weight: (json['weight'] as num?)?.toDouble() ?? 0,
@@ -210,4 +213,29 @@ class DashboardStatistics {
         averageHeartRate: (json['averageHeartRate'] as num?)?.toDouble() ?? 0,
       );
 }
+
+/// Recompensas y Racha individual (GET /dashboard/individual/rewards).
+class DashboardRewards {
+  final int points;
+  final int currentStreakDays;
+  final int badgesUnlocked;
+
+  DashboardRewards({
+    required this.points,
+    required this.currentStreakDays,
+    required this.badgesUnlocked,
+  });
+
+  factory DashboardRewards.fromJson(Map<String, dynamic> json) =>
+      DashboardRewards(
+        points: (json['points'] as num?)?.toInt() ?? 0,
+        currentStreakDays: (json['currentStreakDays'] as num?)?.toInt() ??
+            (json['streakDays'] as num?)?.toInt() ??
+            0,
+        badgesUnlocked: (json['badgesUnlocked'] as num?)?.toInt() ??
+            (json['badgesUnlockedCount'] as num?)?.toInt() ??
+            0,
+      );
+}
+
 
