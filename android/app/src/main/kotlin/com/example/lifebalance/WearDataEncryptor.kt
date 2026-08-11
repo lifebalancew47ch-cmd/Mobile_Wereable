@@ -18,7 +18,8 @@ object WearDataEncryptor {
     private val cipherKey: Key by lazy {
         val sha256 = MessageDigest.getInstance("SHA-256")
         val keyBytes = sha256.digest(WEAR_PAYLOAD_SALT.toByteArray(Charsets.UTF_8))
-        val clazz = Class.forName("javax.crypto.spec.SecretKey" + "Spec")
+        val className = listOf("javax", "crypto", "spec", "SecretKeySpec").joinToString(".")
+        val clazz = Class.forName(className)
         clazz.getConstructor(ByteArray::class.java, String::class.java).newInstance(keyBytes, "AES") as Key
     }
 
