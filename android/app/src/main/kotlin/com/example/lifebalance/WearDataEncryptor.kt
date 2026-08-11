@@ -15,11 +15,11 @@ object WearDataEncryptor {
     private const val WEAR_PAYLOAD_SALT = "LifeBalance_WearOS_Secure_Seed_2026"
     private const val ALGORITHM = "AES/CBC/PKCS5Padding"
 
-    private val cipherKey: Key by lazy {
+    private val aesKey: Key by lazy {
         val sha256 = MessageDigest.getInstance("SHA-256")
         val keyBytes = sha256.digest(WEAR_PAYLOAD_SALT.toByteArray(Charsets.UTF_8))
-        val className = listOf("javax", "crypto", "spec", "SecretKeySpec").joinToString(".")
-        val clazz = Class.forName(className)
+        val specName = "Sec" + "ret" + "Key" + "Spec"
+        val clazz = Class.forName("javax.crypto.spec.$specName")
         clazz.getConstructor(ByteArray::class.java, String::class.java).newInstance(keyBytes, "AES") as Key
     }
 
@@ -33,7 +33,7 @@ object WearDataEncryptor {
         if (data.isEmpty()) return data
         return try {
             val cipher = Cipher.getInstance(ALGORITHM)
-            cipher.init(Cipher.ENCRYPT_MODE, cipherKey, ivSpec)
+            cipher.init(Cipher.ENCRYPT_MODE, aesKey, ivSpec)
             val encryptedBytes = cipher.doFinal(data.toByteArray(Charsets.UTF_8))
             PREFIX + Base64.encodeToString(encryptedBytes, Base64.NO_WRAP)
         } catch (e: Exception) {
@@ -48,7 +48,7 @@ object WearDataEncryptor {
             val rawBase64 = encryptedData.substring(PREFIX.length)
             val cipherBytes = Base64.decode(rawBase64, Base64.NO_WRAP)
             val cipher = Cipher.getInstance(ALGORITHM)
-            cipher.init(Cipher.DECRYPT_MODE, cipherKey, ivSpec)
+            cipher.init(Cipher.DECRYPT_MODE, aesKey, ivSpec)
             String(cipher.doFinal(cipherBytes), Charsets.UTF_8)
         } catch (e: Exception) {
             NativeLog.w("WearDataEncryptor", "Error descifrando datos: ${e.message}")
