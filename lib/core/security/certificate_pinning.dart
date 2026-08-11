@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 
 import 'spki_extractor.dart';
+import '../utils/app_log.dart';
 
 /// Validación estricta de certificados TLS (SSL/TLS Pinning) con
 /// comportamiento fail-closed:
@@ -48,7 +49,7 @@ class CertificatePinning {
         .toList();
 
     if ((kDebugMode || kProfileMode) && pins.length == 1) {
-      debugPrint('[CertificatePinning] ⚠️  Solo 1 pin configurado. '
+      AppLog.d('[CertificatePinning] ⚠️  Solo 1 pin configurado. '
           'Configura al menos 2 (leaf + CA intermediaria) en '
           'PINNED_CERT_SHA256 para evitar un punto único de fallo.');
     }

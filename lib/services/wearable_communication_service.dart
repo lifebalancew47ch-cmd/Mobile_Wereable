@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../core/utils/app_log.dart';
 
@@ -94,7 +93,7 @@ class WearableCommunicationService {
       await _settingsChannel.invokeMethod('syncAlertInterval', {'minutes': minutes});
     } catch (e) {
       // Silenciar: DataClient persiste el dato para sync futuro.
-      debugPrint('[WearSync] Error sincronizando umbral: $e');
+      AppLog.d('[WearSync] Error sincronizando umbral: $e');
     }
   }
 
@@ -107,11 +106,11 @@ class WearableCommunicationService {
       _wearableEventChannel.receiveBroadcastStream().map((event) {
     try {
       final String dataString = event as String;
-      debugPrint('[Wearable] Batch recibido en Dart (${dataString.length} chars)');
+      AppLog.d('[Wearable] Batch recibido en Dart (${dataString.length} chars)');
       final List<dynamic> batch = jsonDecode(dataString);
       return batch.map((item) => item as Map<String, dynamic>).toList();
     } catch (e) {
-      debugPrint('[Wearable] Error parseando lote nativo: $e');
+      AppLog.d('[Wearable] Error parseando lote nativo: $e');
       return <Map<String, dynamic>>[];
     }
   }).asBroadcastStream();

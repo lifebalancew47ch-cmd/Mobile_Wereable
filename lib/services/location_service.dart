@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import '../core/utils/app_log.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -43,7 +43,7 @@ class LocationService {
       lastKnown = coordinate;
       return coordinate;
     } catch (e) {
-      debugPrint('[GPS] Captura fallida: $e');
+      AppLog.d('[GPS] Captura fallida: $e');
       return null;
     }
   }

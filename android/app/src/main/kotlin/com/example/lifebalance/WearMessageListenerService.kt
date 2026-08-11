@@ -48,7 +48,8 @@ class WearMessageListenerService : WearableListenerService() {
                 "FlutterSharedPreferences",
                 android.content.Context.MODE_PRIVATE
             )
-            prefs.edit().putString("flutter.latest_wear_json", jsonString).apply()
+            val encryptedJson = WearDataEncryptor.encrypt(jsonString)
+            prefs.edit().putString("flutter.latest_wear_json", encryptedJson).apply()
 
             // Procesar en el motor nativo de Kotlin para garantizar monitoreo continuo
             // en segundo plano aunque la UI de Flutter esté cerrada o destruida.

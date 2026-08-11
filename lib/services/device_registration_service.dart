@@ -1,8 +1,8 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 import 'dart:async';
 import '../features/notifications/data/datasources/notifications_api_service.dart';
+import '../core/utils/app_log.dart';
 import 'device_identity_service.dart';
 
 /// Provee el token FCM del dispositivo, o `null` si Firebase no está
@@ -35,7 +35,7 @@ class FirebaseMessagingFcmTokenProvider implements FcmTokenProvider {
       }
       return await messaging.getToken();
     } catch (e) {
-      debugPrint('[DeviceRegistration] FCM no disponible: se omite el registro.');
+      AppLog.d('[DeviceRegistration] FCM no disponible: se omite el registro.');
       return null;
     }
   }
@@ -76,14 +76,14 @@ class DeviceRegistrationService {
     try {
       final token = await _fcmTokenProvider.getToken();
       if (token == null || token.isEmpty) {
-        debugPrint('[DeviceRegistration] FCM no disponible: se omite el registro.');
+        AppLog.d('[DeviceRegistration] FCM no disponible: se omite el registro.');
         return;
       }
       final deviceId = await _deviceIdentity.getDeviceId();
       await _notificationsApi.registerDevice(fcmToken: token, deviceId: deviceId);
       _registered = true;
     } catch (e) {
-      debugPrint('[DeviceRegistration] No se pudo registrar: $e');
+      AppLog.d('[DeviceRegistration] No se pudo registrar: $e');
     }
   }
 
@@ -110,7 +110,7 @@ class DeviceRegistrationService {
       await _notificationsApi.registerDevice(fcmToken: token, deviceId: deviceId);
       _registered = true;
     } catch (e) {
-      debugPrint('[DeviceRegistration] No se pudo re-registrar: $e');
+      AppLog.d('[DeviceRegistration] No se pudo re-registrar: $e');
     }
   }
 }

@@ -7,6 +7,7 @@ import '../services/notification_service.dart';
 import '../services/wearable_communication_service.dart';
 import '../data/datasources/secure_database_service.dart';
 import 'filters/clinical_state_classifier.dart';
+import 'utils/app_log.dart';
 
 /// Función top-level invocada en un Isolate secundario (vía [compute]) para
 /// calcular la varianza de las magnitudes del acelerómetro sin bloquear el
@@ -124,7 +125,7 @@ class FogEngine {
       }
       await _nativeFogChannel.invokeMethod('resetIdleWindows');
     } catch (e) {
-      debugPrint('Error syncing with NativeFogEngine: $e');
+      AppLog.d('Error syncing with NativeFogEngine: $e');
     }
 
     _accelSub = _wearableService.accelerometerStream.listen((AccelerometerData data) {
@@ -197,9 +198,9 @@ class FogEngine {
     try {
       await write();
     } catch (e, st) {
-      debugPrint('[FogEngine] Fallo al persistir en SQLite, se encola para reintento: $e\n$st');
+      AppLog.d('[FogEngine] Fallo al persistir en SQLite, se encola para reintento: $e\n$st');
       if (_pendingWrites.length >= _maxPendingWrites) {
-        debugPrint('[FogEngine] Cola de reintento llena ($_maxPendingWrites); se descarta el registro más antiguo.');
+        AppLog.d('[FogEngine] Cola de reintento llena ($_maxPendingWrites); se descarta el registro más antiguo.');
         _pendingWrites.removeAt(0);
       }
       _pendingWrites.add(write);
@@ -351,7 +352,7 @@ class FogEngine {
         ));
       }
     } catch (e, st) {
-      debugPrint('[FogEngine] Error analizando ventana: $e\n$st');
+      AppLog.d('[FogEngine] Error analizando ventana: $e\n$st');
     } finally {
       _windowInFlight = false;
     }

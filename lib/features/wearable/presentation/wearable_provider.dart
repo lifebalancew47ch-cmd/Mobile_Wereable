@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../services/wearable_communication_service.dart';
 import '../../../core/utils/app_log.dart';
@@ -40,7 +39,7 @@ class WearableNotifier extends StateNotifier<WearableState> {
   }
 
   void _initStream() {
-    debugPrint('[Wearable] WearableNotifier suscribiendo sensorStreamThrottled');
+    AppLog.d('[Wearable] WearableNotifier suscribiendo sensorStreamThrottled');
     _sub = _service.sensorStreamThrottled.listen((sample) {
       AppLog.d('[Wearable] Notifier sample: ts=${sample.timestamp} '
           'steps=${sample.steps} hr=${sample.heartRate}');
@@ -57,7 +56,7 @@ class WearableNotifier extends StateNotifier<WearableState> {
         lastSample: sample,
       );
     }, onError: (e) {
-      debugPrint('[Wearable] Notifier error: $e');
+      AppLog.d('[Wearable] Notifier error: $e');
       state = state.copyWith(isConnected: false);
     });
   }
@@ -66,7 +65,7 @@ class WearableNotifier extends StateNotifier<WearableState> {
     _disconnectTimer?.cancel();
     _disconnectTimer = Timer(const Duration(seconds: 15), () {
       if (mounted) {
-        debugPrint('[Wearable] Timeout 15s sin lotes -> Reloj desconectado');
+        AppLog.d('[Wearable] Timeout 15s sin lotes -> Reloj desconectado');
         state = state.copyWith(isConnected: false);
       }
     });

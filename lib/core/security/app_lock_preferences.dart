@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/app_log.dart';
 import 'secure_storage.dart';
 
 /// Preferencia de bloqueo biométrico al reabrir la app (`AuthGate`).
@@ -36,7 +36,7 @@ class AppLockPreferences {
     } catch (e) {
       // Fail-closed: si no se puede leer, tratar como desactivado
       // (no bloquear al usuario fuera de su propia app).
-      debugPrint('[AppLockPreferences] Error leyendo preferencia: $e');
+      AppLog.d('[AppLockPreferences] Error leyendo preferencia: $e');
       return false;
     }
   }
@@ -48,7 +48,7 @@ class AppLockPreferences {
         value: value.toString(),
       );
     } catch (e) {
-      debugPrint('[AppLockPreferences] Error guardando preferencia: $e');
+      AppLog.d('[AppLockPreferences] Error guardando preferencia: $e');
     }
     if (!value) {
       // Si el usuario apaga el bloqueo, no debe quedar una sesión

@@ -18,6 +18,7 @@ import '../data/datasources/secure_database_service.dart';
 import 'device_registration_service.dart';
 import 'dart:ui';
 import '../core/utils/app_log.dart';
+import '../core/security/wear_data_decryptor.dart';
 
 @pragma('vm:entry-point')
 class BackgroundService {
@@ -117,8 +118,9 @@ class BackgroundService {
     Timer.periodic(const Duration(minutes: 15), (timer) async {
       try {
         final prefs = await SharedPreferences.getInstance();
-        final jsonString = prefs.getString('flutter.latest_wear_json');
-        if (jsonString != null && jsonString.isNotEmpty) {
+        final rawJsonString = prefs.getString('flutter.latest_wear_json');
+        if (rawJsonString != null && rawJsonString.isNotEmpty) {
+          final jsonString = WearDataDecryptor.decrypt(rawJsonString);
           try {
             final List<dynamic> batch = jsonDecode(jsonString);
             if (batch.isNotEmpty) {
@@ -139,7 +141,7 @@ class BackgroundService {
                     'hr=${metrics.heartRate} hrv=${metrics.hrv} '
                     'spo2=${metrics.spo2} steps=${metrics.steps}');
               } else {
-                debugPrint('[BackgroundService] VitalSign descartado (todos en 0)');
+                AppLog.d('[BackgroundService] VitalSign descartado (todos en 0)');
               }
             }
           } catch (e) {

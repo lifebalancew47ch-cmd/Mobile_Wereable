@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../services/notification_service.dart';
 import '../../../fog/presentation/providers/fog_providers.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../wearable/presentation/wearable_provider.dart';
@@ -296,6 +297,31 @@ class _AlertSettingsScreenState extends ConsumerState<AlertSettingsScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: const Text('Guardar Configuración', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final ns = NotificationService();
+                await ns.requestPermissions();
+                await ns.showInactivityAlert(_intervalMinutes, enableSound: _alertSound);
+                if (mounted) {
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Notificación de prueba enviada'),
+                      backgroundColor: Color(0xFF3E6F58),
+                    ),
+                  );
+                }
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF3E6F58),
+                side: const BorderSide(color: Color(0xFF3E6F58)),
+                minimumSize: const Size(double.infinity, 52),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.notifications_active_outlined),
+              label: const Text('Probar Alerta Ahora', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
             const SizedBox(height: 40),
           ],

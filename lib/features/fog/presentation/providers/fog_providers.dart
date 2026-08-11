@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/fog_engine.dart';
+import '../../../../core/utils/app_log.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../models/fog_state.dart';
 import '../../../../services/notification_service.dart';
@@ -150,7 +150,7 @@ Future<void> _sendRealAlert(Ref ref, int minutes) async {
           source: 'FogEngine',
         );
   } catch (e) {
-    debugPrint('[FogEngine] No se pudo crear la alerta en la nube (queda solo local): $e');
+    AppLog.d('[FogEngine] No se pudo crear la alerta en la nube (queda solo local): $e');
   }
 }
 
@@ -169,6 +169,6 @@ Future<void> _captureGpsAndSend(Ref ref) async {
           idempotencyKey: 'gps-${gps.capturedAt.millisecondsSinceEpoch}',
         );
   } catch (e) {
-    debugPrint('[GPS] Envío diferido (cola local): $e');
+    AppLog.d('[GPS] Envío diferido (cola local): $e');
   }
 }

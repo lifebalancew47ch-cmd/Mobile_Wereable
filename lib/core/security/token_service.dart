@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/datasources/secure_database_service.dart';
+import '../utils/app_log.dart';
 import 'encryption_service.dart';
 import 'secure_storage.dart';
 import 'session_cleanup.dart';
@@ -69,7 +70,7 @@ class TokenService {
       await SecureDatabaseService.instance.purgeAllData();
       await EncryptionService.clearEncryptionKey();
     } catch (e) {
-      debugPrint('[SessionWiper] Error purgando base de datos cifrada o clave AES: $e');
+      AppLog.d('[SessionWiper] Error purgando base de datos cifrada o clave AES: $e');
     }
 
     // Las claves no-credenciales que otros servicios escriben en

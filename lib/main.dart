@@ -20,6 +20,7 @@ import 'package:lifebalance/data/datasources/secure_database_service.dart';
 import 'package:lifebalance/services/notification_service.dart';
 import 'package:lifebalance/core/security/secure_storage.dart';
 import 'package:lifebalance/core/security/app_lock_preferences.dart';
+import 'package:lifebalance/core/utils/app_log.dart';
 
 /// Handler de mensajes FCM en background/terminado. Debe ser una función
 /// top-level (o estática) anotada `vm:entry-point`: FCM la ejecuta en un
@@ -32,7 +33,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp();
   }
-  debugPrint('[FCM] Push recibido en background: ${message.messageId}');
+  AppLog.d('[FCM] Push recibido en background: ${message.messageId}');
 }
 
 void main() async {
@@ -82,8 +83,10 @@ void main() async {
   // Inicializar Base de Datos Segura
   await SecureDatabaseService.instance.database;
   
-  // Inicializar Notificaciones (requerido para recordatorios)
-  await NotificationService().init();
+  // Inicializar Notificaciones (requerido para recordatorios y alertas emergentes)
+  final notificationService = NotificationService();
+  await notificationService.init();
+  await notificationService.requestPermissions();
 
   runApp(
     const ProviderScope(
@@ -101,7 +104,7 @@ Future<void> _initializeFirebaseSafely() async {
       await Firebase.initializeApp();
     }
   } catch (e) {
-    debugPrint('Firebase no configurado: push remoto desactivado.');
+    AppLog.d('Firebase no configurado: push remoto desactivado.');
   }
 }
 
@@ -117,7 +120,7 @@ Future<void> _initializeCrashlyticsSafely() async {
       return true;
     };
   } catch (e) {
-    debugPrint('Crashlytics no disponible: $e');
+    AppLog.d('Crashlytics no disponible: $e');
   }
 }
 
@@ -198,7 +201,7 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
         ref.invalidate(alertsProvider);
       });
     } catch (e) {
-      debugPrint('[FCM] No se pudo suscribir a mensajes remotos: $e');
+      AppLog.d('[FCM] No se pudo suscribir a mensajes remotos: $e');
     }
   }
 

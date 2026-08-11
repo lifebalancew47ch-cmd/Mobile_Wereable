@@ -51,7 +51,8 @@ class MainActivity : FlutterFragmentActivity(), MessageClient.OnMessageReceivedL
             "FlutterSharedPreferences",
             MODE_PRIVATE
         )
-        prefs.edit().putString("flutter.latest_wear_json", jsonString).apply()
+        val encryptedJson = WearDataEncryptor.encrypt(jsonString)
+        prefs.edit().putString("flutter.latest_wear_json", encryptedJson).apply()
 
         NativeFogEngine.getInstance(applicationContext).processBatchJson(jsonString)
     }

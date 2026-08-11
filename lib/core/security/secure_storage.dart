@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import '../utils/app_log.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Instancia de `flutter_secure_storage` con `encryptedSharedPreferences:
@@ -62,7 +62,7 @@ Future<void> migrateLegacySecureStorageIfNeeded() async {
       await secureStorage.write(key: key, value: legacyValue);
       await _legacySecureStorage.delete(key: key);
     } catch (e) {
-      debugPrint('[SecureStorageMigration] No se pudo migrar "$key": $e');
+      AppLog.d('[SecureStorageMigration] No se pudo migrar "$key": $e');
     }
   }
 }

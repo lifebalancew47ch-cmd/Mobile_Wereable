@@ -19,12 +19,42 @@ class NotificationService {
     const InitializationSettings initializationSettings =
         InitializationSettings(android: initializationSettingsAndroid);
     await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+    final androidPlugin = flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+
+    if (androidPlugin != null) {
+      const AndroidNotificationChannel inactivityChannel = AndroidNotificationChannel(
+        'inactivity_alert_channel',
+        'Alertas de Sedentarismo',
+        description: 'Alertas emergentes de sedentarismo e inactividad física prolongada',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+      );
+
+      const AndroidNotificationChannel remotePushChannel = AndroidNotificationChannel(
+        'remote_push_channel',
+        'Avisos del Servidor',
+        description: 'Notificaciones y alertas enviadas desde el servidor de LifeBalance',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      );
+
+      await androidPlugin.createNotificationChannel(inactivityChannel);
+      await androidPlugin.createNotificationChannel(remotePushChannel);
+    }
+
     tz.initializeTimeZones();
   }
 
   Future<void> requestPermissions() async {
     if (Platform.isAndroid) {
       await Permission.notification.request();
+      await flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
     }
   }
 

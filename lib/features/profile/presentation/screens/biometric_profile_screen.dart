@@ -54,7 +54,7 @@ class _BiometricProfileScreenState extends ConsumerState<BiometricProfileScreen>
         _ageController.text = age ?? '';
       });
     } catch (e) {
-      debugPrint('[BiometricProfile] Error al cargar desde SecureStorage: $e');
+      AppLog.d('[BiometricProfile] Error al cargar desde SecureStorage: $e');
     }
   }
 
