@@ -8,15 +8,15 @@ import '../utils/app_log.dart';
 /// nativa de Android (prevención de fugas de datos de salud en SharedPreferences).
 abstract final class WearDataDecryptor {
   static const String prefix = 'enc:';
-  static const String _secretSeed = 'LifeBalance_WearOS_Secure_Secret_Key_2026';
+  static const String _wearPayloadSalt = 'LifeBalance_WearOS_Secure_Seed_2026';
 
   static Uint8List get _keyBytes {
-    final sha256Bytes = sha256.convert(utf8.encode(_secretSeed)).bytes;
+    final sha256Bytes = sha256.convert(utf8.encode(_wearPayloadSalt)).bytes;
     return Uint8List.fromList(sha256Bytes);
   }
 
   static Uint8List get _ivBytes {
-    final sha256Bytes = sha256.convert(utf8.encode('${_secretSeed}_IV')).bytes;
+    final sha256Bytes = sha256.convert(utf8.encode('${_wearPayloadSalt}_IV')).bytes;
     return Uint8List.fromList(sha256Bytes.sublist(0, 16));
   }
 
